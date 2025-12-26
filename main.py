@@ -244,7 +244,7 @@ async def plan_month_callback(callback: CallbackQuery):
                 cur.execute('SELECT key FROM keys WHERE duration = 30 AND SOLD = 0 ORDER BY RANDOM() LIMIT 1')
                 result = cur.fetchone() # получить результат из базы данных
                 if result:
-                    await callback.message.answer(f"🙋🏻‍♂️ ВАШ КЛЮЧ:\n<code>{result[0]}</code> \n\n<b>⌛Срок действия: 30 дней</b>\n🧐 Гайд на установку:", parse_mode='HTML')
+                    await callback.message.answer(f"🙋🏻‍♂️ ВАШ КЛЮЧ:\n<code>{result[0]}</code> \n\n<b>⌛Срок действия: 30 дней</b>\n🧐 Гайд на установку: https://telegra.ph/Instrukciya-kak-podklyuchitsya-k-VPN-12-22", parse_mode='HTML')
                     cur.execute('UPDATE keys SET SOLD = 1 WHERE key = ?', (result[0],)) # обновить статус ключа в базе данных
                     cur.execute('UPDATE keys SET buyer_id = ? WHERE key = ?', (callback.from_user.id, result[0])) # обновить ID покупателя в базе данных
                     con.commit() # сохранить изменения в базе данных
@@ -270,7 +270,7 @@ async def my_keys_callback(callback: CallbackQuery):
         if result:
             await callback.message.answer_photo(FSInputFile("photos/my_keys.png"), caption=f"🔗 Мои ключи:", parse_mode='HTML', reply_markup=ikb_my_keys)
         else:
-            await callback.message.answer("🔗 У вас нет ключей. Купите ключ и используйте его.", parse_mode='HTML', reply_markup=ikb_plans)
+            await callback.message.answer_photo(FSInputFile("photos/my_keys.png"), caption="🔗 У вас нет ключей. Купите ключ и используйте его.", parse_mode='HTML', reply_markup=ikb_plans)
 
 @dp.callback_query(lambda c: c.data.startswith('use_key_'))
 async def use_key_callback(callback: CallbackQuery):
