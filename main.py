@@ -1,8 +1,7 @@
-from email import message
 import aiogram
 from aiogram import Bot, Dispatcher, types
 from aiogram.filters import CommandStart
-from aiogram.types import Message, CallbackQuery, invoice
+from aiogram.types import Message, CallbackQuery, invoice, LabeledPrice, FSInputFile
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 import asyncio # для работы с асинхронными функциями
 import sqlite3 as sq
@@ -17,7 +16,7 @@ rub_to_usdt = rub_to_usdt.json()['conversion_rates']['RUB']
 dotenv.load_dotenv() # загружаем переменные окружения
 
 bot = Bot(token=os.getenv('BOT_TOKEN')) # объект бота
-API_TOKEN = os.getenv('CRYPTO_API_TOKEN') # это криптобот
+API_TOKEN = os.getenv('CRYPTO_BOT_API_TOKEN') # это криптобот
 
 dp = Dispatcher() # объект диспетчера
 
@@ -49,7 +48,7 @@ async def start_command(message):
                 cur.execute('UPDATE users SET ref_amount = ref_amount + 1 WHERE id = ?', (ref,))
             con.commit()
 
-    await message.answer("""👋 Добро пожаловать в Кофеманию
+    await message.answer_photo(FSInputFile("photos/welcome.png"), caption="""👋 Добро пожаловать в Кофеманию
     \n🔐 Vless/Xray протоколы
     \n💡 Пополняйте баланс, покупайте VPN и подключайтесь за пару минут
     \n⏳ Доступ выдается сразу после покупки
@@ -85,8 +84,12 @@ ikb = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text='👤 Личный кабинет', callback_data='profile')],
     [InlineKeyboardButton(text='🤝 Пригласить друга', callback_data='referral')],
     [InlineKeyboardButton(text='ℹ️ Поддержка', callback_data='support')],
-    [InlineKeyboardButton(text='📄 Документы', callback_data='documents')]
+    [InlineKeyboardButton(text='📄 Документы', callback_data='documents')],
+    [InlineKeyboardButton(text='⚠️ Баг репорт', callback_data='bug_report')]
 ])
+ikb_back = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text='🔙 Назад', callback_data='back')],
+    ])
 
 ikb_profile = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text='🔗 Мои ключи', callback_data='my_keys')],
@@ -125,7 +128,6 @@ ikb_deposit = InlineKeyboardMarkup(inline_keyboard=[
 ikb_deposit_methods = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text='💳 Криптобот', callback_data='deposit_crypto')],
     [InlineKeyboardButton(text='🍀 СБП', callback_data='deposit_sbp')],
-    [InlineKeyboardButton(text='🌟 Звезды', callback_data='deposit_stars')],
     [InlineKeyboardButton(text='🔙 Назад', callback_data='back')],
 ])
 
@@ -144,7 +146,7 @@ def deposit_keyboard(method):
 async def buy_vpn_callback(callback: CallbackQuery):
     await callback.message.delete()
     await callback.answer("🛒 Раздел покупки VPN") # на пол экрана хуйня высветится
-    await callback.message.answer("🛒 <b>Купить VPN</b>\n\nВыберите тарифный план:", parse_mode='HTML', reply_markup=ikb_plans)
+    await callback.message.answer_photo(FSInputFile("photos/buy_vpn.png"), caption="🛒 <b>Купить VPN</b>\n\nВыберите тарифный план:", parse_mode='HTML', reply_markup=ikb_plans)
 
 @dp.callback_query(lambda c: c.data == 'profile')
 async def profile_callback(callback: CallbackQuery):
@@ -158,13 +160,13 @@ async def profile_callback(callback: CallbackQuery):
         cur.execute("SELECT ref_balance FROM users WHERE id = ?", (callback.from_user.id,)) # вытащить реферальный баланс из базы данных текущего пользователя
         result = cur.fetchone() # получить результат из базы данных
         ref_balance = result[0] if result else 0 # если результат не пустой, то вытащить реферальный баланс, иначе 0
-    await callback.message.answer(f"👤 <b>Личный кабинет</b>\n\n💰 Баланс: {balance} ₽\n💸 Реферальный баланс: {ref_balance} ₽\n🆔 ID: {callback.from_user.id}", parse_mode='HTML', reply_markup=ikb_profile)
+    await callback.message.answer_photo(FSInputFile("photos/profile.png"), caption=f"👤 <b>Личный кабинет</b>\n\n💰 Баланс: {balance} ₽\n💸 Реферальный баланс: {ref_balance} ₽\n🆔 ID: {callback.from_user.id}", parse_mode='HTML', reply_markup=ikb_profile)
 
 @dp.callback_query(lambda c: c.data == 'documents')
 async def documents_callback(callback: CallbackQuery):
     await callback.answer("📄 Документы") # на пол экрана хуйня высветится
     await callback.message.delete()
-    await callback.message.answer("📄 <b>Документы</b>", parse_mode='HTML', reply_markup=ikb_documents)
+    await callback.message.answer_photo(FSInputFile("photos/documents.jpg"), caption="📄 <b>Документы</b>", parse_mode='HTML', reply_markup=ikb_documents)
 
 # ДЛЯ ДОКУМЕНТОВ КОЛБЕК НЕ НУЖЕН, ОНИ ОТКРЫВАЮТСЯ КАК СТАТЬЯ
 
@@ -177,7 +179,7 @@ async def referral_callback(callback: CallbackQuery):
         cur.execute("SELECT ref_amount FROM users WHERE id = ?", (callback.from_user.id,)) # вытащить реферальное количество из базы данных текущего пользователя
         result = cur.fetchone() # получить результат из базы данных
         ref_amount = result[0] if result else 0 # если результат не пустой, то вытащить реферальное количество, иначе 0
-    await callback.message.answer(f"🤝 <b>Пригласить друга</b>\n\nВаша реферальная ссылка:\n<code>https://t.me/coffemaniaVPNbot?start={callback.from_user.id}</code>\n\n👁️ Всего заработано: {ref_amount*50} ₽ \n\n🤔 За каждого приглашенного друга вы получите 50 ₽ на баланс", parse_mode='HTML', reply_markup=ikb_referral)
+    await callback.message.answer_photo(FSInputFile("photos/invite_friend.png"), caption=f"🤝 <b>Пригласить друга</b>\n\nВаша реферальная ссылка:\n<code>https://t.me/coffemaniaVPNbot?start={callback.from_user.id}</code>\n\n👁️ Всего заработано: {ref_amount*50} ₽ \n\n🤔 За каждого приглашенного друга вы получите 50 ₽ на баланс", parse_mode='HTML', reply_markup=ikb_referral)
 
 
 @dp.callback_query(lambda c: c.data == 'support')
@@ -191,7 +193,7 @@ async def support_callback(callback: CallbackQuery):
 async def back_callback(callback: CallbackQuery):
     await callback.answer("🔙 Назад") # на пол экрана хуйня высветится
     await callback.message.delete()
-    await callback.message.answer("""👋 Добро пожаловать в Кофеманию
+    await callback.message.answer_photo(FSInputFile("photos/welcome.png"), caption="""👋 Добро пожаловать в Кофеманию
     \n🔐 Vless/Xray протоколы
     \n💡 Пополняйте баланс, покупайте VPN и подключайтесь за пару минут
     \n⏳ Доступ выдается сразу после покупки
@@ -205,16 +207,20 @@ async def plan_week_callback(callback: CallbackQuery):
 
     with sq.connect('database.db') as con:
         cur = con.cursor()
-        cur.execute('UPDATE users SET balance = balance - 50 WHERE id = ? AND balance >= 50' , (callback.from_user.id,)) # вычесть 100 из баланса текущего пользователя
-        con.commit() # сохранить изменения в базе данных
-        if cur.rowcount > 0:
+        cur.execute('SELECT balance FROM users WHERE id = ?', (callback.from_user.id,))
+        result = cur.fetchone() # получить результат из базы данных
+        balance = result[0] if result else 0 # если результат не пустой, то вытащить баланс, иначе 0
+        # con.commit() # сохранить изменения в базе данных
+        if balance >= 50:
             with sq.connect('database.db') as con:
                 cur = con.cursor()
                 cur.execute('SELECT key FROM keys WHERE duration = 7 AND SOLD = 0 ORDER BY RANDOM() LIMIT 1')
                 result = cur.fetchone() # получить результат из базы данных
-                
+                print(result)
                 if result:
-                    await callback.message.answer(f"🙋🏻‍♂️ ВАШ КЛЮЧ:\n<code>{result[0]}</code> \n\n<b>⌛Срок действия: 7 дней</b>\n🧐 Гайд на установку:", parse_mode='HTML')
+                    cur.execute('UPDATE users SET balance = balance - 50 WHERE id = ? AND balance >= 50' , (callback.from_user.id,)) # вычесть 100 из баланса текущего пользователя
+                    con.commit() # сохранить изменения в базе данных
+                    await callback.message.answer(f"🙋🏻‍♂️ ВАШ КЛЮЧ:\n<code>{result[0]}</code> \n\n<b>⌛Срок действия: 7 дней</b>\n🧐 Гайд на установку: https://telegra.ph/Instrukciya-kak-podklyuchitsya-k-VPN-12-22", parse_mode='HTML')
                     cur.execute('UPDATE keys SET SOLD = 1 WHERE key = ?', (result[0],)) # обновить статус ключа в базе данных
                     cur.execute('UPDATE keys SET buyer_id = ? WHERE key = ?', (callback.from_user.id, result[0])) # обновить ID покупателя в базе данных
                     
@@ -262,7 +268,7 @@ async def my_keys_callback(callback: CallbackQuery):
         for key_id, key in enumerate(result): # перебрать все ключи и вывести их номер
             ikb_my_keys.inline_keyboard.append([InlineKeyboardButton(text=f'🔑 {key_id + 1}', callback_data=f'use_key_{key_id}')])
         if result:
-            await callback.message.answer(f"🔗 Мои ключи:", parse_mode='HTML', reply_markup=ikb_my_keys)
+            await callback.message.answer_photo(FSInputFile("photos/my_keys.png"), caption=f"🔗 Мои ключи:", parse_mode='HTML', reply_markup=ikb_my_keys)
         else:
             await callback.message.answer("🔗 У вас нет ключей. Купите ключ и используйте его.", parse_mode='HTML', reply_markup=ikb_plans)
 
@@ -274,13 +280,14 @@ async def use_key_callback(callback: CallbackQuery):
         cur = con.cursor()
         cur.execute('SELECT key FROM keys WHERE buyer_id = ? ORDER BY RANDOM() LIMIT 1' , (callback.from_user.id,)) # вытащить ключ из базы данных по ID
         result = cur.fetchone() # получить результат из базы данных
-    await callback.message.answer(f"🔑 Использовать ключ: \n\n<code>{result[0]}</code>", parse_mode='HTML')
+    await callback.message.answer(f"🔑 Использовать ключ: \n\n<code>{result[0]}</code>", parse_mode='HTML', reply_markup=ikb_back)
+
 
 @dp.callback_query(lambda c: c.data == 'deposit')
 async def deposit_callback(callback: CallbackQuery):
     await callback.answer("💰 Пополнить") # на пол экрана хуйня высветится
     await callback.message.delete()
-    await callback.message.answer("💰 Выберите способ пополнения:", parse_mode='HTML', reply_markup=ikb_deposit_methods)
+    await callback.message.answer_photo(FSInputFile("photos/deposit.png"), caption="💰 Выберите способ пополнения:", parse_mode='HTML', reply_markup=ikb_deposit_methods)
 
 @dp.callback_query(lambda c: c.data == 'deposit_crypto')
 async def deposit_crypto_callback(callback: CallbackQuery):
@@ -294,12 +301,6 @@ async def deposit_sbp_callback(callback: CallbackQuery):
     await callback.message.delete()
     await callback.message.answer("🍀 Выберите сумму пополнения:", parse_mode='HTML', reply_markup=deposit_keyboard('SBP'))
 
-@dp.callback_query(lambda c: c.data.startswith('deposit_stars'))
-async def deposit_stars_callback(callback: CallbackQuery):
-    await callback.answer("🌟 Звезды") # на пол экрана хуйня высветится
-    await callback.message.delete()
-    await callback.message.answer("🌟 Выберите сумму пополнения:", parse_mode='HTML', reply_markup=deposit_keyboard('TelegramStars'))
-
 @dp.callback_query(lambda c: c.data.startswith('deposit_'))
 async def process_deposit(callback: CallbackQuery):
     _ , sum , method = callback.data.split('_')
@@ -307,7 +308,9 @@ async def process_deposit(callback: CallbackQuery):
     amount = int(sum)
 
     await callback.message.answer(f"💰 Пополнение на {amount} ₽\n\n<b>💳 Способ пополнения: {method}</b> \n\n Создаем заявку...", parse_mode='HTML')
-    if method == 'CryptoBot':
+    
+    
+    if method == 'CryptoBot': # рассматриваем оплату криптой
         response = get_pay_link(amount/rub_to_usdt) # переводим рубли в доллары от руки пока что пох
         print(response)
         ok = response['ok'] # тру фолс
@@ -332,17 +335,27 @@ async def process_deposit(callback: CallbackQuery):
 @dp.callback_query(lambda c: c.data.startswith('check_payment_'))
 async def check_payment_callback(callback: CallbackQuery):
     await callback.answer("🔄 Проверить статус оплаты") # на пол экрана хуйня высветится
+    try:
+        await callback.message.delete()
+    except:
+        pass
     invoice_id = int(callback.data.split('_')[2])
     status, amount = check_payment_status(invoice_id)
     print(invoice_id, status)
     if status == 'paid':
-        await callback.message.answer(f'🤑 Оплачено! \n\n ➕ Начислено {amount} ₽ на баланс', parse_mode='HTML')
+        await callback.message.answer(f'🤑 Оплачено! \n\n ➕ Начислено {amount} ₽ на баланс', parse_mode='HTML', reply_markup=ikb_back)
         with sq.connect('database.db') as con:
             cur = con.cursor()
             cur.execute('UPDATE users SET balance = balance + ? WHERE id = ?', (amount, callback.from_user.id))
             con.commit()
     else:
         await callback.message.answer('👀 Ожидаем оплату, оплатите и попробуйте снова!', parse_mode='HTML')
+
+@dp.callback_query(lambda c: c.data == 'bug_report')
+async def bug_report_callback(callback: CallbackQuery):
+    await callback.answer("⚠️ Баг репорт") # на пол экрана хуйня высветится
+    await callback.message.delete()
+    await callback.message.answer("⚠️ <b>Баг репорт</b>\n\nhttps://forms.gle/Pwdm8uzAgtu9T2296!", parse_mode='HTML', reply_markup=ikb_back)
 
 async def main():
     await dp.start_polling(bot) # отправить соединение к серверам телеграмма
