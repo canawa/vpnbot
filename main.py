@@ -220,7 +220,7 @@ async def plan_week_callback(callback: CallbackQuery):
                 if result:
                     cur.execute('UPDATE users SET balance = balance - 50 WHERE id = ? AND balance >= 50' , (callback.from_user.id,)) # вычесть 100 из баланса текущего пользователя
                     con.commit() # сохранить изменения в базе данных
-                    await callback.message.answer(f"🙋🏻‍♂️ ВАШ КЛЮЧ:\n<code>{result[0]}</code> \n\n<b>⌛Срок действия: 7 дней</b>\n🧐 Гайд на установку: https://telegra.ph/Instrukciya-kak-podklyuchitsya-k-VPN-12-22", parse_mode='HTML')
+                    await callback.message.answer(f"🙋🏻‍♂️ ВАШ КЛЮЧ:\n\n<code>{result[0]}</code>\n<i>(нажмите чтобы скопировать)</i> \n\n<b>⌛Срок действия: 7 дней</b>\n🧐 Гайд на установку: https://telegra.ph/Instrukciya-kak-podklyuchitsya-k-VPN-12-22", parse_mode='HTML')
                     cur.execute('UPDATE keys SET SOLD = 1 WHERE key = ?', (result[0],)) # обновить статус ключа в базе данных
                     cur.execute('UPDATE keys SET buyer_id = ? WHERE key = ?', (callback.from_user.id, result[0])) # обновить ID покупателя в базе данных
                     
@@ -244,7 +244,7 @@ async def plan_month_callback(callback: CallbackQuery):
                 cur.execute('SELECT key FROM keys WHERE duration = 30 AND SOLD = 0 ORDER BY RANDOM() LIMIT 1')
                 result = cur.fetchone() # получить результат из базы данных
                 if result:
-                    await callback.message.answer(f"🙋🏻‍♂️ ВАШ КЛЮЧ:\n<code>{result[0]}</code> \n\n<b>⌛Срок действия: 30 дней</b>\n🧐 Гайд на установку: https://telegra.ph/Instrukciya-kak-podklyuchitsya-k-VPN-12-22", parse_mode='HTML')
+                    await callback.message.answer(f"🙋🏻‍♂️ ВАШ КЛЮЧ:\n\n<code>{result[0]}</code>\n<i>(нажмите чтобы скопировать)</i> \n\n<b>⌛Срок действия: 30 дней</b>\n🧐 Гайд на установку: https://telegra.ph/Instrukciya-kak-podklyuchitsya-k-VPN-12-22", parse_mode='HTML')
                     cur.execute('UPDATE keys SET SOLD = 1 WHERE key = ?', (result[0],)) # обновить статус ключа в базе данных
                     cur.execute('UPDATE keys SET buyer_id = ? WHERE key = ?', (callback.from_user.id, result[0])) # обновить ID покупателя в базе данных
                     con.commit() # сохранить изменения в базе данных
