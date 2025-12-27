@@ -132,7 +132,7 @@ ikb_deposit_methods = InlineKeyboardMarkup(inline_keyboard=[
 ])
 
 def deposit_keyboard(method):
-    amount = [1, 10, 50, 100, 200, 300, 400, 500]
+    amount = [50, 100, 200, 300, 400, 500]
     ikb_deposit_sums = InlineKeyboardMarkup(inline_keyboard=[])
     for sum in amount:
         ikb_deposit_sums.inline_keyboard.append([InlineKeyboardButton(text=f'🟣 {sum}₽', callback_data=f'deposit_{sum}_{method}')])
