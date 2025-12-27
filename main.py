@@ -220,7 +220,7 @@ async def plan_week_callback(callback: CallbackQuery):
                 if result:
                     cur.execute('UPDATE users SET balance = balance - 50 WHERE id = ? AND balance >= 50' , (callback.from_user.id,)) # вычесть 100 из баланса текущего пользователя
                     con.commit() # сохранить изменения в базе данных
-                    await callback.message.answer(f"🙋🏻‍♂️ ВАШ КЛЮЧ:\n\n<code>{result[0]}</code>\n<i>(нажмите чтобы скопировать)</i> \n\n<b>⌛Срок действия: 7 дней</b>\n🧐 Гайд на установку: https://telegra.ph/Instrukciya-kak-podklyuchitsya-k-VPN-12-22", parse_mode='HTML')
+                    await callback.message.answer(f"🙋🏻‍♂️ ВАШ КЛЮЧ:\n\n<code>{result[0]}</code>\n<i>(нажмите чтобы скопировать)</i> \n\n<b>⌛Срок действия: 7 дней</b>\n🧐 Гайд на установку: https://telegra.ph/Instrukciya-kak-podklyuchitsya-k-VPN-12-22", parse_mode='HTML', reply_markup=ikb_back)
                     cur.execute('UPDATE keys SET SOLD = 1 WHERE key = ?', (result[0],)) # обновить статус ключа в базе данных
                     cur.execute('UPDATE keys SET buyer_id = ? WHERE key = ?', (callback.from_user.id, result[0])) # обновить ID покупателя в базе данных
                     
@@ -244,7 +244,7 @@ async def plan_month_callback(callback: CallbackQuery):
                 cur.execute('SELECT key FROM keys WHERE duration = 30 AND SOLD = 0 ORDER BY RANDOM() LIMIT 1')
                 result = cur.fetchone() # получить результат из базы данных
                 if result:
-                    await callback.message.answer(f"🙋🏻‍♂️ ВАШ КЛЮЧ:\n\n<code>{result[0]}</code>\n<i>(нажмите чтобы скопировать)</i> \n\n<b>⌛Срок действия: 30 дней</b>\n🧐 Гайд на установку: https://telegra.ph/Instrukciya-kak-podklyuchitsya-k-VPN-12-22", parse_mode='HTML')
+                    await callback.message.answer(f"🙋🏻‍♂️ ВАШ КЛЮЧ:\n\n<code>{result[0]}</code>\n<i>(нажмите чтобы скопировать)</i> \n\n<b>⌛Срок действия: 30 дней</b>\n🧐 Гайд на установку: https://telegra.ph/Instrukciya-kak-podklyuchitsya-k-VPN-12-22", parse_mode='HTML', reply_markup=ikb_back)
                     cur.execute('UPDATE keys SET SOLD = 1 WHERE key = ?', (result[0],)) # обновить статус ключа в базе данных
                     cur.execute('UPDATE keys SET buyer_id = ? WHERE key = ?', (callback.from_user.id, result[0])) # обновить ID покупателя в базе данных
                     con.commit() # сохранить изменения в базе данных
@@ -272,13 +272,13 @@ async def my_keys_callback(callback: CallbackQuery):
         else:
             await callback.message.answer_photo(FSInputFile("photos/my_keys.png"), caption="🔗 У вас нет ключей. Купите ключ и используйте его.", parse_mode='HTML', reply_markup=ikb_plans)
 
-@dp.callback_query(lambda c: c.data.startswith('use_key_'))
+@dp.callback_query(lambda c: c.data.startswith('use_key_')) # ЭТО ПОСМОТРЕТЬ КЛЮЧИ
 async def use_key_callback(callback: CallbackQuery):
     await callback.answer(f"🔑 Использовать ключ {callback.data.split('_')[2]}") # на пол экрана хуйня высветится
     await callback.message.delete()
     with sq.connect('database.db') as con:
         cur = con.cursor()
-        cur.execute('SELECT key FROM keys WHERE buyer_id = ? ORDER BY RANDOM() LIMIT 1' , (callback.from_user.id,)) # вытащить ключ из базы данных по ID
+        cur.execute('SELECT key FROM keys WHERE buyer_id = ? LIMIT 1 OFFSET ?' , (callback.from_user.id, callback.data.split('_')[2])) # вытащить ключ из базы данных по ID
         result = cur.fetchone() # получить результат из базы данных
     await callback.message.answer(f"🔑 Использовать ключ: \n\n<code>{result[0]}</code>", parse_mode='HTML', reply_markup=ikb_back)
 
