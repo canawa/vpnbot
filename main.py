@@ -340,6 +340,7 @@ async def process_deposit(callback: CallbackQuery):
     if method == 'stars':
         stars_rate = 1.50 # 1 звезда = 1.50 рубля
         amount_stars = amount * stars_rate
+        amount_stars = int(amount_stars)
         try:
             await bot.send_invoice(
                 chat_id=callback.from_user.id, # куда отправится инвойс
@@ -353,13 +354,14 @@ async def process_deposit(callback: CallbackQuery):
         except Exception as e:
             await callback.message.answer(f'❌ Не удалось создать заявку: {e}', parse_mode='HTML', reply_markup=ikb_deposit_methods)
             raise e
+
         @dp.pre_checkout_query()
         async def process_pre_checkout(pre_checkout): # обработчик подтверждения платежа (я так понял типо это надо чтобы payload совпал с фактическим)
             if pre_checkout.invoice_payload == f"deposit_{amount}_{callback.from_user.id}":
                 await pre_checkout.answer(ok=True)
             else:
                 await pre_checkout.answer(ok=False, error_message="❌ Неверный payload (Напиши в поддержку)")
-
+        
     if method == 'CryptoBot': # рассматриваем оплату криптой
         response = get_pay_link(amount/rub_to_usdt) # переводим рубли в доллары от руки пока что пох
         print(response)
