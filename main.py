@@ -180,13 +180,13 @@ async def profile_callback(callback: CallbackQuery):
         cur.execute("SELECT ref_balance FROM users WHERE id = ?", (callback.from_user.id,)) # вытащить реферальный баланс из базы данных текущего пользователя
         result = cur.fetchone() # получить результат из базы данных
         ref_balance = result[0] if result else 0 # если результат не пустой, то вытащить реферальный баланс, иначе 0
-    await callback.message.answer_photo(FSInputFile("photos/profile.png"), caption=f"👤 <b>Личный кабинет</b>\n\n💰 Баланс: {balance} ₽\n💸 Реферальный баланс: {ref_balance} ₽\n🆔 ID: {callback.from_user.id}", parse_mode='HTML', reply_markup=ikb_profile)
+    await callback.message.answer_photo(PROFILE_PHOTO, caption=f"👤 <b>Личный кабинет</b>\n\n💰 Баланс: {balance} ₽\n💸 Реферальный баланс: {ref_balance} ₽\n🆔 ID: {callback.from_user.id}", parse_mode='HTML', reply_markup=ikb_profile)
 
 @dp.callback_query(lambda c: c.data == 'documents')
 async def documents_callback(callback: CallbackQuery):
     await callback.answer("📄 Документы") # на пол экрана хуйня высветится
     await callback.message.delete()
-    await callback.message.answer_photo(FSInputFile("photos/documents.jpg"), caption="📄 <b>Документы</b>", parse_mode='HTML', reply_markup=ikb_documents)
+    await callback.message.answer_photo(DOCUMENTS_PHOTO, caption="📄 <b>Документы</b>", parse_mode='HTML', reply_markup=ikb_documents)
 
 # ДЛЯ ДОКУМЕНТОВ КОЛБЕК НЕ НУЖЕН, ОНИ ОТКРЫВАЮТСЯ КАК СТАТЬЯ
 
@@ -199,7 +199,7 @@ async def referral_callback(callback: CallbackQuery):
         cur.execute("SELECT ref_amount FROM users WHERE id = ?", (callback.from_user.id,)) # вытащить реферальное количество из базы данных текущего пользователя
         result = cur.fetchone() # получить результат из базы данных
         ref_amount = result[0] if result else 0 # если результат не пустой, то вытащить реферальное количество, иначе 0
-    await callback.message.answer_photo(FSInputFile("photos/invite_friend.png"), caption=f"🤝 <b>Пригласить друга</b>\n\nВаша реферальная ссылка:\n<code>https://t.me/coffemaniaVPNbot?start={callback.from_user.id}</code>\n\n👁️ Всего заработано: {ref_amount*50} ₽ \n\n🤔 За каждого приглашенного друга вы получите 50 ₽ на баланс", parse_mode='HTML', reply_markup=ikb_referral)
+    await callback.message.answer_photo(INVITE_FRIEND_PHOTO, caption=f"🤝 <b>Пригласить друга</b>\n\nВаша реферальная ссылка:\n<code>https://t.me/coffemaniaVPNbot?start={callback.from_user.id}</code>\n\n👁️ Всего заработано: {ref_amount*50} ₽ \n\n🤔 За каждого приглашенного друга вы получите 50 ₽ на баланс", parse_mode='HTML', reply_markup=ikb_referral)
 
 
 @dp.callback_query(lambda c: c.data == 'support')
@@ -213,7 +213,7 @@ async def support_callback(callback: CallbackQuery):
 async def back_callback(callback: CallbackQuery):
     await callback.answer("🔙 Назад") # на пол экрана хуйня высветится
     await callback.message.delete()
-    await callback.message.answer_photo(FSInputFile("photos/welcome.png"), caption="""👋 Добро пожаловать в Кофеманию
+    await callback.message.answer_photo(WELCOME_PHOTO, caption="""👋 Добро пожаловать в Кофеманию
     \n🔐 Vless/Xray протоколы
     \n💡 Пополняйте баланс, покупайте VPN и подключайтесь за пару минут
     \n⏳ Доступ выдается сразу после покупки
@@ -288,9 +288,9 @@ async def my_keys_callback(callback: CallbackQuery):
         for key_id, key in enumerate(result): # перебрать все ключи и вывести их номер
             ikb_my_keys.inline_keyboard.append([InlineKeyboardButton(text=f'🔑 {key_id + 1}', callback_data=f'use_key_{key_id}')])
         if result:
-            await callback.message.answer_photo(FSInputFile("photos/my_keys.png"), caption=f"🔗 Мои ключи:", parse_mode='HTML', reply_markup=ikb_my_keys)
+            await callback.message.answer_photo(MY_KEYS_PHOTO, caption=f"🔗 Мои ключи:", parse_mode='HTML', reply_markup=ikb_my_keys)
         else:
-            await callback.message.answer_photo(FSInputFile("photos/my_keys.png"), caption="🔗 У вас нет ключей. Купите ключ и используйте его.", parse_mode='HTML', reply_markup=ikb_plans)
+            await callback.message.answer_photo(MY_KEYS_PHOTO, caption="🔗 У вас нет ключей. Купите ключ и используйте его.", parse_mode='HTML', reply_markup=ikb_plans)
 
 @dp.callback_query(lambda c: c.data.startswith('use_key_')) # ЭТО ПОСМОТРЕТЬ КЛЮЧИ
 async def use_key_callback(callback: CallbackQuery):
@@ -307,7 +307,7 @@ async def use_key_callback(callback: CallbackQuery):
 async def deposit_callback(callback: CallbackQuery):
     await callback.answer("💰 Пополнить") # на пол экрана хуйня высветится
     await callback.message.delete()
-    await callback.message.answer_photo(FSInputFile("photos/deposit.png"), caption="💰 Выберите способ пополнения:", parse_mode='HTML', reply_markup=ikb_deposit_methods)
+    await callback.message.answer_photo(DEPOSIT_PHOTO, caption="💰 Выберите способ пополнения:", parse_mode='HTML', reply_markup=ikb_deposit_methods)
 
 @dp.callback_query(lambda c: c.data == 'deposit_crypto')
 async def deposit_crypto_callback(callback: CallbackQuery):
@@ -338,8 +338,21 @@ async def process_deposit(callback: CallbackQuery):
     await callback.message.answer(f"💰 Пополнение на {amount} ₽\n\n<b>💳 Способ пополнения: {method}</b> \n\n Создаем заявку...", parse_mode='HTML')
     
     if method == 'stars':
-        callback.message.answer('Ща типо пополнение звездочек')
-    
+        stars_rate = 1.50 # 1 звезда = 1.50 рубля
+        amount_stars = amount * stars_rate
+        try:
+            await bot.send_invoice(
+                chat_id=callback.from_user.id,
+                title=f"Пополнение баланса на {amount} ₽",
+                description=f"Пополнение баланса в боте на сумму {amount} рублей",
+                payload=f"deposit_{amount}_{callback.from_user.id}",
+                provider_token="", # для звезд не нужен provider_token
+                currency="XTR",
+                prices=[LabeledPrice(label=f"Пополнение {amount} ₽", amount=amount)],
+            )
+        except Exception as e:
+            await callback.message.answer(f'❌ Не удалось создать заявку: {e}', parse_mode='HTML', reply_markup=ikb_deposit_methods)
+            raise e
     if method == 'CryptoBot': # рассматриваем оплату криптой
         response = get_pay_link(amount/rub_to_usdt) # переводим рубли в доллары от руки пока что пох
         print(response)
