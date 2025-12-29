@@ -361,22 +361,7 @@ async def process_deposit(callback: CallbackQuery):
                 await pre_checkout.answer(ok=True)
             else:
                 await pre_checkout.answer(ok=False, error_message="❌ Неверный payload (Напиши в поддержку)")
-        @dp.message(lambda m: m.successful_payment is not None) # обработчик успешного платежа
-        async def handle_successful_payment(message: Message):
-            payment = message.successful_payment
-            payload = payment.invoice_payload
-            parts = payload.split('_')
-            if len(parts) >= 3 and parts[0] == 'deposit':
-                amount_rub = int(parts[1])
-                user_id = int(parts[2])
-                if message.from_user.id != user_id:
-                    await message.answer("❌ Ошибка: несоответствие пользователя")
-                    return 
-                with sq.connect('database.db') as con:
-                    cur = con.cursor()
-                    cur.execute('UPDATE users SET balance = balance + ? WHERE id = ?', (amount_rub, user_id))
-                    con.commit()
-                await message.answer(f'✅ Оплачено! \n\n ➕ Начислено {amount_rub} ₽ на баланс', parse_mode='HTML', reply_markup=ikb_back)
+                
     if method == 'CryptoBot': # рассматриваем оплату криптой
         response = get_pay_link(amount/rub_to_usdt) # переводим рубли в доллары от руки пока что пох
         print(response)
@@ -417,6 +402,23 @@ async def check_payment_callback(callback: CallbackQuery):
             con.commit()
     else:
         await callback.message.answer('👀 Ожидаем оплату, оплатите и попробуйте снова!', parse_mode='HTML')
+
+@dp.message(lambda m: m.successful_payment is not None) # обработчик успешного платежа
+async def handle_successful_payment(message: Message):
+    payment = message.successful_payment
+    payload = payment.invoice_payload
+    parts = payload.split('_')
+    if len(parts) >= 3 and parts[0] == 'deposit':
+        amount_rub = int(parts[1])
+        user_id = int(parts[2])
+        if message.from_user.id != user_id:
+            await message.answer("❌ Ошибка: несоответствие пользователя")
+            return 
+        with sq.connect('database.db') as con:
+            cur = con.cursor()
+            cur.execute('UPDATE users SET balance = balance + ? WHERE id = ?', (amount_rub, user_id))
+            con.commit()
+        await message.answer(f'🤑 Оплачено! \n\n ➕ Начислено {amount_rub} ₽ на баланс', parse_mode='HTML', reply_markup=ikb_back)
 
 @dp.callback_query(lambda c: c.data == 'bug_report')
 async def bug_report_callback(callback: CallbackQuery):
