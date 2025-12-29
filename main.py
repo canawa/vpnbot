@@ -26,7 +26,7 @@ try:
     MY_KEYS_PHOTO = FSInputFile("photos/my_keys.png")
     DEPOSIT_PHOTO = FSInputFile("photos/deposit.png")
     SUPPORT_PHOTO = FSInputFile("photos/support.png")
-    BUG_REPORT_PHOTO = FSInputFile("photos/bug_report.png")
+    BUG_REPORT_PHOTO = FSInputFile("photos/bugreport.png")
 except FileNotFoundError:
     print("Файлы фото не найдены")
     exit()
