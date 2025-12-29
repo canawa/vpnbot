@@ -15,6 +15,7 @@ from vpn import generate_vpn_key, get_marzban_token
 
 print('BOT STARTED!!!')
 
+
 ### РАБОТА С ФОТКАМИ:
 try:
     WELCOME_PHOTO = FSInputFile("photos/welcome.png")
@@ -282,7 +283,7 @@ async def plan_week_callback(callback: CallbackQuery):
                         await callback.message.answer(f"🙋🏻‍♂️ ВАШ КЛЮЧ:\n\n<code>{vpn_key}</code>\n<i>(нажмите чтобы скопировать)</i> \n\n<b>⌛Срок действия: 7 дней</b>\n🧐 Гайд на установку: https://telegra.ph/Instrukciya-kak-podklyuchitsya-k-VPN-12-22", parse_mode='HTML', reply_markup=ikb_back)
 
                 cur = con.cursor()
-                cur.execute('SELECT key FROM keys WHERE duration = 7 AND SOLD = 0 ORDER BY id DESC LIMIT 1')
+                cur.execute('SELECT key FROM keys WHERE duration = 7 AND SOLD = 0 ORDER BY rowid DESC LIMIT 1')
                 result = cur.fetchone() # получить результат из базы данных
                 print(result)
                 if result:
