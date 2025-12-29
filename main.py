@@ -268,7 +268,7 @@ async def back_callback(callback: CallbackQuery):
 
 @dp.callback_query(lambda c: c.data == 'plan_week')
 async def plan_week_callback(callback: CallbackQuery):
-    await callback.answer("👶🏻 Неделя (50₽)") # на пол экрана хуйня высветится
+    await callback.answer("👶🏻 🇩🇪 Неделя (50₽)") # на пол экрана хуйня высветится
     await callback.message.delete()
 
     with sq.connect('database.db') as con:
@@ -311,7 +311,7 @@ async def plan_week_callback(callback: CallbackQuery):
           
 @dp.callback_query(lambda c: c.data == 'plan_month')
 async def plan_month_callback(callback: CallbackQuery):
-    await callback.answer("🧑 Месяц (100₽)") # на пол экрана хуйня высветится
+    await callback.answer("🧑 🇩🇪 Месяц (100₽)") # на пол экрана хуйня высветится
     await callback.message.delete()
 
     with sq.connect('database.db') as con:
