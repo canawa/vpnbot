@@ -12,8 +12,8 @@ import os
 from yookassa import Configuration, Payment # для работы с Юкассой
 import uuid
 
-Configuration.account_id = os.getenv('YOOKASSA_ACCOUNT_ID').strip()
-Configuration.secret_key = os.getenv('YOOKASSA_SECRET_KEY').strip()
+Configuration.account_id = os.getenv('YOOKASSA_ACCOUNT_ID')
+Configuration.secret_key = os.getenv('YOOKASSA_SECRET_KEY')
 
 print(Configuration.account_id, Configuration.secret_key)
 
