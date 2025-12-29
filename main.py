@@ -145,7 +145,7 @@ ikb_deposit = InlineKeyboardMarkup(inline_keyboard=[
 ])
 
 ikb_deposit_methods = InlineKeyboardMarkup(inline_keyboard=[
-    [InlineKeyboardButton(text='💳 Криптобот', callback_data='deposit_crypssto')],
+    [InlineKeyboardButton(text='💳 Криптобот', callback_data='deposit_crypto')],
     [InlineKeyboardButton(text='🍀 СБП', callback_data='deposit_sbp')],
     [InlineKeyboardButton(text='🌟 Звёзды', callback_data='deposit_stars')],
     [InlineKeyboardButton(text='🔙 Назад', callback_data='back')],
