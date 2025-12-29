@@ -101,7 +101,7 @@ def check_payment_status(invoice_id):
         if inv['invoice_id'] == invoice_id:
             return inv['status'], float(inv['amount'])*rub_to_usdt # возвращаем статус оплаты и сумму в рублях
     return None, None
-    
+
 
 ikb = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text='🛒 Купить VPN', callback_data='buy_vpn')],
@@ -150,8 +150,8 @@ ikb_deposit = InlineKeyboardMarkup(inline_keyboard=[
 ])
 
 ikb_deposit_methods = InlineKeyboardMarkup(inline_keyboard=[
-    [InlineKeyboardButton(text='💳 Криптобот', callback_data='deposit_crypto')],
-    [InlineKeyboardButton(text='🍀 СБП', callback_data='deposit_sbp')],
+    [InlineKeyboardButton(text='🍀 Криптобот', callback_data='deposit_crypto')],
+    [InlineKeyboardButton(text='💳 Картой', callback_data='deposit_card')],
     [InlineKeyboardButton(text='🌟 Звёзды', callback_data='deposit_stars')],
     [InlineKeyboardButton(text='🔙 Назад', callback_data='back')],
 ])
@@ -164,7 +164,34 @@ def deposit_keyboard(method):
     ikb_deposit_sums.inline_keyboard.append([InlineKeyboardButton(text='🔙 Назад', callback_data='back')])
     return ikb_deposit_sums
  
+def yookassa_payment_keyboard(amount, confirmation_url, payment_id): # функция для создания клавиатуры для оплаты через Юкассу
+    ikb_yookassa = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=f'👉 Перейти к оплате {amount} ₽', url=confirmation_url)],
+        [InlineKeyboardButton(text='🔄 Проверить статус оплаты', callback_data=f'check_{amount}_{payment_id}')],
+        [InlineKeyboardButton(text='🔙 Назад', callback_data='back')],
+    ])
+    return ikb_yookassa
 
+@dp.callback_query(lambda c: c.data.startswith('check_'))
+async def check_payment_yookassa_callback(callback: CallbackQuery):
+    await callback.answer("🔄 Проверка статуса оплаты") # на пол экрана хуйня высветится
+    _ , amount , payment_id = callback.data.split('_')
+    if check_payment_yookassa_status(int(amount), payment_id):
+        with sq.connect('database.db') as con:
+            cur = con.cursor()
+            cur.execute('UPDATE users SET balance = balance + ? WHERE id = ?', (amount, callback.from_user.id))
+            con.commit()
+        await callback.message.answer(f'🤑 Оплачено! \n\n ➕ Начислено {amount} ₽ на баланс', parse_mode='HTML', reply_markup=ikb_back)
+    else:
+        await callback.message.answer(f'👀 Ожидаем оплату, оплатите и попробуйте снова!', parse_mode='HTML', reply_markup=ikb_back)
+
+
+def check_payment_yookassa_status(amount, payment_id): # функция для проверки статуса оплаты через Юкассу
+    payment = Payment.find_one(payment_id)
+    if payment.status == 'succeeded':
+        return True
+    else:
+        return False
 
 # ОБРАБОТЧИКИ КОЛЛБЭКОВ
 @dp.callback_query(lambda c: c.data == 'buy_vpn')
@@ -316,15 +343,15 @@ async def deposit_callback(callback: CallbackQuery):
 
 @dp.callback_query(lambda c: c.data == 'deposit_crypto')
 async def deposit_crypto_callback(callback: CallbackQuery):
-    await callback.answer("💳 Криптобот") # на пол экрана хуйня высветится
+    await callback.answer("🍀 Криптобот") # на пол экрана хуйня высветится
     await callback.message.delete()
     await callback.message.answer("💳 Выберите сумму пополнения:", parse_mode='HTML', reply_markup=deposit_keyboard('CryptoBot'))
 
-@dp.callback_query(lambda c: c.data == ('deposit_sbp'))
-async def deposit_sbp_callback(callback: CallbackQuery):
-    await callback.answer("🍀 СБП") # на пол экрана хуйня высветится
+@dp.callback_query(lambda c: c.data == ('deposit_card'))
+async def deposit_card_callback(callback: CallbackQuery):
+    await callback.answer("💳 Картой") # на пол экрана хуйня высветится
     await callback.message.delete()
-    await callback.message.answer("🍀 Выберите сумму пополнения:", parse_mode='HTML', reply_markup=deposit_keyboard('SBP'))
+    await callback.message.answer("🍀 Выберите сумму пополнения:", parse_mode='HTML', reply_markup=deposit_keyboard('card'))
 
 @dp.callback_query(lambda c: c.data == ('deposit_stars'))
 async def deposit_stars_callback(callback : CallbackQuery):
@@ -342,7 +369,7 @@ async def process_deposit(callback: CallbackQuery):
 
     await callback.message.answer(f"💰 Пополнение на {amount} ₽\n\n<b>💳 Способ пополнения: {method}</b> \n\n Создаем заявку...", parse_mode='HTML')
     
-    if method == 'SBP':
+    if method == 'card':
         try:
             payment = Payment.create({
                 "amount": {
@@ -359,8 +386,10 @@ async def process_deposit(callback: CallbackQuery):
                     "user_id": callback.from_user.id,
                 }
             }, uuid.uuid4())
-            print(payment)
-            await callback.message.answer(f'👉 Создали заявку на оплату, переходите по ссылке и оплатите', parse_mode='HTML', reply_markup=ikb_back)
+            pprint.pprint(payment.json())
+            payment_id = payment.id
+            confirmation_url = payment.confirmation.confirmation_url
+            await callback.message.answer(f'👉 Создали заявку на оплату, переходите по ссылке и оплатите', parse_mode='HTML', reply_markup=yookassa_payment_keyboard(amount, confirmation_url, payment_id))
         except Exception as e:
             await callback.message.answer(f'❌ Не удалось создать заявку: {e}. Напишите в техподдержку, мы обязательно поможем!', parse_mode='HTML', reply_markup=ikb_deposit_methods)
             raise e
