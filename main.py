@@ -103,6 +103,8 @@ def check_payment_status(invoice_id):
     for inv in response['result']['items']:
         if inv['invoice_id'] == invoice_id:
             return inv['status'], float(inv['amount'])*rub_to_usdt # возвращаем статус оплаты и сумму в рублях
+
+    
     return None, None
 
 
@@ -190,7 +192,7 @@ ikb_admin_back = InlineKeyboardMarkup(inline_keyboard=[
 async def check_payment_yookassa_callback(callback: CallbackQuery):
     await callback.answer("🔄 Проверка статуса оплаты") # на пол экрана хуйня высветится
     _ , amount , payment_id = callback.data.split('_')
-    if check_payment_yookassa_status(int(amount), payment_id):
+    if check_payment_yookassa_status(int(amount), payment_id, callback.from_user.id):
         with sq.connect('database.db') as con:
             cur = con.cursor()
             cur.execute('UPDATE users SET balance = balance + ? WHERE id = ?', (amount, callback.from_user.id))
@@ -201,9 +203,13 @@ async def check_payment_yookassa_callback(callback: CallbackQuery):
         await callback.message.answer(f'👀 Ожидаем оплату, оплатите и попробуйте снова!', parse_mode='HTML', reply_markup=ikb_back)
 
 
-def check_payment_yookassa_status(amount, payment_id): # функция для проверки статуса оплаты через Юкассу
+def check_payment_yookassa_status(amount, payment_id, user_id): # функция для проверки статуса оплаты через Юкассу
     payment = Payment.find_one(payment_id)
     if payment.status == 'succeeded':
+        with sq.connect('database.db') as con:
+            cur = con.cursor()
+            cur.execute('INSERT INTO transactions (user_id, amount, type) VALUES (?, ?, ?)', (user_id, amount, 'yookassa'))
+            con.commit()
         return True
     else:
         return False
@@ -497,6 +503,7 @@ async def check_payment_callback(callback: CallbackQuery):
         with sq.connect('database.db') as con:
             cur = con.cursor()
             cur.execute('UPDATE users SET balance = balance + ? WHERE id = ?', (amount, callback.from_user.id))
+            cur.execute('INSERT INTO transactions (user_id, amount, type) VALUES (?, ?, ?)', (callback.from_user.id, amount, 'CryptoBot'))
             con.commit()
     else:
         await callback.message.answer('👀 Ожидаем оплату, оплатите и попробуйте снова!', parse_mode='HTML')
@@ -557,9 +564,20 @@ async def admin_users_callback(callback: CallbackQuery):
         cur = con.cursor()
         cur.execute('SELECT id, username, balance, ref_amount FROM users')
         result = cur.fetchall()
-        message_text = "👤 Пользователи:\n\n" + "\n".join(
+        message_text = "Список пользователей:\n\n" + "\n".join(
     f'👤 {user[0]} - {user[1]} - {user[2]} Р - {user[3]} рефов' for user in result)
-    await callback.message.answer(f"👤 Пользователи\n\n {message_text}", parse_mode='HTML', reply_markup=ikb_admin_back)
+    await callback.message.answer(f"{message_text}", parse_mode='HTML', reply_markup=ikb_admin_back)
+
+@dp.callback_query(lambda c: c.data == 'admin_payments')
+async def admin_payments_callback(callback: CallbackQuery):
+    await callback.answer("🔄 Оплаты") # на пол экрана хуйня высветится
+    await callback.message.delete()
+    with sq.connect('database.db') as con:
+        cur = con.cursor()
+        cur.execute('SELECT id, user_id, amount, type FROM transactions')
+        result = cur.fetchall()
+        message_text = "Список оплат:\n\n" + "\n".join(f'👤 {transaction[0]} - {transaction[1]} - {transaction[2]} Р - {transaction[3]}' for transaction in result)
+        await callback.message.answer(f"{message_text}", parse_mode='HTML', reply_markup=ikb_admin_back)
 
 
 async def main():
