@@ -152,7 +152,7 @@ ikb_deposit_methods = InlineKeyboardMarkup(inline_keyboard=[
 ])
 
 def deposit_keyboard(method):
-    amount = [50, 100, 200, 300, 400, 500]
+    amount = [1, 10, 50, 100, 200, 300, 400, 500]
     ikb_deposit_sums = InlineKeyboardMarkup(inline_keyboard=[])
     for sum in amount:
         ikb_deposit_sums.inline_keyboard.append([InlineKeyboardButton(text=f'🟣 {sum}₽', callback_data=f'deposit_{sum}_{method}')])
@@ -342,17 +342,24 @@ async def process_deposit(callback: CallbackQuery):
         amount_stars = amount * stars_rate
         try:
             await bot.send_invoice(
-                chat_id=callback.from_user.id,
-                title=f"Пополнение баланса на {amount} ₽",
-                description=f"Пополнение баланса в боте на сумму {amount} рублей",
-                payload=f"deposit_{amount}_{callback.from_user.id}",
+                chat_id=callback.from_user.id, # куда отправится инвойс
+                title=f"💲 Пополнение баланса на {amount} ₽", # заголовок инвойса
+                description=f"❗ Выполните оплату",
+                payload=f"deposit_{amount}_{callback.from_user.id}", # то что получит бот после оплаты (это для обработки успешности)
                 provider_token="", # для звезд не нужен provider_token
-                currency="XTR",
-                prices=[LabeledPrice(label=f"Пополнение {amount} ₽", amount=amount)],
+                currency="XTR", # валюта звезд
+                prices=[LabeledPrice(label=f"Пополнение на {amount} ₽", amount=amount),],
             )
         except Exception as e:
             await callback.message.answer(f'❌ Не удалось создать заявку: {e}', parse_mode='HTML', reply_markup=ikb_deposit_methods)
             raise e
+        @dp.pre_checkout_query()
+        async def process_pre_checkout(pre_checkout): # обработчик подтверждения платежа (я так понял типо это надо чтобы payload совпал с фактическим)
+            if pre_checkout.invoice_payload == f"deposit_{amount}_{callback.from_user.id}":
+                await pre_checkout.answer(ok=True)
+            else:
+                await pre_checkout.answer(ok=False, error_message="❌ Неверный payload (Напиши в поддержку)")
+
     if method == 'CryptoBot': # рассматриваем оплату криптой
         response = get_pay_link(amount/rub_to_usdt) # переводим рубли в доллары от руки пока что пох
         print(response)
