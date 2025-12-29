@@ -11,7 +11,7 @@ import dotenv
 import os
 from yookassa import Configuration, Payment # для работы с Юкассой
 import uuid
-
+from vpn import generate_vpn_key, get_marzban_token
 
 print('BOT STARTED!!!')
 
@@ -33,6 +33,11 @@ dotenv.load_dotenv() # загружаем переменные окружени�
 Configuration.account_id = os.getenv('YOOKASSA_ACCOUNT_ID')
 Configuration.secret_key = os.getenv('YOOKASSA_SECRET_KEY')
 
+
+marzban_token = get_marzban_token()
+if not marzban_token:
+    print("Не удалось получить токен Marzaban")
+    
 
 bot = Bot(token=os.getenv('BOT_TOKEN')) # объект бота
 API_TOKEN = os.getenv('CRYPTO_BOT_API_TOKEN') # это криптобот
@@ -267,8 +272,21 @@ async def plan_week_callback(callback: CallbackQuery):
         # con.commit() # сохранить изменения в базе данных
         if balance >= 50:
             with sq.connect('database.db') as con:
+                try:
+                    vpn_key = generate_vpn_key(callback.from_user.id, 7)
+                except Exception as e:
+                    await callback.message.answer(f'❌ Не удалось сгенерировать ключ: {e}. Напишите в техподдержку, мы обязательно поможем!', parse_mode='HTML', reply_markup=ikb_support)
+                    raise e
+                    
+                if vpn_key:
+                    with sq.connect('database.db') as con:
+                        cur = con.cursor()
+                        cur.execute('INSERT INTO keys (key, duration, SOLD, buyer_id) VALUES (?, ?, ?, ?)', (vpn_key, 7, 0, callback.from_user.id))
+                        con.commit()
+                        await callback.message.answer(f"🙋🏻‍♂️ ВАШ КЛЮЧ:\n\n<code>{vpn_key}</code>\n<i>(нажмите чтобы скопировать)</i> \n\n<b>⌛Срок действия: 7 дней</b>\n🧐 Гайд на установку: https://telegra.ph/Instrukciya-kak-podklyuchitsya-k-VPN-12-22", parse_mode='HTML', reply_markup=ikb_back)
+
                 cur = con.cursor()
-                cur.execute('SELECT key FROM keys WHERE duration = 7 AND SOLD = 0 ORDER BY RANDOM() LIMIT 1')
+                cur.execute('SELECT key FROM keys WHERE duration = 7 AND SOLD = 0 ORDER BY id DESC LIMIT 1')
                 result = cur.fetchone() # получить результат из базы данных
                 print(result)
                 if result:
