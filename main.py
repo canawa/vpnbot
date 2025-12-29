@@ -51,7 +51,7 @@ with sq.connect('database.db') as con:
     cur = con.cursor()
     cur.execute("CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, username TEXT, balance INTEGER, ref_balance INTEGER DEFAULT 0, ref_amount INTEGER DEFAULT 0, keys TEXT)")
     cur.execute('CREATE TABLE IF NOT EXISTS referal_users (id INTEGER PRIMARY KEY, referral_id INTEGER UNIQUE, ref_master_id INTEGER)')
-
+    cur.execute('CREATE TABLE IF NOT EXISTS transactions (id INTEGER PRIMARY KEY, user_id INTEGER, amount INTEGER, type TEXT')
 
 @dp.message(CommandStart())
 async def start_command(message):
@@ -556,9 +556,9 @@ async def admin_users_callback(callback: CallbackQuery):
         cur = con.cursor()
         cur.execute('SELECT id, username, balance, ref_amount FROM users')
         result = cur.fetchall()
-        for user in result:
-            await callback.message.answer(f"👤 {user[0]} - {user[1]} - {user[2]} Р - {user[3]} рефов")
-    await callback.message.answer("👤 Пользователи", parse_mode='HTML', reply_markup=ikb_admin_back)
+        message_text = "👤 Пользователи:\n\n" + "\n".join(
+    f'👤 {user[0]} - {user[1]} - {user[2]} Р - {user[3]} рефов' for user in result)
+    await callback.message.answer(f"👤 Пользователи\n\n {message_text}", parse_mode='HTML', reply_markup=ikb_admin_back)
 
 
 async def main():
