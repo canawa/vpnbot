@@ -34,11 +34,6 @@ Configuration.account_id = os.getenv('YOOKASSA_ACCOUNT_ID')
 Configuration.secret_key = os.getenv('YOOKASSA_SECRET_KEY')
 
 
-marzban_token = get_marzban_token()
-if not marzban_token:
-    print("Не удалось получить токен Marzaban")
-    
-
 bot = Bot(token=os.getenv('BOT_TOKEN')) # объект бота
 API_TOKEN = os.getenv('CRYPTO_BOT_API_TOKEN') # это криптобот
 
@@ -163,7 +158,7 @@ ikb_deposit_methods = InlineKeyboardMarkup(inline_keyboard=[
 ])
 
 def deposit_keyboard(method):
-    amount = [1, 10, 50, 100, 200, 300, 400, 500]
+    amount = [50, 100, 200, 300, 400, 500]
     ikb_deposit_sums = InlineKeyboardMarkup(inline_keyboard=[])
     for sum in amount:
         ikb_deposit_sums.inline_keyboard.append([InlineKeyboardButton(text=f'🟣 {sum}₽', callback_data=f'deposit_{sum}_{method}')])
@@ -273,11 +268,12 @@ async def plan_week_callback(callback: CallbackQuery):
         if balance >= 50:
             with sq.connect('database.db') as con:
                 try:
-                    vpn_key = generate_vpn_key(callback.from_user.id, 7)
+                    vpn_key = await generate_vpn_key(callback.from_user.id, 7)
+                    print(vpn_key)
                 except Exception as e:
                     await callback.message.answer(f'❌ Не удалось сгенерировать ключ: {e}. Напишите в техподдержку, мы обязательно поможем!', parse_mode='HTML', reply_markup=ikb_support)
                     raise e
-                    
+
                 if vpn_key:
                     with sq.connect('database.db') as con:
                         cur = con.cursor()
