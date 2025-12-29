@@ -544,7 +544,7 @@ async def admin_back_callback(callback: CallbackQuery):
     await callback.message.delete()
     await callback.message.answer("👤 Админ панель", parse_mode='HTML', reply_markup=ikb_admin)
 
-@dp.message(F.text == 'admin' and (F.from_user.id == 1979477416 or F.from_user.id == 7562967579))
+@dp.message(F.text == 'admin' and (F.from_user.id.in_([1979477416, 7562967579])))
 async def admin_message (message: Message):
     await message.answer("👤 Админ панель", parse_mode='HTML', reply_markup=ikb_admin)
 
