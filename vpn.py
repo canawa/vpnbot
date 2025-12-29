@@ -8,9 +8,9 @@ from marzban.models import UserCreate, ProxySettings
 
 dotenv.load_dotenv()
 
-MARZABAN_URL = os.getenv('MARZBAN_URL', 'https://your-domain.com')
-MARZABAN_USERNAME = os.getenv('MARZBAN_USERNAME', 'admin')
-MARZABAN_PASSWORD = os.getenv('MARZBAN_PASSWORD', '')
+MARZABAN_URL = os.getenv('MARZBAN_URL')
+MARZABAN_USERNAME = os.getenv('MARZBAN_USERNAME')
+MARZABAN_PASSWORD = os.getenv('MARZBAN_PASSWORD')
 
 marzban_api = MarzbanAPI(base_url=MARZABAN_URL)
 marzban_token = None
@@ -43,7 +43,9 @@ async def generate_vpn_key(user_id: int, duration_days: int) -> str:
     try:
         new_user = UserCreate(
             username=username,
-            proxies={"vless": ProxySettings(flow="xtls-rprx-vision")},
+            proxies={"vless": ProxySettings(flow="xtls-rprx-vision"),
+            "shadowsocks": ProxySettings(),
+            },
             expire=expire_ts,
             data_limit=0
         )
