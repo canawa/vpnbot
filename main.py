@@ -10,6 +10,7 @@ import pprint
 import dotenv
 import os
 from yookassa import Configuration, Payment # для работы с Юкассой
+import uuid
 
 Configuration.account_id = os.getenv('YOOKASSA_ACCOUNT_ID')
 Configuration.secret_key = os.getenv('YOOKASSA_SECRET_KEY')
@@ -353,7 +354,7 @@ async def process_deposit(callback: CallbackQuery):
                 'confirmation': {
                     'type': 'redirect',
                     'return_url': 'https://t.me/coffemaniaVPNbot',
-                }
+                },
                 "metadata": {
                     "user_id": callback.from_user.id,
                 }
