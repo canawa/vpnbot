@@ -12,10 +12,6 @@ import os
 from yookassa import Configuration, Payment # для работы с Юкассой
 import uuid
 
-Configuration.account_id = os.getenv('YOOKASSA_ACCOUNT_ID')
-Configuration.secret_key = os.getenv('YOOKASSA_SECRET_KEY')
-
-print(Configuration.account_id, Configuration.secret_key)
 
 print('BOT STARTED!!!')
 
@@ -34,6 +30,9 @@ except FileNotFoundError:
 
 
 dotenv.load_dotenv() # загружаем переменные окружения
+Configuration.account_id = os.getenv('YOOKASSA_ACCOUNT_ID')
+Configuration.secret_key = os.getenv('YOOKASSA_SECRET_KEY')
+
 
 bot = Bot(token=os.getenv('BOT_TOKEN')) # объект бота
 API_TOKEN = os.getenv('CRYPTO_BOT_API_TOKEN') # это криптобот
