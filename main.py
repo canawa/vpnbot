@@ -557,7 +557,7 @@ async def admin_users_callback(callback: CallbackQuery):
         cur.execute('SELECT id, username, balance, ref_amount FROM users')
         result = cur.fetchall()
         for user in result:
-            await callback.message.answer(f"👤 {user[0]} - {user[1]} - {user[2]} - {user[3]}")
+            await callback.message.answer(f"👤 {user[0]} - {user[1]} - {user[2]} Р - {user[3]} рефов")
     await callback.message.answer("👤 Пользователи", parse_mode='HTML', reply_markup=ikb_admin_back)
 
 
