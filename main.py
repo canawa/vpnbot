@@ -25,6 +25,8 @@ try:
     INVITE_FRIEND_PHOTO = FSInputFile("photos/invite_friend.png")
     MY_KEYS_PHOTO = FSInputFile("photos/my_keys.png")
     DEPOSIT_PHOTO = FSInputFile("photos/deposit.png")
+    SUPPORT_PHOTO = FSInputFile("photos/support.png")
+    BUG_REPORT_PHOTO = FSInputFile("photos/bug_report.png")
 except FileNotFoundError:
     print("Файлы фото не найдены")
     exit()
@@ -252,7 +254,7 @@ async def referral_callback(callback: CallbackQuery):
 async def support_callback(callback: CallbackQuery):
     await callback.answer("ℹ️ Поддержка") # на пол экрана хуйня высветится
     await callback.message.delete()
-    await callback.message.answer("ℹ️ <b>Поддержка</b>\n\nЕсли у вас возникли вопросы, напишите нам в поддержку!", parse_mode='HTML', reply_markup=ikb_support)
+    await callback.message.answer_photo(SUPPORT_PHOTO, caption="ℹ️ <b>Поддержка</b>\n\nЕсли у вас возникли вопросы, напишите нам в поддержку!", parse_mode='HTML', reply_markup=ikb_support)
 
 
 @dp.callback_query(lambda c: c.data == 'back')
@@ -378,7 +380,7 @@ async def use_key_callback(callback: CallbackQuery):
         cur = con.cursor()
         cur.execute('SELECT key FROM keys WHERE buyer_id = ? LIMIT 1 OFFSET ?' , (callback.from_user.id, callback.data.split('_')[2])) # вытащить ключ из базы данных по ID
         result = cur.fetchone() # получить результат из базы данных
-    await callback.message.answer(f"🔑 Использовать ключ: \n\n<code>{result[0]}</code>", parse_mode='HTML', reply_markup=ikb_back)
+    await callback.message.answer(f"🔑 Использовать ключ: \n\n<code>{result[0]}</code> \n\n 🧐 Гайд на установку: https://telegra.ph/Instrukciya-po-ustanovke-VPN-12-29", parse_mode='HTML', reply_markup=ikb_back)
 
 
 @dp.callback_query(lambda c: c.data == 'deposit')
@@ -536,7 +538,7 @@ async def handle_successful_payment(message: Message):
 async def bug_report_callback(callback: CallbackQuery):
     await callback.answer("⚠️ Баг репорт") # на пол экрана хуйня высветится
     await callback.message.delete()
-    await callback.message.answer("⚠️ <b>Баг репорт</b>\n\nhttps://forms.gle/Pwdm8uzAgtu9T2296!", parse_mode='HTML', reply_markup=ikb_back)
+    await callback.message.answer_photo(BUG_REPORT_PHOTO, caption="⚠️ <b>Баг репорт</b>\n\nhttps://forms.gle/Pwdm8uzAgtu9T2296!", parse_mode='HTML', reply_markup=ikb_back)
 
 @dp.callback_query(lambda c: c.data == 'admin_back')
 async def admin_back_callback(callback: CallbackQuery):
