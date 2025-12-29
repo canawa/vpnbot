@@ -176,10 +176,6 @@ def yookassa_payment_keyboard(amount, confirmation_url, payment_id): # функ�
 @dp.callback_query(lambda c: c.data.startswith('check_'))
 async def check_payment_yookassa_callback(callback: CallbackQuery):
     await callback.answer("🔄 Проверка статуса оплаты") # на пол экрана хуйня высветится
-    try:
-        await callback.message.delete()
-    except:
-        pass
     _ , amount , payment_id = callback.data.split('_')
     if check_payment_yookassa_status(int(amount), payment_id):
         with sq.connect('database.db') as con:
@@ -187,6 +183,7 @@ async def check_payment_yookassa_callback(callback: CallbackQuery):
             cur.execute('UPDATE users SET balance = balance + ? WHERE id = ?', (amount, callback.from_user.id))
             con.commit()
         await callback.message.answer(f'🤑 Оплачено! \n\n ➕ Начислено {amount} ₽ на баланс', parse_mode='HTML', reply_markup=ikb_back)
+        await callback.message.delete()
     else:
         await callback.message.answer(f'👀 Ожидаем оплату, оплатите и попробуйте снова!', parse_mode='HTML', reply_markup=ikb_back)
 
