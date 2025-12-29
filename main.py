@@ -176,6 +176,10 @@ def yookassa_payment_keyboard(amount, confirmation_url, payment_id): # функ�
 @dp.callback_query(lambda c: c.data.startswith('check_'))
 async def check_payment_yookassa_callback(callback: CallbackQuery):
     await callback.answer("🔄 Проверка статуса оплаты") # на пол экрана хуйня высветится
+    try:
+        await callback.message.delete()
+    except:
+        pass
     _ , amount , payment_id = callback.data.split('_')
     if check_payment_yookassa_status(int(amount), payment_id):
         with sq.connect('database.db') as con:
@@ -394,8 +398,6 @@ async def process_deposit(callback: CallbackQuery):
         except Exception as e:
             await callback.message.answer(f'❌ Не удалось создать заявку: {e}. Напишите в техподдержку, мы обязательно поможем!', parse_mode='HTML', reply_markup=ikb_deposit_methods)
             raise e
-
-
 
     if method == 'stars':
         stars_rate = 1.50 # 1 звезда = 1.50 рубля
