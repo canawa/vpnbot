@@ -355,13 +355,7 @@ async def process_deposit(callback: CallbackQuery):
             await callback.message.answer(f'❌ Не удалось создать заявку: {e}', parse_mode='HTML', reply_markup=ikb_deposit_methods)
             raise e
 
-        @dp.pre_checkout_query()
-        async def process_pre_checkout(pre_checkout): # обработчик подтверждения платежа (я так понял типо это надо чтобы payload совпал с фактическим)
-            if pre_checkout.invoice_payload == f"deposit_{amount}_{callback.from_user.id}":
-                await pre_checkout.answer(ok=True)
-            else:
-                await pre_checkout.answer(ok=False, error_message="❌ Неверный payload (Напиши в поддержку)")
-                
+        
     if method == 'CryptoBot': # рассматриваем оплату криптой
         response = get_pay_link(amount/rub_to_usdt) # переводим рубли в доллары от руки пока что пох
         print(response)
@@ -402,6 +396,21 @@ async def check_payment_callback(callback: CallbackQuery):
             con.commit()
     else:
         await callback.message.answer('👀 Ожидаем оплату, оплатите и попробуйте снова!', parse_mode='HTML')
+
+@dp.pre_checkout_query()
+async def process_pre_checkout(pre_checkout): # обработчик подтверждения платежа (я так понял типо это надо чтобы payload совпал с фактическим)
+    parts = pre_checkout.invoice_payload.split('_')
+    if len(parts) >= 3 and parts[0] == 'deposit':
+        amount = int(parts[1])
+        user_id = int(parts[2])
+        if pre_checkout.invoice_payload == f"deposit_{amount}_{user_id}":
+            await pre_checkout.answer(ok=True)
+        else:
+            await pre_checkout.answer(ok=False, error_message="❌ Неверный payload (Напиши в поддержку)")
+    else:
+        await pre_checkout.answer(ok=False, error_message="❌ Неверный payload (Напиши в поддержку)")
+                
+
 
 @dp.message(lambda m: m.successful_payment is not None) # обработчик успешного платежа
 async def handle_successful_payment(message: Message):
