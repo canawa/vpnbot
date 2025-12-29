@@ -347,7 +347,7 @@ async def process_deposit(callback: CallbackQuery):
                 description=f"👉 Создали заявку на оплату, переходите по ссылке и оплатите",
                 payload=f"deposit_{amount}_{callback.from_user.id}", # то что получит бот после оплаты (это для обработки успешности)
                 provider_token="", # для звезд не нужен provider_token
-                currency="RUB", # валюта звезд
+                currency="XTR", # валюта звезд
                 prices=[LabeledPrice(label=f"Пополнение на {amount} ₽", amount=amount_stars),],
             )
         except Exception as e:
