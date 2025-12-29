@@ -181,6 +181,10 @@ ikb_admin = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text='🔑 Ключи', callback_data='admin_keys')],
 ])
 
+ikb_admin_back = InlineKeyboardMarkup(inline_keyboard=[
+    [InlineKeyboardButton(text='🔙 Назад', callback_data='admin_back')],
+])
+
 @dp.callback_query(lambda c: c.data.startswith('check_'))
 async def check_payment_yookassa_callback(callback: CallbackQuery):
     await callback.answer("🔄 Проверка статуса оплаты") # на пол экрана хуйня высветится
@@ -295,7 +299,7 @@ async def plan_week_callback(callback: CallbackQuery):
                 if result:
                     cur.execute('UPDATE users SET balance = balance - 50 WHERE id = ? AND balance >= 50' , (callback.from_user.id,)) # вычесть 100 из баланса текущего пользователя
                     con.commit() # сохранить изменения в базе данных
-                    await callback.message.answer(f"🙋🏻‍♂️ ВАШ КЛЮЧ:\n\n<code>{result[0]}</code>\n<i>(нажмите чтобы скопировать)</i> \n\n<b>⌛Срок действия: 7 дней</b>\n🧐 Гайд на установку: https://telegra.ph/Instrukciya-kak-podklyuchitsya-k-VPN-12-22", parse_mode='HTML', reply_markup=ikb_back)
+                    await callback.message.answer(f"🙋🏻‍♂️ ВАШ КЛЮЧ:\n\n<code>{result[0]}</code>\n<i>(нажмите чтобы скопировать)</i> \n\n<b>⌛Срок действия: 7 дней</b>\n🧐 Гайд на установку: https://telegra.ph/Instrukciya-po-ustanovke-VPN-12-29", parse_mode='HTML', reply_markup=ikb_back)
                     cur.execute('UPDATE keys SET SOLD = 1 WHERE key = ?', (result[0],)) # обновить статус ключа в базе данных
                     cur.execute('UPDATE keys SET buyer_id = ? WHERE key = ?', (callback.from_user.id, result[0])) # обновить ID покупателя в базе данных
                     
@@ -338,7 +342,7 @@ async def plan_month_callback(callback: CallbackQuery):
                 if result:
                     cur.execute('UPDATE users SET balance = balance - 100 WHERE id = ? AND balance >= 100' , (callback.from_user.id,)) # вычесть 100 из баланса текущего пользователя
                     con.commit() # сохранить изменения в базе данных
-                    await callback.message.answer(f"🙋🏻‍♂️ ВАШ КЛЮЧ:\n\n<code>{result[0]}</code>\n<i>(нажмите чтобы скопировать)</i> \n\n<b>⌛Срок действия: 30 дней</b>\n🧐 Гайд на установку: https://telegra.ph/Instrukciya-kak-podklyuchitsya-k-VPN-12-22", parse_mode='HTML', reply_markup=ikb_back)
+                    await callback.message.answer(f"🙋🏻‍♂️ ВАШ КЛЮЧ:\n\n<code>{result[0]}</code>\n<i>(нажмите чтобы скопировать)</i> \n\n<b>⌛Срок действия: 30 дней</b>\n🧐 Гайд на установку: https://telegra.ph/Instrukciya-po-ustanovke-VPN-12-29", parse_mode='HTML', reply_markup=ikb_back)
                     cur.execute('UPDATE keys SET SOLD = 1 WHERE key = ?', (result[0],)) # обновить статус ключа в базе данных
                     cur.execute('UPDATE keys SET buyer_id = ? WHERE key = ?', (callback.from_user.id, result[0])) # обновить ID покупателя в базе данных
                     
@@ -534,9 +538,21 @@ async def bug_report_callback(callback: CallbackQuery):
     await callback.message.delete()
     await callback.message.answer("⚠️ <b>Баг репорт</b>\n\nhttps://forms.gle/Pwdm8uzAgtu9T2296!", parse_mode='HTML', reply_markup=ikb_back)
 
+@dp.callback_query(lambda c: c.data == 'admin_back')
+async def admin_back_callback(callback: CallbackQuery):
+    await callback.answer("🔙 Назад") # на пол экрана хуйня высветится
+    await callback.message.delete()
+    await callback.message.answer("👤 Админ панель", parse_mode='HTML', reply_markup=ikb_admin)
+
 @dp.message(F.text == 'admin' and F.from_user.id == 1979477416 or F.from_user.id == 7562967579)
 async def admin_message (message: Message):
     await message.answer("👤 Админ панель", parse_mode='HTML', reply_markup=ikb_admin)
+
+@dp.callback_query(lambda c: c.data == 'admin_users')
+async def admin_users_callback(callback: CallbackQuery):
+    await callback.answer("👤 Пользователи") # на пол экрана хуйня высветится
+    await callback.message.delete() # удаляем соо на котором нажали на кнопку
+    await callback.message.answer("👤 Пользователи", parse_mode='HTML', reply_markup=ikb_admin_back)
 
 
 async def main():
