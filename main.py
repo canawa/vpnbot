@@ -1,5 +1,5 @@
 import aiogram
-from aiogram import Bot, Dispatcher, types
+from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import CommandStart
 from aiogram.types import Message, CallbackQuery, invoice, LabeledPrice, FSInputFile
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
@@ -173,6 +173,13 @@ def yookassa_payment_keyboard(amount, confirmation_url, payment_id): # функ�
         [InlineKeyboardButton(text='🔙 Назад', callback_data='back')],
     ])
     return ikb_yookassa
+
+ikb_admin = InlineKeyboardMarkup(inline_keyboard=[
+    [InlineKeyboardButton(text='👤 Пользователи', callback_data='admin_users')],
+    [InlineKeyboardButton(text='💰 Баланс', callback_data='admin_balance')],
+    [InlineKeyboardButton(text='🔄 Оплаты', callback_data='admin_payments')],
+    [InlineKeyboardButton(text='🔑 Ключи', callback_data='admin_keys')],
+])
 
 @dp.callback_query(lambda c: c.data.startswith('check_'))
 async def check_payment_yookassa_callback(callback: CallbackQuery):
@@ -526,6 +533,11 @@ async def bug_report_callback(callback: CallbackQuery):
     await callback.answer("⚠️ Баг репорт") # на пол экрана хуйня высветится
     await callback.message.delete()
     await callback.message.answer("⚠️ <b>Баг репорт</b>\n\nhttps://forms.gle/Pwdm8uzAgtu9T2296!", parse_mode='HTML', reply_markup=ikb_back)
+
+@dp.message(F.text == 'admin' and F.from_user.id == 1979477416 or F.from_user.id == 7562967579)
+async def admin_message (message: Message):
+    await message.answer("👤 Админ панель", parse_mode='HTML', reply_markup=ikb_admin)
+
 
 async def main():
     await dp.start_polling(bot) # отправить соединение к серверам телеграмма
