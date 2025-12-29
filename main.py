@@ -9,6 +9,10 @@ import requests
 import pprint
 import dotenv
 import os
+from yookassa import Configuration, Payment # для работы с Юкассой
+
+Configuration.account_id = os.getenv('YOOKASSA_ACCOUNT_ID')
+Configuration.secret_key = os.getenv('YOOKASSA_SECRET_KEY')
 
 print('BOT STARTED!!!')
 
@@ -337,6 +341,31 @@ async def process_deposit(callback: CallbackQuery):
 
     await callback.message.answer(f"💰 Пополнение на {amount} ₽\n\n<b>💳 Способ пополнения: {method}</b> \n\n Создаем заявку...", parse_mode='HTML')
     
+    if method == 'SBP':
+        try:
+            payment = Payment.create({
+                "amount": {
+                    "value": amount,
+                    "currency": "RUB"
+                },
+                "description": "Пополнение баланса",
+                'capture': True,
+                'confirmation': {
+                    'type': 'redirect',
+                    'return_url': 'https://t.me/coffemaniaVPNbot',
+                }
+                "metadata": {
+                    "user_id": callback.from_user.id,
+                }
+            }, uuid.uuid4())
+            print(payment)
+            await callback.message.answer(f'👉 Создали заявку на оплату, переходите по ссылке и оплатите', parse_mode='HTML', reply_markup=ikb_back)
+        except Exception as e:
+            await callback.message.answer(f'❌ Не удалось создать заявку: {e}. Напишите в техподдержку, мы обязательно поможем!', parse_mode='HTML', reply_markup=ikb_deposit_methods)
+            raise e
+
+
+
     if method == 'stars':
         stars_rate = 1.50 # 1 звезда = 1.50 рубля
         amount_stars = amount * stars_rate
