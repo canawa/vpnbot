@@ -137,6 +137,7 @@ ikb_documents = InlineKeyboardMarkup(inline_keyboard=[
 ])
 
 ikb_referral = InlineKeyboardMarkup(inline_keyboard=[
+    [InlineKeyboardButton(text='💸 Вывести реферальный баланс', callback_data='ref_withdraw')],
     [InlineKeyboardButton(text='🔙 Назад', callback_data='back')],
 ])
 
@@ -269,7 +270,10 @@ async def referral_callback(callback: CallbackQuery):
         cur.execute("SELECT ref_amount FROM users WHERE id = ?", (callback.from_user.id,)) # вытащить реферальное количество из базы данных текущего пользователя
         result = cur.fetchone() # получить результат из базы данных
         ref_amount = result[0] if result else 0 # если результат не пустой, то вытащить реферальное количество, иначе 0
-    await callback.message.answer_photo(INVITE_FRIEND_PHOTO, caption=f"🤝 <b>Пригласить друга</b>\n\nВаша реферальная ссылка:\n<code>https://t.me/coffemaniaVPNbot?start={callback.from_user.id}</code>\n\n👁️ Всего заработано: {ref_amount*50} ₽ \n\n🤔 <b>За каждого приглашенного друга вы получите 50 ₽ на баланс и 50% от его пополнений на реферальный баланс, который можно вывести! </b>", parse_mode='HTML', reply_markup=ikb_referral)
+        cur.execute('SELECT ref_balance FROM users WHERE id = ?', (callback.from_user.id,))
+        result = cur.fetchone()
+        ref_balance = result[0] if result else 0
+    await callback.message.answer_photo(INVITE_FRIEND_PHOTO, caption=f"🤝 <b>Пригласить друга</b>\n\nВаша реферальная ссылка:\n<code>https://t.me/coffemaniaVPNbot?start={callback.from_user.id}</code>\n\n👁️ Всего заработано на баланс VPN: {ref_amount*50} ₽ \n \n💵 Реферальный баланс (можно вывести): {ref_balance} ₽ \n\n🤔 <b>За каждого приглашенного друга вы получите 50 ₽ на баланс и 50% от его пополнений на реферальный баланс, который можно вывести! </b>", parse_mode='HTML', reply_markup=ikb_referral)
 
 
 @dp.callback_query(lambda c: c.data == 'support')
@@ -496,7 +500,7 @@ async def process_deposit(callback: CallbackQuery):
         ikb = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text=f'✅️ Оплатить {amount} ₽', url=pay_url)],
             [InlineKeyboardButton(text='🔄 Проверить статус оплаты', callback_data=f'check_payment_{invoice_id}')],
-            [InlineKeyboardButton(text='🔙 Назад', callback_data='back')],
+            [InlineKeyboardButton(text='❌ Отменить платеж!', callback_data='back')],
         ])
         
 
