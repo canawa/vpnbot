@@ -1,5 +1,7 @@
 import aiogram
 from aiogram import Bot, Dispatcher, types, F
+from aiogram.fsm.context import FSMContext
+from aiogram.fsm.state import State, StatesGroup
 from aiogram.filters import CommandStart
 from aiogram.types import Message, CallbackQuery, invoice, LabeledPrice, FSInputFile
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
@@ -123,7 +125,7 @@ ikb_back = InlineKeyboardMarkup(inline_keyboard=[
 ikb_profile = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text='🔗 Мои ключи', callback_data='my_keys')],
     [InlineKeyboardButton(text='💰 Пополнить', callback_data='deposit')],
-    [InlineKeyboardButton(text='💸 Вывести реферальный баланс', callback_data='ref_balance')],
+    [InlineKeyboardButton(text='💸 Вывести реферальный баланс', callback_data='ref_withdraw')],
     [InlineKeyboardButton(text='🔙 Назад', callback_data='back')],
 ])
 
@@ -186,6 +188,14 @@ ikb_admin = InlineKeyboardMarkup(inline_keyboard=[
 
 ikb_admin_back = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text='🔙 Назад', callback_data='admin_back')],
+])
+
+ikb_withdraw = InlineKeyboardMarkup(inline_keyboard=[
+    [InlineKeyboardButton(text='💰 200 ₽', callback_data='withdraw_200')],
+    [InlineKeyboardButton(text='💰 300 ₽', callback_data='withdraw_300')],
+    [InlineKeyboardButton(text='💰 500 ₽', callback_data='withdraw_500')],
+    [InlineKeyboardButton(text='💰 1000 ₽', callback_data='withdraw_1000')],
+    [InlineKeyboardButton(text='🔙 Назад', callback_data='back')],
 ])
 
 @dp.callback_query(lambda c: c.data.startswith('check_'))
@@ -596,6 +606,38 @@ async def admin_keys_callback(callback: CallbackQuery):
         result = cur.fetchall()
         message_text = "Список ключей:\n\n" + "\n".join(f'🔑 {key[0]}\n{key[1]} дней\nID покупателя: {key[2]}' for key in result)
         await callback.message.answer(f"{message_text}", parse_mode='HTML', reply_markup=ikb_admin_back)
+
+@dp.callback_query(lambda c: c.data == 'ref_withdraw')
+async def ref_withdraw_callback(callback: CallbackQuery):
+    await callback.answer("💸 Вывести реферальный баланс") # на пол экрана хуйня высветится
+    await callback.message.delete()
+    await callback.message.answer("Чтобы вывести реферальный баланс, на реферальном балансе должно быть минимум 200 ₽. \n\Выберите сумму для вывода:", parse_mode='HTML', reply_markup=ikb_withdraw)
+
+class Withdraw(StatesGroup):
+    requisites = State()
+
+
+@dp.callback_query(lambda c: c.data.startswith('withdraw_'))
+async def withdraw_callback(callback: CallbackQuery):
+    await callback.message.delete()
+    _ , sum = callback.data.split('_')  
+    amount = int(sum)
+    if amount < 200:
+        await callback.message.answer("❌ Минимальная сумма для вывода 200 ₽", parse_mode='HTML', reply_markup=ikb_withdraw)
+        return
+    if amount > callback.from_user.ref_balance:
+        await callback.message.answer("❌ Недостаточно средств на реферальном балансе", parse_mode='HTML', reply_markup=ikb_withdraw)
+        return
+
+    await callback.message.answer("💸 <b>Теперь напишите @star3alight, в сообщении укажите реквизиты для вывода: (например, СБП +7978334455 Тбанк ИЛИ 2200 4500 1111 1111 СБЕР)</b>", parse_mode='HTML')
+
+
+    with sq.connect('database.db') as con:
+        cur = con.cursor()
+        cur.execute('UPDATE users SET ref_balance = ref_balance - ? WHERE id = ?', (amount, callback.from_user.id))
+        con.commit()
+
+
 
 async def main():
     await dp.start_polling(bot) # отправить соединение к серверам телеграмма
