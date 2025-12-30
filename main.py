@@ -173,7 +173,7 @@ def yookassa_payment_keyboard(amount, confirmation_url, payment_id): # функ�
     ikb_yookassa = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text=f'👉 Перейти к оплате {amount} ₽', url=confirmation_url)],
         [InlineKeyboardButton(text='🔄 Проверить статус оплаты', callback_data=f'check_{amount}_{payment_id}')],
-        [InlineKeyboardButton(text='🔙 Назад', callback_data='back')],
+        [InlineKeyboardButton(text='❌ Отменить платеж!', callback_data='back')],
     ])
     return ikb_yookassa
 
