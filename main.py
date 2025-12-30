@@ -579,8 +579,8 @@ async def admin_payments_callback(callback: CallbackQuery):
         message_text = "Список оплат:\n\n" + "\n".join(f'👤 {transaction[0]} - {transaction[1]} - {transaction[2]} Р - {transaction[3]}' for transaction in result)
         await callback.message.answer(f"{message_text}", parse_mode='HTML', reply_markup=ikb_admin_back)
 
-@dp.callback_query(lambda c: c.data == 'admin_users_keys')
-async def admin_users_keys_callback(callback: CallbackQuery):
+@dp.callback_query(lambda c: c.data == 'admin_keys')
+async def admin_keys_callback(callback: CallbackQuery):
     await callback.answer("🔑 Ключи") # на пол экрана хуйня высветится
     await callback.message.delete()
     with sq.connect('database.db') as con:
