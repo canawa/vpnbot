@@ -198,6 +198,7 @@ async def check_payment_yookassa_callback(callback: CallbackQuery):
             cur.execute('UPDATE users SET balance = balance + ? WHERE id = ?', (amount, callback.from_user.id))
             cur.execute('SELECT ref_master_id FROM referal_users WHERE referral_id = ?', (callback.from_user.id,))
             ref_master = cur.fetchone() 
+            print(ref_master)
             if ref_master: # если есть рефовод то:
                 cur.execute('UPDATE users SET ref_balance = ref_balance + ? WHERE id = ?', (amount*0.5, ref_master[0])) # начислить 50% реферального бонуса рефоводу
             con.commit()
