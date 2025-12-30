@@ -587,6 +587,7 @@ async def admin_users_callback(callback: CallbackQuery):
         result = cur.fetchall()
         message_text = "Список пользователей:\n\n" + "\n".join(
     f'👤 {user[0]} - {user[1]} - {user[2]} Р - {user[3]} рефов' for user in result)
+        message_text = message_text + f'\n\n ВСЕГО ПОЛЬЗОВАТЕЛЕЙ: {len(result)}'
     await callback.message.answer(f"{message_text}", parse_mode='HTML', reply_markup=ikb_admin_back)
 
 @dp.callback_query(lambda c: c.data == 'admin_payments')
