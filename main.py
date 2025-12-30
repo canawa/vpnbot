@@ -598,7 +598,7 @@ async def admin_payments_callback(callback: CallbackQuery):
         cur.execute('SELECT id, user_id, amount, type FROM transactions')
         result = cur.fetchall()
 
-        message_text = "Список оплат:\n\n" + "\n".join(f"{'🟢' if transaction[3] != 'Выплата по реферальному балансу' else '🔴'} {transaction[0]} - {transaction[1]} - {transaction[2]} Р - {transaction[3]}" for transaction in result)
+        message_text = "Список оплат:\n\n" + "\n".join(f"{'🟢' if transaction[3] != 'ref_withdraw' else '🔴'} {transaction[0]} - {transaction[1]} - {transaction[2]} Р - {transaction[3]}" for transaction in result)
 
 
         await callback.message.answer(f"{message_text}", parse_mode='HTML', reply_markup=ikb_admin_back)
@@ -619,9 +619,6 @@ async def ref_withdraw_callback(callback: CallbackQuery):
     await callback.answer("💸 Вывести реферальный баланс") # на пол экрана хуйня высветится
     await callback.message.delete()
     await callback.message.answer("<b> 🤝 Чтобы вывести реферальный баланс, на реферальном балансе должно быть минимум 200 ₽. \n\n 🟢 Выберите сумму для вывода:</b>", parse_mode='HTML', reply_markup=ikb_withdraw)
-
-class Withdraw(StatesGroup):
-    requisites = State()
 
 
 @dp.callback_query(lambda c: c.data.startswith('withdraw_'))
