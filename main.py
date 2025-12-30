@@ -644,6 +644,7 @@ async def withdraw_callback(callback: CallbackQuery):
     with sq.connect('database.db') as con:
         cur = con.cursor()
         cur.execute('UPDATE users SET ref_balance = ref_balance - ? WHERE id = ?', (amount, callback.from_user.id))
+        cur.execute('INSERT INTO transactions (user_id, amount, type) VALUES (?, ?, ?)', (callback.from_user.id, amount, 'ref_withdraw'))
         con.commit()
 
 
