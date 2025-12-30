@@ -200,7 +200,7 @@ async def check_payment_yookassa_callback(callback: CallbackQuery):
             ref_master = cur.fetchone() 
             print(ref_master)
             if ref_master: # если есть рефовод то:
-                cur.execute('UPDATE users SET ref_balance = ref_balance + ? WHERE id = ?', (amount*0.5, ref_master[0])) # начислить 50% реферального бонуса рефоводу
+                cur.execute('UPDATE users SET ref_balance = ref_balance + ? WHERE id = ?', (int(amount)/2, ref_master[0])) # начислить 50% реферального бонуса рефоводу
             con.commit()
         await callback.message.answer(f'🤑 Оплачено! \n\n ➕ Начислено {amount} ₽ на баланс', parse_mode='HTML', reply_markup=ikb_back)
         await callback.message.delete()
