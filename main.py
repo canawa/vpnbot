@@ -585,7 +585,7 @@ async def admin_keys_callback(callback: CallbackQuery):
     await callback.message.delete()
     with sq.connect('database.db') as con:
         cur = con.cursor()
-        cur.execute('SELECT id, user_id, key FROM keys')
+        cur.execute('SELECT rowid, user_id, key FROM keys')
         result = cur.fetchall()
         message_text = "Список ключей:\n\n" + "\n".join(f'👤 {key[0]} - {key[1]} - {key[2]}' for key in result)
         await callback.message.answer(f"{message_text}", parse_mode='HTML', reply_markup=ikb_admin_back)
