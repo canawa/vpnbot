@@ -587,7 +587,7 @@ async def admin_keys_callback(callback: CallbackQuery):
         cur = con.cursor()
         cur.execute('SELECT key, duration, buyer_id FROM keys')
         result = cur.fetchall()
-        message_text = "Список ключей:\n\n" + "\n".join(f'👤 {key[0]} - {key[1]} - {key[2]}' for key in result)
+        message_text = "Список ключей:\n\n" + "\n".join(f'🔑 {key[0]}\n{key[1]} дней\nID покупателя: {key[2]}' for key in result)
         await callback.message.answer(f"{message_text}", parse_mode='HTML', reply_markup=ikb_admin_back)
 
 async def main():
