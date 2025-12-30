@@ -597,7 +597,8 @@ async def admin_payments_callback(callback: CallbackQuery):
         cur = con.cursor()
         cur.execute('SELECT id, user_id, amount, type FROM transactions')
         result = cur.fetchall()
-        message_text = "Список оплат:\n\n" + "\n".join(f'👤 {transaction[0]} - {transaction[1]} - {transaction[2]} Р - {transaction[3]}' for transaction in result)
+        emoji = ''
+        message_text = "Список оплат:\n\n" + "\n".join(f'{emoji} {transaction[0]} - {transaction[1]} - {transaction[2]} Р - {transaction[3]}' for transaction in result if transaction[3] != 'Выплата по реферальному балансу' emoji = '🟢' else emoji = '🔴')
         await callback.message.answer(f"{message_text}", parse_mode='HTML', reply_markup=ikb_admin_back)
 
 @dp.callback_query(lambda c: c.data == 'admin_keys')
@@ -644,7 +645,7 @@ async def withdraw_callback(callback: CallbackQuery):
     with sq.connect('database.db') as con:
         cur = con.cursor()
         cur.execute('UPDATE users SET ref_balance = ref_balance - ? WHERE id = ?', (amount, callback.from_user.id))
-        cur.execute('INSERT INTO transactions (user_id, amount, type) VALUES (?, ?, ?)', (callback.from_user.id, amount, 'ref_withdraw'))
+        cur.execute('INSERT INTO transactions (user_id, amount, type) VALUES (?, ?, ?)', (callback.from_user.id, amount, 'Выплата по реферальному балансу'))
         con.commit()
 
 
