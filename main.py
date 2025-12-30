@@ -611,7 +611,7 @@ async def admin_keys_callback(callback: CallbackQuery):
 async def ref_withdraw_callback(callback: CallbackQuery):
     await callback.answer("💸 Вывести реферальный баланс") # на пол экрана хуйня высветится
     await callback.message.delete()
-    await callback.message.answer("Чтобы вывести реферальный баланс, на реферальном балансе должно быть минимум 200 ₽. \n\Выберите сумму для вывода:", parse_mode='HTML', reply_markup=ikb_withdraw)
+    await callback.message.answer("<b> 🤝 Чтобы вывести реферальный баланс, на реферальном балансе должно быть минимум 200 ₽. \n\n 🟢 Выберите сумму для вывода:</b>", parse_mode='HTML', reply_markup=ikb_withdraw)
 
 class Withdraw(StatesGroup):
     requisites = State()
