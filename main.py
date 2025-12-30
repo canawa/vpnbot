@@ -625,7 +625,12 @@ async def withdraw_callback(callback: CallbackQuery):
     if amount < 200:
         await callback.message.answer("❌ Минимальная сумма для вывода 200 ₽", parse_mode='HTML', reply_markup=ikb_withdraw)
         return
-    if amount > callback.from_user.ref_balance:
+    with sq.connect('database.db') as con:
+        cur = con.cursor()
+        cur.execute('SELECT ref_balance FROM users WHERE id = ?', (callback.from_user.id,))
+        result = cur.fetchone()
+        ref_balance = result[0] if result else 0
+    if amount > ref_balance:
         await callback.message.answer("❌ Недостаточно средств на реферальном балансе", parse_mode='HTML', reply_markup=ikb_withdraw)
         return
 
