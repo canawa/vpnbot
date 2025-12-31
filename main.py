@@ -580,7 +580,10 @@ async def shout_message(message: Message):
         cur.execute('SELECT id FROM users;')
         result = cur.fetchall()
         for user in result:
-            await bot.send_message(user[0], message.text[6:], parse_mode='HTML')
+            try:
+                await bot.send_message(user[0], message.text[6:], parse_mode='HTML')
+            except:
+                pass
     await message.answer("🔊 Сообщение отправлено всем пользователям", parse_mode='HTML', reply_markup=ikb_back)
 
 
