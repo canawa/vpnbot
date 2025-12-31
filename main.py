@@ -648,6 +648,9 @@ async def withdraw_callback(callback: CallbackQuery):
         cur.execute('INSERT INTO transactions (user_id, amount, type) VALUES (?, ?, ?)', (callback.from_user.id, amount, 'Выплата по реферальному балансу'))
         con.commit()
 
+@dp.message(F.text.startswith('shout') and (F.from_user.id.in_([1979477416, 7562967579])))
+async def shout_message(message: Message):
+    await bot.send_message(message.from_user.id, message.text)
 
 
 async def main():
