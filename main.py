@@ -575,6 +575,7 @@ async def admin_back_callback(callback: CallbackQuery):
 
 @dp.message(F.text.startswith('shout'), (F.from_user.id.in_([1979477416, 7562967579])))
 async def shout_message(message: Message):
+    print(message.text)
     await bot.send_message(message.from_user.id, message.text)
 
 
