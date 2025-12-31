@@ -111,7 +111,7 @@ def check_payment_status(invoice_id):
 
 
 ikb = InlineKeyboardMarkup(inline_keyboard=[
-    [InlineKeyboardButton(text='🛒 Купить VPN', callback_data='buy_vpn')],
+    [InlineKeyboardButton(text='🛒 Получить VPN', callback_data='buy_vpn')],
     [InlineKeyboardButton(text='👤 Личный кабинет', callback_data='profile')],
     [InlineKeyboardButton(text='🤝 Пригласить друга', callback_data='referral')],
     [InlineKeyboardButton(text='ℹ️ Поддержка', callback_data='support')],
@@ -575,7 +575,11 @@ async def admin_back_callback(callback: CallbackQuery):
 
 @dp.message(F.text.startswith('shout'), (F.from_user.id.in_([1979477416, 7562967579])))
 async def shout_message(message: Message):
-    # print(message.text)
+    with sq.connect('database.db') as con:
+        cur = con.cursor()
+        cur.execute('SELECT id FROM users;')
+        result = cur.fetchall()
+        print(result)
     await bot.send_message(message.from_user.id, message.text[6:], parse_mode='HTML')
 
 
