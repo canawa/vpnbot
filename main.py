@@ -142,7 +142,7 @@ ikb_referral = InlineKeyboardMarkup(inline_keyboard=[
 ])
 
 ikb_support = InlineKeyboardMarkup(inline_keyboard=[
-    [InlineKeyboardButton(text='💬 Написать в поддержку', url='https://t.me/star3alight')],
+    [InlineKeyboardButton(text='💬 Написать в поддержку', url='@CoffemaniaSupport')],
     [InlineKeyboardButton(text='🔙 Назад', callback_data='back')],
 ])
 
@@ -649,7 +649,7 @@ async def withdraw_callback(callback: CallbackQuery):
         await callback.message.answer("❌ Недостаточно средств на реферальном балансе", parse_mode='HTML', reply_markup=ikb_withdraw)
         return
 
-    await callback.message.answer("💸 <b>Теперь напишите @star3alight, в сообщении укажите реквизиты для вывода: (например, СБП +7978334455 Тбанк ИЛИ 2200 4500 1111 1111 СБЕР)</b>", parse_mode='HTML')
+    await callback.message.answer("💸 <b>Теперь напишите @CoffemaniaSupport, в сообщении укажите реквизиты для вывода: (например, СБП +7978334455 Тбанк ИЛИ 2200 4500 1111 1111 СБЕР)</b>", parse_mode='HTML')
 
 
     with sq.connect('database.db') as con:
