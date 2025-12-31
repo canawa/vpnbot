@@ -573,7 +573,12 @@ async def admin_back_callback(callback: CallbackQuery):
     await callback.message.delete()
     await callback.message.answer("👤 Админ панель", parse_mode='HTML', reply_markup=ikb_admin)
 
-@dp.message(F.text == 'admin' and (F.from_user.id.in_([1979477416, 7562967579])))
+@dp.message(F.text.startswith('shout'), (F.from_user.id.in_([1979477416, 7562967579])))
+async def shout_message(message: Message):
+    await bot.send_message(message.from_user.id, message.text)
+
+
+@dp.message(F.text == 'admin' , (F.from_user.id.in_([1979477416, 7562967579])))
 async def admin_message (message: Message):
     await message.answer("👤 Админ панель", parse_mode='HTML', reply_markup=ikb_admin)
 
@@ -648,9 +653,6 @@ async def withdraw_callback(callback: CallbackQuery):
         cur.execute('INSERT INTO transactions (user_id, amount, type) VALUES (?, ?, ?)', (callback.from_user.id, amount, 'Выплата по реферальному балансу'))
         con.commit()
 
-@dp.message(F.text.startswith('shout'), (F.from_user.id.in_([1979477416, 7562967579])))
-async def shout_message(message: Message):
-    await bot.send_message(message.from_user.id, message.text)
 
 
 async def main():
