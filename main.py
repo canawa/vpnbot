@@ -579,8 +579,9 @@ async def shout_message(message: Message):
         cur = con.cursor()
         cur.execute('SELECT id FROM users;')
         result = cur.fetchall()
-        print(result)
-    await bot.send_message(message.from_user.id, message.text[6:], parse_mode='HTML')
+        for user in result:
+            await bot.send_message(user[0], message.text[6:], parse_mode='HTML')
+    await message.answer("🔊 Сообщение отправлено всем пользователям", parse_mode='HTML', reply_markup=ikb_back)
 
 
 @dp.message(F.text == 'admin' , (F.from_user.id.in_([1979477416, 7562967579])))
