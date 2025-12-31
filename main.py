@@ -142,7 +142,7 @@ ikb_referral = InlineKeyboardMarkup(inline_keyboard=[
 ])
 
 ikb_support = InlineKeyboardMarkup(inline_keyboard=[
-    [InlineKeyboardButton(text='💬 Написать в поддержку', url='@CoffemaniaSupport')],
+    [InlineKeyboardButton(text='💬 Написать в поддержку', url='https://t.me/CoffemaniaSupport')],
     [InlineKeyboardButton(text='🔙 Назад', callback_data='back')],
 ])
 
