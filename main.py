@@ -219,7 +219,7 @@ async def check_payment_callback(callback: CallbackQuery):
         print(invoice_id, status)
         if status == 'paid':
             await callback.message.answer(f'🤑 Оплачено! \n\n ➕ Начислено {amount} ₽ на баланс', parse_mode='HTML', reply_markup=ikb_back)
-            callback.message.delete()
+            await callback.message.delete()
             with sq.connect('database.db') as con:
                 cur = con.cursor()
                 cur.execute('UPDATE users SET balance = balance + ? WHERE id = ?', (amount, callback.from_user.id))
