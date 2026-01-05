@@ -617,6 +617,7 @@ async def process_deposit(callback: CallbackQuery):
         pay_url = result['pay_url'] # ссылка на оплату
         bot_invoice_url = result['bot_invoice_url'] # ссылка на оплату в боте
         invoice_id = result['invoice_id'] # id заявки
+        print(invoice_id)
         # print(pay_url, bot_invoice_url, ok)
 
         ikb = InlineKeyboardMarkup(inline_keyboard=[
