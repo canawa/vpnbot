@@ -500,10 +500,11 @@ async def my_keys_callback(callback: CallbackQuery):
     ])
     with sq.connect('database.db') as con:
         cur = con.cursor()
-        cur.execute('SELECT key, expiration_date FROM keys WHERE buyer_id = ? ', (callback.from_user.id,)) # вытащить ключи из базы данных текущего пользователя
+        today = date.today()
+        cur.execute('SELECT key, expiration_date FROM keys WHERE buyer_id = ? AND expiration_date >= ? ', (callback.from_user.id, today)) # вытащить ключи из базы данных текущего пользователя
         result = cur.fetchall() # получить результат из базы данных
         print(result)
-        today = date.today()
+        
         for key_id, key in enumerate(result): # перебрать все ключи и вывести их номер
     
             ikb_my_keys.inline_keyboard.append([InlineKeyboardButton(text=f'🔑 {key_id + 1}', callback_data=f'use_key_{key_id}')])
