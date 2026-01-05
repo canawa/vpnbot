@@ -149,6 +149,8 @@ ikb_support = InlineKeyboardMarkup(inline_keyboard=[
 ikb_plans = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text='🇩🇪 Неделя (50₽)', callback_data='plan_week')],
     [InlineKeyboardButton(text='🇩🇪 Месяц (100₽)', callback_data='plan_month')],
+    [InlineKeyboardButton(text='🇩🇪 Полгода (500₽)', callback_data='plan_halfyear')],
+    [InlineKeyboardButton(text='🇩🇪 Год (800₽)', callback_data='plan_year')],
     [InlineKeyboardButton(text='🔙 Назад', callback_data='back')],
 ])
 
@@ -389,6 +391,92 @@ async def plan_month_callback(callback: CallbackQuery):
                     cur.execute('UPDATE users SET balance = balance - 100 WHERE id = ? AND balance >= 100' , (callback.from_user.id,)) # вычесть 100 из баланса текущего пользователя
                     con.commit() # сохранить изменения в базе данных
                     await callback.message.answer(f"🙋🏻‍♂️ ВАШ КЛЮЧ:\n\n<code>{result[0]}</code>\n<i>(нажмите чтобы скопировать)</i> \n\n<b>⌛Срок действия: 30 дней</b>\n\n <b> 📌 1 КЛЮЧ - ОДНО УСТРОЙСТВО</b>\n🧐 Гайд на установку: https://telegra.ph/Instrukciya-po-ustanovke-VPN-12-29", parse_mode='HTML', reply_markup=ikb_back)
+                    cur.execute('UPDATE keys SET SOLD = 1 WHERE key = ?', (result[0],)) # обновить статус ключа в базе данных
+                    cur.execute('UPDATE keys SET buyer_id = ? WHERE key = ?', (callback.from_user.id, result[0])) # обновить ID покупателя в базе данных
+                    
+                else:
+                    await callback.message.answer('‼️ Нет доступных ключей. Свяжитесь с поддержкой.', parse_mode='HTML', reply_markup=ikb_support)
+                con.commit() # сохранить изменения в базе данных
+        else:
+            await callback.message.answer('💰 Недостаточно средств на балансе. Пополните баланс и попробуйте снова.', parse_mode='HTML', reply_markup=ikb_deposit)
+
+@dp.callback_query(lambda c: c.data == 'plan_halfyear')
+async def plan_halfyear_callback(callback: CallbackQuery):
+    await callback.answer("📅 🇩🇪 Полгода (500₽)") # на пол экрана хуйня высветится
+    await callback.message.delete()
+
+    with sq.connect('database.db') as con:
+        cur = con.cursor()
+        cur.execute('SELECT balance FROM users WHERE id = ?', (callback.from_user.id,))
+        result = cur.fetchone() # получить результат из базы данных
+        balance = result[0] if result else 0 # если результат не пустой, то вытащить баланс, иначе 0
+        # con.commit() # сохранить изменения в базе данных
+        if balance >= 500:
+            with sq.connect('database.db') as con:
+                try:
+                    vpn_key = await generate_vpn_key(callback.from_user.id, 180)
+                    print(vpn_key)
+                except Exception as e:
+                    await callback.message.answer(f'❌ Не удалось сгенерировать ключ: {e}. Напишите в техподдержку, мы обязательно поможем!', parse_mode='HTML', reply_markup=ikb_support)
+                    raise e
+
+                if vpn_key:
+                    with sq.connect('database.db') as con:
+                        cur = con.cursor()
+                        cur.execute('INSERT INTO keys (key, duration, SOLD, buyer_id) VALUES (?, ?, ?, ?)', (vpn_key, 180, 0, callback.from_user.id))
+                        con.commit()
+
+                cur = con.cursor()
+                cur.execute('SELECT key FROM keys WHERE duration = 180 AND SOLD = 0 ORDER BY rowid DESC LIMIT 1')
+                result = cur.fetchone() # получить результат из базы данных
+                print(result)
+                if result:
+                    cur.execute('UPDATE users SET balance = balance - 500 WHERE id = ? AND balance >= 500' , (callback.from_user.id,)) # вычесть 500 из баланса текущего пользователя
+                    con.commit() # сохранить изменения в базе данных
+                    await callback.message.answer(f"🙋🏻‍♂️ ВАШ КЛЮЧ:\n\n<code>{result[0]}</code>\n<i>(нажмите чтобы скопировать)</i> \n\n<b>⌛Срок действия: 180 дней</b>\n\n <b> 📌 1 КЛЮЧ - ОДНО УСТРОЙСТВО</b>\n🧐 Гайд на установку: https://telegra.ph/Instrukciya-po-ustanovke-VPN-12-29", parse_mode='HTML', reply_markup=ikb_back)
+                    cur.execute('UPDATE keys SET SOLD = 1 WHERE key = ?', (result[0],)) # обновить статус ключа в базе данных
+                    cur.execute('UPDATE keys SET buyer_id = ? WHERE key = ?', (callback.from_user.id, result[0])) # обновить ID покупателя в базе данных
+                    
+                else:
+                    await callback.message.answer('‼️ Нет доступных ключей. Свяжитесь с поддержкой.', parse_mode='HTML', reply_markup=ikb_support)
+                con.commit() # сохранить изменения в базе данных
+        else:
+            await callback.message.answer('💰 Недостаточно средств на балансе. Пополните баланс и попробуйте снова.', parse_mode='HTML', reply_markup=ikb_deposit)
+
+@dp.callback_query(lambda c: c.data == 'plan_year')
+async def plan_year_callback(callback: CallbackQuery):
+    await callback.answer("🎉 🇩🇪 Год (800₽)") # на пол экрана хуйня высветится
+    await callback.message.delete()
+
+    with sq.connect('database.db') as con:
+        cur = con.cursor()
+        cur.execute('SELECT balance FROM users WHERE id = ?', (callback.from_user.id,))
+        result = cur.fetchone() # получить результат из базы данных
+        balance = result[0] if result else 0 # если результат не пустой, то вытащить баланс, иначе 0
+        # con.commit() # сохранить изменения в базе данных
+        if balance >= 800:
+            with sq.connect('database.db') as con:
+                try:
+                    vpn_key = await generate_vpn_key(callback.from_user.id, 365)
+                    print(vpn_key)
+                except Exception as e:
+                    await callback.message.answer(f'❌ Не удалось сгенерировать ключ: {e}. Напишите в техподдержку, мы обязательно поможем!', parse_mode='HTML', reply_markup=ikb_support)
+                    raise e
+
+                if vpn_key:
+                    with sq.connect('database.db') as con:
+                        cur = con.cursor()
+                        cur.execute('INSERT INTO keys (key, duration, SOLD, buyer_id) VALUES (?, ?, ?, ?)', (vpn_key, 365, 0, callback.from_user.id))
+                        con.commit()
+
+                cur = con.cursor()
+                cur.execute('SELECT key FROM keys WHERE duration = 365 AND SOLD = 0 ORDER BY rowid DESC LIMIT 1')
+                result = cur.fetchone() # получить результат из базы данных
+                print(result)
+                if result:
+                    cur.execute('UPDATE users SET balance = balance - 800 WHERE id = ? AND balance >= 800' , (callback.from_user.id,)) # вычесть 800 из баланса текущего пользователя
+                    con.commit() # сохранить изменения в базе данных
+                    await callback.message.answer(f"🙋🏻‍♂️ ВАШ КЛЮЧ:\n\n<code>{result[0]}</code>\n<i>(нажмите чтобы скопировать)</i> \n\n<b>⌛Срок действия: 365 дней</b>\n\n <b> 📌 1 КЛЮЧ - ОДНО УСТРОЙСТВО</b>\n🧐 Гайд на установку: https://telegra.ph/Instrukciya-po-ustanovke-VPN-12-29", parse_mode='HTML', reply_markup=ikb_back)
                     cur.execute('UPDATE keys SET SOLD = 1 WHERE key = ?', (result[0],)) # обновить статус ключа в базе данных
                     cur.execute('UPDATE keys SET buyer_id = ? WHERE key = ?', (callback.from_user.id, result[0])) # обновить ID покупателя в базе данных
                     
