@@ -83,12 +83,16 @@ async def start_command(message):
                 cur.execute('UPDATE users SET ref_amount = ref_amount + 1 WHERE id = ?', (ref,))
             con.commit()
 
-    await message.answer_photo(FSInputFile("photos/welcome.png"), caption="""👋 Добро пожаловать в Кофеманию
-    \n🔐 Vless/Xray протоколы
-    \n💡 Пополняйте баланс, покупайте VPN и подключайтесь за пару минут
-    \n⏳ Доступ выдается сразу после покупки
-    \n <b>🎁 Если ранее вы не были зарегистрированы, то вам будет начислен стартовый бонус 50 ₽ </b>
-    \n Если возникнут вопросы — поддержка всегда на связи 👇""", parse_mode='HTML', reply_markup=ikb) # парсинг HTML чтобы работали теги с хтмл и прилепили маркап к сообщению
+    with sq.connect('database.db') as con:
+        cur = con.cursor()
+        cur.execute("SELECT balance FROM users WHERE id = ?", (message.from_user.id,))
+        result = cur.fetchone()
+        balance = result[0] if result else 0
+
+    await message.answer_photo(FSInputFile("photos/welcome.png"), caption=f"""👋 Добро пожаловать в Кофеманию
+    \n Наш сервис предлагает доступ к локации:
+    \n 🇩🇪 Германия <code>( 50 ₽)</code>,
+    \n <b> БАЛАНС : {balance} ₽</b>""", parse_mode='HTML', reply_markup=ikb) # парсинг HTML чтобы работали теги с хтмл и прилепили маркап к сообщению
     with sq.connect('database.db') as con:
         cur = con.cursor()
         cur.execute("INSERT OR IGNORE INTO users (id, username, balance) VALUES (?, ?, ?)", (message.from_user.id, message.from_user.username, 50))
