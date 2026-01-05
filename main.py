@@ -147,8 +147,8 @@ ikb_support = InlineKeyboardMarkup(inline_keyboard=[
 ])
 
 ikb_plans = InlineKeyboardMarkup(inline_keyboard=[
-    [InlineKeyboardButton(text='👶🏻 Неделя (50₽)', callback_data='plan_week')],
-    [InlineKeyboardButton(text='🧑 Месяц (100₽)', callback_data='plan_month')],
+    [InlineKeyboardButton(text='👶🏻🇩🇪 Неделя (50₽)', callback_data='plan_week')],
+    [InlineKeyboardButton(text='🧑🇩🇪 Месяц (100₽)', callback_data='plan_month')],
     [InlineKeyboardButton(text='🔙 Назад', callback_data='back')],
 ])
 
