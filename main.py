@@ -639,7 +639,7 @@ async def check_payment_callback(callback: CallbackQuery):
         await callback.message.delete()
     except:
         pass
-    print(callback.data.split())
+    print(callback.data.split() , 'это то что пришло в callback.data')
     invoice_id = int(callback.data.split('_')[2])
     status, amount = check_payment_status(invoice_id)
     print(invoice_id, status)
