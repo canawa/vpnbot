@@ -1,5 +1,5 @@
 import aiogram
-from datetime import date
+from datetime import date, timedelta
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
@@ -338,7 +338,8 @@ async def plan_week_callback(callback: CallbackQuery):
                 if vpn_key:
                     with sq.connect('database.db') as con:
                         cur = con.cursor()
-                        cur.execute('INSERT INTO keys (key, duration, SOLD, buyer_id, buy_date) VALUES (?, ?, ?, ?, ?)', (vpn_key, 7, 0, callback.from_user.id, date.today()))
+                        expire_date = date.today() + timedelta(days=7)
+                        cur.execute('INSERT INTO keys (key, duration, SOLD, buyer_id, buy_date, expire_date) VALUES (?, ?, ?, ?, ?, ?)', (vpn_key, 7, 0, callback.from_user.id, date.today(), expire_date))
                         con.commit()
 
                 cur = con.cursor()
@@ -381,7 +382,8 @@ async def plan_month_callback(callback: CallbackQuery):
                 if vpn_key:
                     with sq.connect('database.db') as con:
                         cur = con.cursor()
-                        cur.execute('INSERT INTO keys (key, duration, SOLD, buyer_id) VALUES (?, ?, ?, ?)', (vpn_key, 30, 0, callback.from_user.id))
+                        expire_date = date.today() + timedelta(days=30)
+                        cur.execute('INSERT INTO keys (key, duration, SOLD, buyer_id, buy_date, expire_date) VALUES (?, ?, ?, ?, ?, ?)', (vpn_key, 30, 0, callback.from_user.id, date.today(), expire_date))
                         con.commit()
 
                 cur = con.cursor()
@@ -424,7 +426,8 @@ async def plan_halfyear_callback(callback: CallbackQuery):
                 if vpn_key:
                     with sq.connect('database.db') as con:
                         cur = con.cursor()
-                        cur.execute('INSERT INTO keys (key, duration, SOLD, buyer_id) VALUES (?, ?, ?, ?)', (vpn_key, 180, 0, callback.from_user.id))
+                        expire_date = date.today() + timedelta(days=180)
+                        cur.execute('INSERT INTO keys (key, duration, SOLD, buyer_id, buy_date, expire_date) VALUES (?, ?, ?, ?, ?, ?)', (vpn_key, 180, 0, callback.from_user.id, date.today(), expire_date))
                         con.commit()
 
                 cur = con.cursor()
@@ -467,7 +470,8 @@ async def plan_year_callback(callback: CallbackQuery):
                 if vpn_key:
                     with sq.connect('database.db') as con:
                         cur = con.cursor()
-                        cur.execute('INSERT INTO keys (key, duration, SOLD, buyer_id) VALUES (?, ?, ?, ?)', (vpn_key, 365, 0, callback.from_user.id))
+                        expire_date = date.today() + timedelta(days=365)
+                        cur.execute('INSERT INTO keys (key, duration, SOLD, buyer_id, buy_date, expire_date) VALUES (?, ?, ?, ?, ?, ?)', (vpn_key, 365, 0, callback.from_user.id, date.today(), expire_date))
                         con.commit()
 
                 cur = con.cursor()
@@ -498,6 +502,7 @@ async def my_keys_callback(callback: CallbackQuery):
         cur = con.cursor()
         cur.execute('SELECT key FROM keys WHERE buyer_id = ? ', (callback.from_user.id,)) # вытащить ключи из базы данных текущего пользователя
         result = cur.fetchall() # получить результат из базы данных
+        print(result)
         for key_id, key in enumerate(result): # перебрать все ключи и вывести их номер
             ikb_my_keys.inline_keyboard.append([InlineKeyboardButton(text=f'🔑 {key_id + 1}', callback_data=f'use_key_{key_id}')])
         if result:
