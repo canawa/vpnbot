@@ -339,7 +339,7 @@ async def plan_week_callback(callback: CallbackQuery):
                     with sq.connect('database.db') as con:
                         cur = con.cursor()
                         expire_date = date.today() + timedelta(days=7)
-                        cur.execute('INSERT INTO keys (key, duration, SOLD, buyer_id, buy_date, expire_date) VALUES (?, ?, ?, ?, ?, ?)', (vpn_key, 7, 0, callback.from_user.id, date.today(), expire_date))
+                        cur.execute('INSERT INTO keys (key, duration, SOLD, buyer_id, buy_date, expiration_date) VALUES (?, ?, ?, ?, ?, ?)', (vpn_key, 7, 0, callback.from_user.id, date.today(), expire_date))
                         con.commit()
 
                 cur = con.cursor()
@@ -383,7 +383,7 @@ async def plan_month_callback(callback: CallbackQuery):
                     with sq.connect('database.db') as con:
                         cur = con.cursor()
                         expire_date = date.today() + timedelta(days=30)
-                        cur.execute('INSERT INTO keys (key, duration, SOLD, buyer_id, buy_date, expire_date) VALUES (?, ?, ?, ?, ?, ?)', (vpn_key, 30, 0, callback.from_user.id, date.today(), expire_date))
+                        cur.execute('INSERT INTO keys (key, duration, SOLD, buyer_id, buy_date, expiration_date) VALUES (?, ?, ?, ?, ?, ?)', (vpn_key, 30, 0, callback.from_user.id, date.today(), expire_date))
                         con.commit()
 
                 cur = con.cursor()
@@ -427,7 +427,7 @@ async def plan_halfyear_callback(callback: CallbackQuery):
                     with sq.connect('database.db') as con:
                         cur = con.cursor()
                         expire_date = date.today() + timedelta(days=180)
-                        cur.execute('INSERT INTO keys (key, duration, SOLD, buyer_id, buy_date, expire_date) VALUES (?, ?, ?, ?, ?, ?)', (vpn_key, 180, 0, callback.from_user.id, date.today(), expire_date))
+                        cur.execute('INSERT INTO keys (key, duration, SOLD, buyer_id, buy_date, expiration_date) VALUES (?, ?, ?, ?, ?, ?)', (vpn_key, 180, 0, callback.from_user.id, date.today(), expire_date))
                         con.commit()
 
                 cur = con.cursor()
@@ -471,7 +471,7 @@ async def plan_year_callback(callback: CallbackQuery):
                     with sq.connect('database.db') as con:
                         cur = con.cursor()
                         expire_date = date.today() + timedelta(days=365)
-                        cur.execute('INSERT INTO keys (key, duration, SOLD, buyer_id, buy_date, expire_date) VALUES (?, ?, ?, ?, ?, ?)', (vpn_key, 365, 0, callback.from_user.id, date.today(), expire_date))
+                        cur.execute('INSERT INTO keys (key, duration, SOLD, buyer_id, buy_date, expiration_date) VALUES (?, ?, ?, ?, ?, ?)', (vpn_key, 365, 0, callback.from_user.id, date.today(), expire_date))
                         con.commit()
 
                 cur = con.cursor()
