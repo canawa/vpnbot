@@ -213,6 +213,7 @@ ikb_withdraw = InlineKeyboardMarkup(inline_keyboard=[
 async def check_payment_yookassa_callback(callback: CallbackQuery):
     await callback.answer("🔄 Проверка статуса оплаты") # на пол экрана хуйня высветится
     _ , amount , payment_id = callback.data.split('_')
+    print(amount, payment_id, callback.from_user.id, 'это то что пришло в check_payment_yookassa_callback')
     if check_payment_yookassa_status(int(amount), payment_id, callback.from_user.id):
         with sq.connect('database.db') as con:
             cur = con.cursor()
