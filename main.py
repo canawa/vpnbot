@@ -51,9 +51,14 @@ dp = Dispatcher() # объект диспетчера
 
 with sq.connect('database.db') as con:
     cur = con.cursor()
-    cur.execute("CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, username TEXT, balance INTEGER, ref_balance INTEGER DEFAULT 0, ref_amount INTEGER DEFAULT 0, keys TEXT)")
+    cur.execute("CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, username TEXT, balance INTEGER, ref_balance INTEGER DEFAULT 0, ref_amount INTEGER DEFAULT 0, keys TEXT, role TEXT DEFAULT NULL)")
     cur.execute('CREATE TABLE IF NOT EXISTS referal_users (id INTEGER PRIMARY KEY, referral_id INTEGER UNIQUE, ref_master_id INTEGER)')
     cur.execute('CREATE TABLE IF NOT EXISTS transactions (id INTEGER PRIMARY KEY, user_id INTEGER, amount INTEGER, type TEXT)')
+    # Добавляем поле role, если его еще нет
+    try:
+        cur.execute('ALTER TABLE users ADD COLUMN role TEXT DEFAULT NULL')
+    except:
+        pass  # Поле уже существует
     con.commit()
 
 @dp.message(CommandStart())
@@ -122,12 +127,7 @@ ikb_back = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text='🔙 Назад', callback_data='back')],
     ])
 
-ikb_profile = InlineKeyboardMarkup(inline_keyboard=[
-    [InlineKeyboardButton(text='🔗 Мои ключи', callback_data='my_keys')],
-    [InlineKeyboardButton(text='💰 Пополнить', callback_data='deposit')],
-    [InlineKeyboardButton(text='💸 Вывести реферальный баланс', callback_data='ref_withdraw')],
-    [InlineKeyboardButton(text='🔙 Назад', callback_data='back')],
-])
+# ikb_profile будет создаваться динамически в зависимости от роли пользователя
 
 
 ikb_documents = InlineKeyboardMarkup(inline_keyboard=[
@@ -137,7 +137,7 @@ ikb_documents = InlineKeyboardMarkup(inline_keyboard=[
 ])
 
 ikb_referral = InlineKeyboardMarkup(inline_keyboard=[
-    [InlineKeyboardButton(text='💸 Вывести реферальный баланс', callback_data='ref_withdraw')],
+    # [InlineKeyboardButton(text='💸 Вывести реферальный баланс', callback_data='ref_withdraw')], ПОКА ЧТО УБРАЛ 
     [InlineKeyboardButton(text='🔙 Назад', callback_data='back')],
 ])
 
@@ -185,6 +185,7 @@ ikb_admin = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text='💰 Баланс', callback_data='admin_balance')],
     [InlineKeyboardButton(text='🔄 Оплаты', callback_data='admin_payments')],
     [InlineKeyboardButton(text='🔑 Ключи', callback_data='admin_keys')],
+    [InlineKeyboardButton(text='👑 Роли', callback_data='admin_roles')],
 ])
 
 ikb_admin_back = InlineKeyboardMarkup(inline_keyboard=[
@@ -211,7 +212,12 @@ async def check_payment_yookassa_callback(callback: CallbackQuery):
             ref_master = cur.fetchone() 
             print(ref_master)
             if ref_master: # если есть рефовод то:
-                cur.execute('UPDATE users SET ref_balance = ref_balance + ? WHERE id = ?', (int(amount)/2, ref_master[0])) # начислить 50% реферального бонуса рефоводу
+                ref_master_id = ref_master[0]
+                # Проверяем роль рефмастера
+                cur.execute('SELECT role FROM users WHERE id = ?', (ref_master_id,))
+                ref_master_role = cur.fetchone()
+                if ref_master_role and ref_master_role[0] == 'refmaster':
+                    cur.execute('UPDATE users SET ref_balance = ref_balance + ? WHERE id = ?', (int(amount)/2, ref_master_id)) # начислить 50% реферального бонуса рефоводу
             con.commit()
         await callback.message.answer(f'🤑 Оплачено! \n\n ➕ Начислено {amount} ₽ на баланс', parse_mode='HTML', reply_markup=ikb_back)
         await callback.message.delete()
@@ -245,12 +251,24 @@ async def profile_callback(callback: CallbackQuery):
     await callback.message.delete()
     with sq.connect('database.db') as con:
         cur = con.cursor()
-        cur.execute("SELECT balance FROM users WHERE id = ?", (callback.from_user.id,)) # вытащить баланс из базы данных текущего пользователя
+        cur.execute("SELECT balance, ref_balance, role FROM users WHERE id = ?", (callback.from_user.id,)) # вытащить баланс, реферальный баланс и роль из базы данных текущего пользователя
         result = cur.fetchone() # получить результат из базы данных
         balance = result[0] if result else 0 # если результат не пустой, то вытащить баланс, иначе 0
-        cur.execute("SELECT ref_balance FROM users WHERE id = ?", (callback.from_user.id,)) # вытащить реферальный баланс из базы данных текущего пользователя
-        result = cur.fetchone() # получить результат из базы данных
-        ref_balance = result[0] if result else 0 # если результат не пустой, то вытащить реферальный баланс, иначе 0
+        ref_balance = result[1] if result and len(result) > 1 else 0 # если результат не пустой, то вытащить реферальный баланс, иначе 0
+        role = result[2] if result and len(result) > 2 else None # если результат не пустой, то вытащить роль, иначе None
+    
+    # Создаем клавиатуру динамически в зависимости от роли
+    ikb_profile = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text='🔗 Мои ключи', callback_data='my_keys')],
+        [InlineKeyboardButton(text='💰 Пополнить', callback_data='deposit')],
+    ])
+    
+    # Добавляем кнопку "Вывести реферальный баланс" только для пользователей с ролью Refmaster
+    if role == 'refmaster':
+        ikb_profile.inline_keyboard.append([InlineKeyboardButton(text='💸 Вывести реферальный баланс', callback_data='ref_withdraw')])
+    
+    ikb_profile.inline_keyboard.append([InlineKeyboardButton(text='🔙 Назад', callback_data='back')])
+    
     await callback.message.answer_photo(PROFILE_PHOTO, caption=f"👤 <b>Личный кабинет</b>\n\n💰 Баланс: {balance} ₽\n💸 Реферальный баланс: {ref_balance} ₽\n🆔 ID: {callback.from_user.id}", parse_mode='HTML', reply_markup=ikb_profile)
 
 @dp.callback_query(lambda c: c.data == 'documents')
@@ -273,7 +291,7 @@ async def referral_callback(callback: CallbackQuery):
         cur.execute('SELECT ref_balance FROM users WHERE id = ?', (callback.from_user.id,))
         result = cur.fetchone()
         ref_balance = result[0] if result else 0
-    await callback.message.answer_photo(INVITE_FRIEND_PHOTO, caption=f"🤝 <b>Пригласить друга</b>\n\nВаша реферальная ссылка:\n<code>https://t.me/coffemaniaVPNbot?start={callback.from_user.id}</code>\n\n👁️ Всего заработано на баланс VPN: {ref_amount*50} ₽ \n \n💵 Реферальный баланс (можно вывести): {ref_balance} ₽ \n\n🤔 <b>За каждого приглашенного друга вы получите 50 ₽ на баланс и 50% от его пополнений на реферальный баланс, который можно вывести! </b>", parse_mode='HTML', reply_markup=ikb_referral)
+    await callback.message.answer_photo(INVITE_FRIEND_PHOTO, caption=f"🤝 <b>Пригласить друга</b>\n\nВаша реферальная ссылка:\n<code>https://t.me/coffemaniaVPNbot?start={callback.from_user.id}</code>\n\n👁️ Всего заработано на баланс VPN: {ref_amount*50} ₽\n\n🤔 <b>За каждого приглашенного друга вы получите 50 ₽ на баланс!</b>", parse_mode='HTML', reply_markup=ikb_referral)
 
 
 @dp.callback_query(lambda c: c.data == 'support')
@@ -525,6 +543,15 @@ async def check_payment_callback(callback: CallbackQuery):
             cur = con.cursor()
             cur.execute('UPDATE users SET balance = balance + ? WHERE id = ?', (amount, callback.from_user.id))
             cur.execute('INSERT INTO transactions (user_id, amount, type) VALUES (?, ?, ?)', (callback.from_user.id, amount, 'CryptoBot'))
+            # Проверяем реферала и его роль
+            cur.execute('SELECT ref_master_id FROM referal_users WHERE referral_id = ?', (callback.from_user.id,))
+            ref_master = cur.fetchone()
+            if ref_master:
+                ref_master_id = ref_master[0]
+                cur.execute('SELECT role FROM users WHERE id = ?', (ref_master_id,))
+                ref_master_role = cur.fetchone()
+                if ref_master_role and ref_master_role[0] == 'refmaster':
+                    cur.execute('UPDATE users SET ref_balance = ref_balance + ? WHERE id = ?', (int(amount)/2, ref_master_id))
             con.commit()
     else:
         await callback.message.answer('👀 Ожидаем оплату, оплатите и попробуйте снова!', parse_mode='HTML')
@@ -558,6 +585,15 @@ async def handle_successful_payment(message: Message):
         with sq.connect('database.db') as con:
             cur = con.cursor()
             cur.execute('UPDATE users SET balance = balance + ? WHERE id = ?', (amount_rub, user_id))
+            # Проверяем реферала и его роль
+            cur.execute('SELECT ref_master_id FROM referal_users WHERE referral_id = ?', (user_id,))
+            ref_master = cur.fetchone()
+            if ref_master:
+                ref_master_id = ref_master[0]
+                cur.execute('SELECT role FROM users WHERE id = ?', (ref_master_id,))
+                ref_master_role = cur.fetchone()
+                if ref_master_role and ref_master_role[0] == 'refmaster':
+                    cur.execute('UPDATE users SET ref_balance = ref_balance + ? WHERE id = ?', (int(amount_rub)/2, ref_master_id))
             con.commit()
         await message.answer(f'🤑 Оплачено! \n\n ➕ Начислено {amount_rub} ₽ на баланс', parse_mode='HTML', reply_markup=ikb_back)
 
@@ -628,6 +664,39 @@ async def admin_keys_callback(callback: CallbackQuery):
         result = cur.fetchall()
         message_text = "Список ключей:\n\n" + "\n".join(f'🔑 {key[0]}\n{key[1]} дней\nID покупателя: {key[2]}' for key in result)
         await callback.message.answer(f"{message_text}", parse_mode='HTML', reply_markup=ikb_admin_back)
+
+@dp.callback_query(lambda c: c.data == 'admin_roles')
+async def admin_roles_callback(callback: CallbackQuery):
+    await callback.answer("👑 Роли") # на пол экрана хуйня высветится
+    await callback.message.delete()
+    ikb_admin_roles = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text='👑 Выдать роль Refmaster', callback_data='admin_give_refmaster')],
+        [InlineKeyboardButton(text='🔙 Назад', callback_data='admin_back')],
+    ])
+    await callback.message.answer("👑 <b>Управление ролями</b>\n\nВыберите действие:", parse_mode='HTML', reply_markup=ikb_admin_roles)
+
+@dp.callback_query(lambda c: c.data == 'admin_give_refmaster')
+async def admin_give_refmaster_callback(callback: CallbackQuery):
+    await callback.answer("👑 Выдать роль Refmaster") # на пол экрана хуйня высветится
+    await callback.message.delete()
+    await callback.message.answer("👑 <b>Выдача роли Refmaster</b>\n\nОтправьте ID пользователя, которому нужно выдать роль Refmaster:", parse_mode='HTML', reply_markup=ikb_admin_back)
+
+@dp.message(F.text.isdigit(), (F.from_user.id.in_([1979477416, 7562967579])))
+async def admin_set_role_message(message: Message):
+    # Обработчик для выдачи роли Refmaster по ID пользователя
+    user_id = int(message.text)
+    with sq.connect('database.db') as con:
+        cur = con.cursor()
+        # Проверяем, существует ли пользователь
+        cur.execute('SELECT id, username FROM users WHERE id = ?', (user_id,))
+        user = cur.fetchone()
+        if user:
+            # Выдаем роль Refmaster
+            cur.execute('UPDATE users SET role = ? WHERE id = ?', ('refmaster', user_id))
+            con.commit()
+            await message.answer(f"✅ Роль Refmaster успешно выдана пользователю:\n\n🆔 ID: {user_id}\n👤 Username: {user[1] if user[1] else 'Не указан'}", parse_mode='HTML', reply_markup=ikb_admin_back)
+        else:
+            await message.answer(f"❌ Пользователь с ID {user_id} не найден в базе данных.", parse_mode='HTML', reply_markup=ikb_admin_back)
 
 @dp.callback_query(lambda c: c.data == 'ref_withdraw')
 async def ref_withdraw_callback(callback: CallbackQuery):
