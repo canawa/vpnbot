@@ -91,8 +91,8 @@ async def start_command(message):
 
     await message.answer_photo(FSInputFile("photos/welcome.png"), caption=f"""👋 Добро пожаловать в Кофеманию
     \n Наш сервис предлагает доступ к локации:
-    \n 🇩🇪 Германия:<code>50₽</code>,
-    \n <b> БАЛАНС : {balance} ₽</b>""", parse_mode='HTML', reply_markup=ikb) # парсинг HTML чтобы работали теги с хтмл и прилепили маркап к сообщению
+    \n 🇩🇪 <b>Германия:<code>50₽</code></b>,
+    \n 👉🏼 <b> Баланс : {balance} ₽</b>""", parse_mode='HTML', reply_markup=ikb) # парсинг HTML чтобы работали теги с хтмл и прилепили маркап к сообщению
     with sq.connect('database.db') as con:
         cur = con.cursor()
         cur.execute("INSERT OR IGNORE INTO users (id, username, balance) VALUES (?, ?, ?)", (message.from_user.id, message.from_user.username, 50))
