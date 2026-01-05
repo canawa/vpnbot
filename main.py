@@ -113,8 +113,9 @@ def check_payment_status(invoice_id):
     response = response.json()
     pprint.pprint(response)
     for inv in response['result']['items']:
+        print(inv['status'], float(inv['amount'])*rub_to_usdt)
         if inv['invoice_id'] == invoice_id:
-            print(inv['status'], float(inv['amount'])*rub_to_usdt)
+            
             return inv['status'], float(inv['amount'])*rub_to_usdt # возвращаем статус оплаты и сумму в рублях
 
     
