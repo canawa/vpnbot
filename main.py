@@ -209,6 +209,38 @@ ikb_withdraw = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text='🔙 Назад', callback_data='back')],
 ])
 
+@dp.callback_query(lambda c: c.data.startswith('check_payment_'))
+async def check_payment_callback(callback: CallbackQuery):
+    await callback.answer("🔄 Проверить статус оплаты") # на пол экрана хуйня высветится
+    try:
+        await callback.message.delete()
+    except:
+        pass
+    print(callback.data.split() , 'это то что пришло в callback.data')
+    invoice_id = int(callback.data.split('_')[2])
+    status, amount = check_payment_status(invoice_id)
+    print(invoice_id, status)
+    if status == 'paid':
+        await callback.message.answer(f'🤑 Оплачено! \n\n ➕ Начислено {amount} ₽ на баланс', parse_mode='HTML', reply_markup=ikb_back)
+        with sq.connect('database.db') as con:
+            cur = con.cursor()
+            cur.execute('UPDATE users SET balance = balance + ? WHERE id = ?', (amount, callback.from_user.id))
+            cur.execute('INSERT INTO transactions (user_id, amount, type) VALUES (?, ?, ?)', (callback.from_user.id, amount, 'CryptoBot'))
+            # Проверяем реферала и его роль
+            cur.execute('SELECT ref_master_id FROM referal_users WHERE referral_id = ?', (callback.from_user.id,))
+            ref_master = cur.fetchone()
+            if ref_master:
+                ref_master_id = ref_master[0]
+                cur.execute('SELECT role FROM users WHERE id = ?', (ref_master_id,))
+                ref_master_role = cur.fetchone()
+                if ref_master_role and ref_master_role[0] == 'refmaster':
+                    cur.execute('UPDATE users SET ref_balance = ref_balance + ? WHERE id = ?', (int(amount)/2, ref_master_id))
+            con.commit()
+    else:
+        await callback.message.answer('👀 Ожидаем оплату, оплатите и попробуйте снова!', parse_mode='HTML')
+
+
+
 @dp.callback_query(lambda c: c.data.startswith('check_'))
 async def check_payment_yookassa_callback(callback: CallbackQuery):
     await callback.answer("🔄 Проверка статуса оплаты") # на пол экрана хуйня высветится
@@ -635,35 +667,6 @@ async def process_deposit(callback: CallbackQuery):
         else:
             await callback.message.answer('❌ Не удалось создать заявку. Попробуйте позже.', parse_mode='HTML', reply_markup=ikb_deposit_methods)
 
-@dp.callback_query(lambda c: c.data.startswith('check_payment_'))
-async def check_payment_callback(callback: CallbackQuery):
-    await callback.answer("🔄 Проверить статус оплаты") # на пол экрана хуйня высветится
-    try:
-        await callback.message.delete()
-    except:
-        pass
-    print(callback.data.split() , 'это то что пришло в callback.data')
-    invoice_id = int(callback.data.split('_')[2])
-    status, amount = check_payment_status(invoice_id)
-    print(invoice_id, status)
-    if status == 'paid':
-        await callback.message.answer(f'🤑 Оплачено! \n\n ➕ Начислено {amount} ₽ на баланс', parse_mode='HTML', reply_markup=ikb_back)
-        with sq.connect('database.db') as con:
-            cur = con.cursor()
-            cur.execute('UPDATE users SET balance = balance + ? WHERE id = ?', (amount, callback.from_user.id))
-            cur.execute('INSERT INTO transactions (user_id, amount, type) VALUES (?, ?, ?)', (callback.from_user.id, amount, 'CryptoBot'))
-            # Проверяем реферала и его роль
-            cur.execute('SELECT ref_master_id FROM referal_users WHERE referral_id = ?', (callback.from_user.id,))
-            ref_master = cur.fetchone()
-            if ref_master:
-                ref_master_id = ref_master[0]
-                cur.execute('SELECT role FROM users WHERE id = ?', (ref_master_id,))
-                ref_master_role = cur.fetchone()
-                if ref_master_role and ref_master_role[0] == 'refmaster':
-                    cur.execute('UPDATE users SET ref_balance = ref_balance + ? WHERE id = ?', (int(amount)/2, ref_master_id))
-            con.commit()
-    else:
-        await callback.message.answer('👀 Ожидаем оплату, оплатите и попробуйте снова!', parse_mode='HTML')
 
 @dp.pre_checkout_query()
 async def process_pre_checkout(pre_checkout): # обработчик подтверждения платежа (я так понял типо это надо чтобы payload совпал с фактическим)
