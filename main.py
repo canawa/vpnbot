@@ -124,9 +124,9 @@ ikb = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text='🛒 Получить VPN', callback_data='buy_vpn')],
     [InlineKeyboardButton(text='👤 Личный кабинет', callback_data='profile')],
     [InlineKeyboardButton(text='🤝 Пригласить друга', callback_data='referral')],
-    [InlineKeyboardButton(text='ℹ️ Поддержка', callback_data='support')],
+    # [InlineKeyboardButton(text='ℹ️ Поддержка', callback_data='support')],
     [InlineKeyboardButton(text='📄 Документы', callback_data='documents')],
-    [InlineKeyboardButton(text='⚠️ Баг репорт', callback_data='bug_report')]
+    # [InlineKeyboardButton(text='⚠️ Баг репорт', callback_data='bug_report')]
 ])
 ikb_back = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text='🔙 Назад', callback_data='back')],
