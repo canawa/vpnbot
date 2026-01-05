@@ -91,7 +91,7 @@ async def start_command(message):
 
     await message.answer_photo(FSInputFile("photos/welcome.png"), caption=f"""👋 Добро пожаловать в Кофеманию
     \n Наш сервис предлагает доступ к локации:
-    \n 🇩🇪 <b>Германия:<code>50₽</code></b>,
+    \n 🇩🇪 <b>Германия:<code> 50₽</code></b>,
     \n 👉🏼 <b> Баланс : {balance} ₽</b>""", parse_mode='HTML', reply_markup=ikb) # парсинг HTML чтобы работали теги с хтмл и прилепили маркап к сообщению
     with sq.connect('database.db') as con:
         cur = con.cursor()
@@ -312,12 +312,15 @@ async def support_callback(callback: CallbackQuery):
 async def back_callback(callback: CallbackQuery):
     await callback.answer("🔙 Назад") # на пол экрана хуйня высветится
     await callback.message.delete()
-    await callback.message.answer_photo(WELCOME_PHOTO, caption="""👋 Добро пожаловать в Кофеманию
-    \n🔐 Vless/Xray протоколы
-    \n💡 Пополняйте баланс, покупайте VPN и подключайтесь за пару минут
-    \n⏳ Доступ выдается сразу после покупки
-    \n <b>🎁 Если ранее вы не были зарегистрированы, то вам будет начислен стартовый бонус 50 ₽ </b>
-    \n Если возникнут вопросы — поддержка всегда на связи 👇""", parse_mode='HTML', reply_markup=ikb) # парсинг HTML чтобы работали теги с хтмл и прилепили маркап к сообщению
+    with sq.connect('database.db') as con:
+        cur = con.cursor()
+        cur.execute("SELECT balance FROM users WHERE id = ?", (callback.from_user.id,))
+        result = cur.fetchone()
+        balance = result[0] if result else 0
+    await callback.message.answer_photo(WELCOME_PHOTO, caption=f"""👋 Добро пожаловать в Кофеманию
+    \n Наш сервис предлагает доступ к локации:
+    \n 🇩🇪 <b>Германия:<code> 50₽</code></b>,
+    \n 👉🏼 <b> Баланс : {balance} ₽</b>""", parse_mode='HTML', reply_markup=ikb) # парсинг HTML чтобы работали теги с хтмл и прилепили маркап к сообщению
 
 @dp.callback_query(lambda c: c.data == 'plan_week')
 async def plan_week_callback(callback: CallbackQuery):
