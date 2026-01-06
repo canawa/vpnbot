@@ -136,7 +136,7 @@ def generate_ikb_main(user_id):
     ikb_main.inline_keyboard.append([InlineKeyboardButton(text='🤝 Пригласить друга', callback_data='referral')])
     ikb_main.inline_keyboard.append([InlineKeyboardButton(text='📄 Документы', callback_data='documents')])
     return ikb_main
-    
+
 ikb_back = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text='🔙 Назад', callback_data='back')],
     ])
@@ -362,12 +362,32 @@ async def back_callback(callback: CallbackQuery):
     await callback.message.answer_photo(WELCOME_PHOTO, caption=f"""👋 Добро пожаловать в Кофеманию
     \n Наш сервис предлагает доступ к локации:
     \n 🇩🇪 <b>Германия:<code> 50₽</code></b>,
-    \n 👉🏼 <b> Баланс : {balance} ₽</b>""", parse_mode='HTML', reply_markup=ikb) # парсинг HTML чтобы работали теги с хтмл и прилепили маркап к сообщению
+    \n 👉🏼 <b> Баланс : {balance} ₽</b>""", parse_mode='HTML', reply_markup=generate_ikb_main(callback.from_user.id)) # парсинг HTML чтобы работали теги с хтмл и прилепили маркап к сообщению
 
+@dp.callback_query(lambda c: c.data == 'trial')
+async def plan_trial(callback: CallbackQuery):
+    await callback.message.delete()
+    try:
+        vpn_key = await generate_vpn_key(callback.from_user.id, 7)
+        # print(vpn_key)
+    except Exception as e:
+        await callback.message.answer(f'❌ Не удалось сгенерировать ключ: {e}. Напишите в техподдержку, мы обязательно поможем!', parse_mode='HTML', reply_markup=ikb_support)
+        raise e
+
+    if vpn_key:
+        with sq.connect('database.db') as con:
+            cur = con.cursor()
+            expire_date = date.today() + timedelta(days=7)
+            cur.execute('INSERT INTO keys (key, duration, SOLD, buyer_id, buy_date, expiration_date) VALUES (?, ?, ?, ?, ?, ?)', (vpn_key, 7, 0, callback.from_user.id, date.today(), expire_date))
+            cur.execute('SELECT key FROM keys WHERE duration = 7 AND SOLD = 0 ORDER BY rowid DESC LIMIT 1')
+            con.commit()
+            result = cur.fetchone() # получить результат из базы данных
+        await callback.message.answer(f"🙋🏻‍♂️ ВАШ КЛЮЧ:\n\n<code>{result[0]}</code>\n<i>(нажмите чтобы скопировать)</i> \n\n<b>⌛Срок действия: 7 дней</b>\n\n <b> 📌 1 КЛЮЧ - ОДНО УСТРОЙСТВО</b>\n 🧐 Гайд на установку: https://telegra.ph/Instrukciya-po-ustanovke-VPN-12-29", parse_mode='HTML', reply_markup=ikb_back)
 @dp.callback_query(lambda c: c.data == 'plan_week')
 async def plan_week_callback(callback: CallbackQuery):
     await callback.answer("👶🏻 🇩🇪 Неделя (50₽)") # на пол экрана хуйня высветится
     await callback.message.delete()
+    
 
     with sq.connect('database.db') as con:
         cur = con.cursor()
