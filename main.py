@@ -597,7 +597,7 @@ async def process_deposit(callback: CallbackQuery):
     _ , sum , method = callback.data.split('_')
     
     amount = int(sum)
-    await callback.message.answer(f"💰 Пополнение на {amount} ₽\n\n<b>💳 Способ пополнения: {method}</b> \n\n Создаем заявку...", parse_mode='HTML')
+    # await callback.message.answer(f"💰 Пополнение на {amount} ₽\n\n<b>💳 Способ пополнения: {method}</b> \n\n Создаем заявку...", parse_mode='HTML')
     await callback.message.delete()
     if method == 'card':
         try:
