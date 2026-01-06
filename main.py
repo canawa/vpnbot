@@ -595,11 +595,10 @@ async def deposit_stars_callback(callback : CallbackQuery):
 async def process_deposit(callback: CallbackQuery):
     print(callback.data.split())
     _ , sum , method = callback.data.split('_')
-    # await callback.message.delete()
-    amount = int(sum)
-
-    await callback.message.answer(f"💰 Пополнение на {amount} ₽\n\n<b>💳 Способ пополнения: {method}</b> \n\n Создаем заявку...", parse_mode='HTML')
     
+    amount = int(sum)
+    await callback.message.answer(f"💰 Пополнение на {amount} ₽\n\n<b>💳 Способ пополнения: {method}</b> \n\n Создаем заявку...", parse_mode='HTML')
+    await callback.message.delete()
     if method == 'card':
         try:
             payment = Payment.create({
