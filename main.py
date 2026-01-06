@@ -92,7 +92,7 @@ async def start_command(message):
     await message.answer_photo(FSInputFile("photos/welcome.png"), caption=f"""👋 Добро пожаловать в Кофеманию
     \n Наш сервис предлагает доступ к локации:
     \n 🇩🇪 <b>Германия:<code> 50₽</code></b>,
-    \n 👉🏼 <b> Баланс : {balance} ₽</b>""", parse_mode='HTML', reply_markup=ikb) # парсинг HTML чтобы работали теги с хтмл и прилепили маркап к сообщению
+    \n 👉🏼 <b> Баланс : {balance} ₽</b>""", parse_mode='HTML', reply_markup=generate_ikb_main(message.from_user.id)) # парсинг HTML чтобы работали теги с хтмл и прилепили маркап к сообщению
     with sq.connect('database.db') as con:
         cur = con.cursor()
         cur.execute("INSERT OR IGNORE INTO users (id, username, balance) VALUES (?, ?, ?)", (message.from_user.id, message.from_user.username, 50))
@@ -121,15 +121,22 @@ def check_payment_status(invoice_id):
     
     return None, None
 
-
-ikb = InlineKeyboardMarkup(inline_keyboard=[
-    [InlineKeyboardButton(text='🛒 Получить VPN', callback_data='buy_vpn')],
-    [InlineKeyboardButton(text='👤 Личный кабинет', callback_data='profile')],
-    [InlineKeyboardButton(text='🤝 Пригласить друга', callback_data='referral')],
-    # [InlineKeyboardButton(text='ℹ️ Поддержка', callback_data='support')],
-    [InlineKeyboardButton(text='📄 Документы', callback_data='documents')],
-    # [InlineKeyboardButton(text='⚠️ Баг репорт', callback_data='bug_report')]
-])
+def generate_ikb_main(user_id):
+    # запиши это через append
+    ikb_main = InlineKeyboardMarkup(inline_keyboard=[])
+    with sq.connect('database.db') as con:
+        cur = con.cursor()
+        cur.execute('SELECT had_trial FROM users WHERE id = ?', (user_id,))
+        result = cur.fetchone()
+        had_trial = result[0] if result else 0
+        if had_trial != 1:
+            ikb_main.inline_keyboard.append([InlineKeyboardButton(text='🎁 Попробовать бесплатно', callback_data='trial')])
+    ikb_main.inline_keyboard.append([InlineKeyboardButton(text='🛒 Получить VPN', callback_data='buy_vpn')])
+    ikb_main.inline_keyboard.append([InlineKeyboardButton(text='👤 Личный кабинет', callback_data='profile')])
+    ikb_main.inline_keyboard.append([InlineKeyboardButton(text='🤝 Пригласить друга', callback_data='referral')])
+    ikb_main.inline_keyboard.append([InlineKeyboardButton(text='📄 Документы', callback_data='documents')])
+    return ikb_main
+    
 ikb_back = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text='🔙 Назад', callback_data='back')],
     ])
