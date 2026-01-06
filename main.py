@@ -184,7 +184,7 @@ def deposit_keyboard(method):
 def yookassa_payment_keyboard(amount, confirmation_url, payment_id): # функция для создания клавиатуры для оплаты через Юкассу
     ikb_yookassa = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text=f'👉 Перейти к оплате {amount} ₽', url=confirmation_url)],
-        [InlineKeyboardButton(text='🔄 Проверить статус оплаты', callback_data=f'check_{amount}_{payment_id}')],
+        [InlineKeyboardButton(text='✅️ Я оплатил', callback_data=f'check_{amount}_{payment_id}')],
         [InlineKeyboardButton(text='❌ Отменить платеж!', callback_data='back')],
     ])
     return ikb_yookassa
@@ -211,7 +211,7 @@ ikb_withdraw = InlineKeyboardMarkup(inline_keyboard=[
 
 @dp.callback_query(lambda c: c.data.startswith('check_payment_'))
 async def check_payment_callback(callback: CallbackQuery):
-    await callback.answer("🔄 Проверить статус оплаты") # на пол экрана хуйня высветится
+    await callback.answer("✅️ Я оплатил") # на пол экрана хуйня высветится
     print(callback.data.split() , 'это то что пришло в callback.data')
     invoice_id = int(callback.data.split('_')[2])
     status, amount = check_payment_status(invoice_id)
@@ -656,14 +656,14 @@ async def process_deposit(callback: CallbackQuery):
         # print(pay_url, bot_invoice_url, ok)
 
         ikb = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text=f'✅️ Оплатить {amount} ₽', url=pay_url)],
-            [InlineKeyboardButton(text='🔄 Проверить статус оплаты', callback_data=f'check_payment_{invoice_id}')],
+            [InlineKeyboardButton(text=f'👉 Перейти к оплате {amount} ₽', url=pay_url)],
+            [InlineKeyboardButton(text='✅️ Я оплатил', callback_data=f'check_payment_{invoice_id}')],
             [InlineKeyboardButton(text='❌ Отменить платеж!', callback_data='back')],
         ])
         
 
         if ok:
-            await callback.message.answer('👉 Создали заявку на оплату, переходите по ссылке и оплатите', parse_mode='HTML', reply_markup=ikb)
+            await callback.message.answer('👉 Создали заявку на оплату, переходите по ссылке и оплатите.\n\n <b>После оплаты нажмите на кнопку "Я оплатил"</b>', parse_mode='HTML', reply_markup=ikb)
         else:
             await callback.message.answer('❌ Не удалось создать заявку. Попробуйте позже.', parse_mode='HTML', reply_markup=ikb_deposit_methods)
 
