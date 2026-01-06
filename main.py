@@ -95,7 +95,7 @@ async def start_command(message):
     \n 👉🏼 <b> Баланс : {balance} ₽</b>""", parse_mode='HTML', reply_markup=generate_ikb_main(message.from_user.id)) # парсинг HTML чтобы работали теги с хтмл и прилепили маркап к сообщению
     with sq.connect('database.db') as con:
         cur = con.cursor()
-        cur.execute("INSERT OR IGNORE INTO users (id, username, balance) VALUES (?, ?, ?)", (message.from_user.id, message.from_user.username, 50))
+        cur.execute("INSERT OR IGNORE INTO users (id, username, balance, had_trial) VALUES (?, ?, ?, ?)", (message.from_user.id, message.from_user.username, 0, 0))
     
 # PAY FUNCTIONS
 def get_pay_link(amount):
