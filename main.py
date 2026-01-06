@@ -382,7 +382,12 @@ async def plan_trial(callback: CallbackQuery):
             cur.execute('SELECT key FROM keys WHERE duration = 7 AND SOLD = 0 ORDER BY rowid DESC LIMIT 1')
             con.commit()
             result = cur.fetchone() # получить результат из базы данных
+            cur.execute('UPDATE users SET had_trial = 1 WHERE id = ?', (callback.from_user.id,))
         await callback.message.answer(f"🙋🏻‍♂️ ВАШ КЛЮЧ:\n\n<code>{result[0]}</code>\n<i>(нажмите чтобы скопировать)</i> \n\n<b>⌛Срок действия: 7 дней</b>\n\n <b> 📌 1 КЛЮЧ - ОДНО УСТРОЙСТВО</b>\n 🧐 Гайд на установку: https://telegra.ph/Instrukciya-po-ustanovke-VPN-12-29", parse_mode='HTML', reply_markup=ikb_back)
+ 
+
+
+
 @dp.callback_query(lambda c: c.data == 'plan_week')
 async def plan_week_callback(callback: CallbackQuery):
     await callback.answer("👶🏻 🇩🇪 Неделя (50₽)") # на пол экрана хуйня высветится
