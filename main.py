@@ -17,6 +17,7 @@ import uuid
 from vpn import generate_vpn_key, get_marzban_token
 import pandas as pd
 import openpyxl
+from datetime import datetime
 
 print('BOT STARTED!!!')
 
@@ -56,7 +57,7 @@ with sq.connect('database.db') as con:
     cur = con.cursor()
     cur.execute("CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, username TEXT, balance INTEGER, ref_balance INTEGER DEFAULT 0, ref_amount INTEGER DEFAULT 0, keys TEXT, role TEXT DEFAULT NULL)")
     cur.execute('CREATE TABLE IF NOT EXISTS referal_users (id INTEGER PRIMARY KEY, referral_id INTEGER UNIQUE, ref_master_id INTEGER)')
-    cur.execute('CREATE TABLE IF NOT EXISTS transactions (id INTEGER PRIMARY KEY, user_id INTEGER, amount INTEGER, type TEXT)')
+    cur.execute('CREATE TABLE IF NOT EXISTS transactions (id INTEGER PRIMARY KEY, user_id INTEGER, amount INTEGER, type TEXT, date TEXT)')
     # Добавляем поле role, если его еще нет
     try:
         cur.execute('ALTER TABLE users ADD COLUMN role TEXT DEFAULT NULL')
@@ -877,7 +878,7 @@ async def withdraw_callback(callback: CallbackQuery):
     with sq.connect('database.db') as con:
         cur = con.cursor()
         cur.execute('UPDATE users SET ref_balance = ref_balance - ? WHERE id = ?', (amount, callback.from_user.id))
-        cur.execute('INSERT INTO transactions (user_id, amount, type) VALUES (?, ?, ?)', (callback.from_user.id, amount, 'Выплата по реферальному балансу'))
+        cur.execute('INSERT INTO transactions (user_id, amount, type, date) VALUES (?, ?, ?, ?)', (callback.from_user.id, amount, 'Выплата по реферальному балансу', datetime.now().strftime('%Y-%m-%d %H:%M:%S')))
         con.commit()
 
 
