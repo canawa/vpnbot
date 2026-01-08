@@ -233,7 +233,7 @@ async def check_payment_callback(callback: CallbackQuery):
             with sq.connect('database.db') as con:
                 cur = con.cursor()
                 cur.execute('UPDATE users SET balance = balance + ? WHERE id = ?', (amount, callback.from_user.id))
-                cur.execute('INSERT INTO transactions (user_id, amount, type) VALUES (?, ?, ?)', (callback.from_user.id, amount, 'CryptoBot'))
+                cur.execute('INSERT INTO transactions (user_id, amount, type, date) VALUES (?, ?, ?, ?)', (callback.from_user.id, amount, 'CryptoBot', datetime.now().strftime('%Y-%m-%d %H:%M:%S')))
                 # Проверяем реферала и его роль
                 cur.execute('SELECT ref_master_id FROM referal_users WHERE referral_id = ?', (callback.from_user.id,))
                 ref_master = cur.fetchone()
