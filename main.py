@@ -809,9 +809,9 @@ async def admin_keys_callback(callback: CallbackQuery):
     await callback.message.delete()
     with sq.connect('database.db') as con:
         cur = con.cursor()
-        cur.execute('SELECT id, key, duration, buyer_id FROM keys')
+        cur.execute('SELECT key, duration, buyer_id FROM keys')
         result = cur.fetchall()
-        df = pd.DataFrame(result, columns=['ID', 'Key', 'Duration', 'Buyer_id'])
+        df = pd.DataFrame(result, columns=['Key', 'Duration', 'Buyer_id'])
         df.to_excel('keys.xlsx', index=False)
         await callback.message.answer_document(document=FSInputFile('keys.xlsx'))
 
