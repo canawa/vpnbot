@@ -15,6 +15,7 @@ import os
 from yookassa import Configuration, Payment # для работы с Юкассой
 import uuid
 from vpn import generate_vpn_key, get_marzban_token
+import pandas as pd
 
 print('BOT STARTED!!!')
 
@@ -776,12 +777,17 @@ async def admin_users_callback(callback: CallbackQuery):
     await callback.message.delete() # удаляем соо на котором нажали на кнопку
     with sq.connect('database.db') as con:
         cur = con.cursor()
-        cur.execute('SELECT id, username, balance, ref_amount FROM users')
+        cur.execute('SELECT id, username, balance, ref_amount, role, had_trial, has_active_keys FROM users')
         result = cur.fetchall()
-        message_text = "Список пользователей:\n\n" + "\n".join(
-    f'👤 {user[0]} - {user[1]} - {user[2]} Р - {user[3]} рефов' for user in result)
-        message_text = message_text + f'\n\n ВСЕГО ПОЛЬЗОВАТЕЛЕЙ: {len(result)}'
-    await callback.message.answer(f"{message_text}", parse_mode='HTML', reply_markup=ikb_admin_back)
+        # используя пандас содаем xlsx файл
+        df = pd.DataFrame(result, columns=['ID', 'Username', 'Balance', 'Ref_amount', 'Role', 'Had_trial', 'Has_active_keys'])
+        df.to_excel('users.xlsx', index=False)
+        await callback.message.answer_document(document=FSInputFile('users.xlsx'))
+        
+    #     message_text = "Список пользователей:\n\n" + "\n".join(
+    # f'👤 {user[0]} - {user[1]} - {user[2]} Р - {user[3]} рефов' for user in result)
+    #     message_text = message_text + f'\n\n ВСЕГО ПОЛЬЗОВАТЕЛЕЙ: {len(result)}'
+    # await callback.message.answer(f"{message_text}", parse_mode='HTML', reply_markup=ikb_admin_back)
 
 @dp.callback_query(lambda c: c.data == 'admin_payments')
 async def admin_payments_callback(callback: CallbackQuery):
