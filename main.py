@@ -797,9 +797,9 @@ async def admin_payments_callback(callback: CallbackQuery):
     await callback.message.delete()
     with sq.connect('database.db') as con:
         cur = con.cursor()
-        cur.execute('SELECT id, user_id, amount, type FROM transactions')
+        cur.execute('SELECT id, user_id, amount, type, date FROM transactions')
         result = cur.fetchall()
-        df = pd.DataFrame(result, columns=['ID', 'User_id', 'Amount', 'Type'])
+        df = pd.DataFrame(result, columns=['ID', 'User_id', 'Amount', 'Type', 'Date'])
         df.to_excel('payments.xlsx', index=False)
         await callback.message.answer_document(document=FSInputFile('payments.xlsx'))
 
@@ -809,7 +809,7 @@ async def admin_keys_callback(callback: CallbackQuery):
     await callback.message.delete()
     with sq.connect('database.db') as con:
         cur = con.cursor()
-        cur.execute('SELECT key, duration, buyer_id FROM keys')
+        cur.execute('SELECT id, key, duration, buyer_id FROM keys')
         result = cur.fetchall()
         df = pd.DataFrame(result, columns=['ID', 'Key', 'Duration', 'Buyer_id'])
         df.to_excel('keys.xlsx', index=False)
