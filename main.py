@@ -16,6 +16,7 @@ from yookassa import Configuration, Payment # для работы с Юкасс�
 import uuid
 from vpn import generate_vpn_key, get_marzban_token
 import pandas as pd
+import openpyxl
 
 print('BOT STARTED!!!')
 
@@ -797,11 +798,9 @@ async def admin_payments_callback(callback: CallbackQuery):
         cur = con.cursor()
         cur.execute('SELECT id, user_id, amount, type FROM transactions')
         result = cur.fetchall()
-
-        message_text = "Список оплат:\n\n" + "\n".join(f"{'🟢' if transaction[3] != 'Выплата по реферальному балансу' else '🔴'} {transaction[0]} - {transaction[1]} - {transaction[2]} Р - {transaction[3]}" for transaction in result)
-
-
-        await callback.message.answer(f"{message_text}", parse_mode='HTML', reply_markup=ikb_admin_back)
+        df = pd.DataFrame(result, columns=['ID', 'User_id', 'Amount', 'Type'])
+        df.to_excel('payments.xlsx', index=False)
+        await callback.message.answer_document(document=FSInputFile('payments.xlsx'))
 
 @dp.callback_query(lambda c: c.data == 'admin_keys')
 async def admin_keys_callback(callback: CallbackQuery):
@@ -811,8 +810,9 @@ async def admin_keys_callback(callback: CallbackQuery):
         cur = con.cursor()
         cur.execute('SELECT key, duration, buyer_id FROM keys')
         result = cur.fetchall()
-        message_text = "Список ключей:\n\n" + "\n".join(f'🔑 {key[0]}\n{key[1]} дней\nID покупателя: {key[2]}' for key in result)
-        await callback.message.answer(f"{message_text}", parse_mode='HTML', reply_markup=ikb_admin_back)
+        df = pd.DataFrame(result, columns=['ID', 'Key', 'Duration', 'Buyer_id'])
+        df.to_excel('keys.xlsx', index=False)
+        await callback.message.answer_document(document=FSInputFile('keys.xlsx'))
 
 @dp.callback_query(lambda c: c.data == 'admin_roles')
 async def admin_roles_callback(callback: CallbackQuery):
