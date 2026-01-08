@@ -784,7 +784,7 @@ async def admin_users_callback(callback: CallbackQuery):
         # используя пандас содаем xlsx файл
         df = pd.DataFrame(result, columns=['ID', 'Username', 'Balance', 'Ref_amount', 'Role', 'Had_trial', 'Has_active_keys'])
         df.to_excel('users.xlsx', index=False)
-        await callback.message.answer_document(document=FSInputFile('users.xlsx'))
+        await callback.message.answer_document(document=FSInputFile('users.xlsx'), reply_markup=ikb_admin_back)
         
     #     message_text = "Список пользователей:\n\n" + "\n".join(
     # f'👤 {user[0]} - {user[1]} - {user[2]} Р - {user[3]} рефов' for user in result)
@@ -801,7 +801,7 @@ async def admin_payments_callback(callback: CallbackQuery):
         result = cur.fetchall()
         df = pd.DataFrame(result, columns=['ID', 'User_id', 'Amount', 'Type', 'Date'])
         df.to_excel('payments.xlsx', index=False)
-        await callback.message.answer_document(document=FSInputFile('payments.xlsx'))
+        await callback.message.answer_document(document=FSInputFile('payments.xlsx'), reply_markup=ikb_admin_back)
 
 @dp.callback_query(lambda c: c.data == 'admin_keys')
 async def admin_keys_callback(callback: CallbackQuery):
@@ -813,7 +813,7 @@ async def admin_keys_callback(callback: CallbackQuery):
         result = cur.fetchall()
         df = pd.DataFrame(result, columns=['Key', 'Duration', 'Buyer_id'])
         df.to_excel('keys.xlsx', index=False)
-        await callback.message.answer_document(document=FSInputFile('keys.xlsx'))
+        await callback.message.answer_document(document=FSInputFile('keys.xlsx'), reply_markup=ikb_admin_back)
 
 @dp.callback_query(lambda c: c.data == 'admin_roles')
 async def admin_roles_callback(callback: CallbackQuery):
