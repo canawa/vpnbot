@@ -257,7 +257,7 @@ async def check_payment_callback(callback: CallbackQuery):
 
 
 @dp.callback_query(lambda c: c.data.startswith('check_'))
-async def check_payment_yookassa_callback(callback: CallbackQuery):
+async def check_payment_yookassa_callback(callback: CallbackQuery): # сюды
     await callback.answer("🔄 Проверка статуса оплаты") # на пол экрана хуйня высветится
     _ , amount , payment_id = callback.data.split('_')
     print(amount, payment_id, callback.from_user.id, 'это то что пришло в check_payment_yookassa_callback')
@@ -289,7 +289,7 @@ def check_payment_yookassa_status(amount, payment_id, user_id): # функция
     if payment.status == 'succeeded':
         with sq.connect('database.db') as con:
             cur = con.cursor()
-            cur.execute('INSERT INTO transactions (user_id, amount, type) VALUES (?, ?, ?)', (user_id, amount, 'yookassa'))
+            cur.execute('INSERT INTO transactions (user_id, amount, type, date) VALUES (?, ?, ?)', (user_id, amount, 'yookassa', datetime.now().isoformat() ))
             con.commit()
         return True
     else:
@@ -970,7 +970,7 @@ async def check_expired_subscriptions():
         # Проверяем раз в час (3600 секунд = 1 час)
         await asyncio.sleep(3600)
 
-async def reset_runout_notified_daily():
+async def reset_runout_notified_daily(): # НЕ ЕБУ КАК РАБОТАЕТ!
     """Сбрасывает флаг runout_notified в 00:01 каждый день"""
     while True:
         try:
