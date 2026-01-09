@@ -779,14 +779,16 @@ async def admin_users_callback(callback: CallbackQuery):
     with sq.connect('database.db') as con:
         cur = con.cursor()
         today = date.today()
-        cur.execute('SELECT key, expiration_date FROM keys WHERE buyer_id = ? AND expiration_date >= ? ', (callback.from_user.id, today)) # вытащить ключи из базы данных текущего пользователя
-        result = cur.fetchall() # получить результат из базы данных
-        users_list = cur.execute('SELECT id FROM users')
+        cur.execute('SELECT id FROM users')
+        users_list = cur.fetchall() # получить список всех пользователей
         for user in users_list:
+            user_id = user[0] # извлекаем ID пользователя из кортежа
+            cur.execute('SELECT key FROM keys WHERE buyer_id = ? AND expiration_date >= ?', (user_id, today))
+            result = cur.fetchall() # проверить активные ключи для каждого пользователя
             if result:
-                cur.execute("UPDATE users SET has_active_keys = 1 WHERE id = ?", (user[0],))
+                cur.execute("UPDATE users SET has_active_keys = 1 WHERE id = ?", (user_id,))
             else:
-                cur.execute("UPDATE users SET has_active_keys = 0 WHERE id = ?", (user[0],))
+                cur.execute("UPDATE users SET has_active_keys = 0 WHERE id = ?", (user_id,))
         con.commit()
         cur.execute('SELECT id, username, balance, ref_amount, role, had_trial, has_active_keys FROM users')
         result = cur.fetchall()
