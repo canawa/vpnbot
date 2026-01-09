@@ -960,6 +960,7 @@ async def check_expired_subscriptions():
                                 "⏰ <b>У вас закончилась подписка</b>\n\n"
                                 "Ваша подписка VPN истекла сегодня. Для продолжения использования сервиса, пожалуйста, приобретите новый ключ.",
                                 parse_mode='HTML', reply_markup=ikb_plans)
+                            print(f'{user_id} was notified about his subscription ending!')
                     except Exception as e:
                         print(f"Ошибка при отправке сообщения пользователю {user_id}: {e}")
                         continue
