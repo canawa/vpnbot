@@ -794,6 +794,19 @@ async def admin_users_callback(callback: CallbackQuery):
         result = cur.fetchall()
         # используя пандас содаем xlsx файл
         df = pd.DataFrame(result, columns=['ID', 'Username', 'Balance', 'Ref_amount', 'Role', 'Had_trial', 'Has_active_keys'])
+        
+        # Вычисляем статистику
+        total_users = len(df)
+        had_trial_count = len(df[df['Had_trial'] == 1])
+        has_active_keys_count = len(df[df['Has_active_keys'] == 1])
+        
+        had_trial_percent = (had_trial_count / total_users * 100) if total_users > 0 else 0
+        has_active_keys_percent = (has_active_keys_count / total_users * 100) if total_users > 0 else 0
+        
+        # Добавляем колонки со статистикой
+        df['Had_trial_%'] = round(had_trial_percent, 2)
+        df['Has_active_keys_%'] = round(has_active_keys_percent, 2)
+        
         df.to_excel('users.xlsx', index=False)
         await callback.message.answer_document(document=FSInputFile('users.xlsx'), reply_markup=ikb_admin_back)
         
