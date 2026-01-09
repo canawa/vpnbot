@@ -781,10 +781,12 @@ async def admin_users_callback(callback: CallbackQuery):
         today = date.today()
         cur.execute('SELECT key, expiration_date FROM keys WHERE buyer_id = ? AND expiration_date >= ? ', (callback.from_user.id, today)) # вытащить ключи из базы данных текущего пользователя
         result = cur.fetchall() # получить результат из базы данных
-        if result:
-            cur.execute("UPDATE users SET has_active_keys = 1 WHERE id = ?", (callback.from_user.id,))
-        else:
-            cur.execute("UPDATE users SET has_active_keys = 0 WHERE id = ?", (callback.from_user.id,))
+        users_list = cur.execute('SELECT id FROM users')
+        for user in users_list:
+            if result:
+                cur.execute("UPDATE users SET has_active_keys = 1 WHERE id = ?", (user[0],))
+            else:
+                cur.execute("UPDATE users SET has_active_keys = 0 WHERE id = ?", (user[0],))
         con.commit()
         cur.execute('SELECT id, username, balance, ref_amount, role, had_trial, has_active_keys FROM users')
         result = cur.fetchall()
