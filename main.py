@@ -381,7 +381,9 @@ async def plan_trial(callback: CallbackQuery):
         with sq.connect('database.db') as con:
             cur = con.cursor()
             expire_date = date.today() + timedelta(days=7)
-            cur.execute('INSERT INTO keys (key, duration, SOLD, buyer_id, username, buy_date, expiration_date) VALUES (?, ?, ?, ?, ?, ?)', (vpn_key, 7, 0, callback.from_user.id, callback.from_user.username, date.today(), expire_date))
+            expire_date_str = expire_date.isoformat()  # Преобразуем дату в строку формата YYYY-MM-DD
+            buy_date_str = date.today().isoformat()  # Преобразуем дату в строку формата YYYY-MM-DD
+            cur.execute('INSERT INTO keys (key, duration, SOLD, buyer_id, username, buy_date, expiration_date) VALUES (?, ?, ?, ?, ?, ?, ?)', (vpn_key, 7, 0, callback.from_user.id, callback.from_user.username, buy_date_str, expire_date_str))
             cur.execute('SELECT key FROM keys WHERE duration = 7 AND SOLD = 0 ORDER BY rowid DESC LIMIT 1')
             con.commit()
             result = cur.fetchone() # получить результат из базы данных
@@ -416,7 +418,9 @@ async def plan_week_callback(callback: CallbackQuery):
                     with sq.connect('database.db') as con:
                         cur = con.cursor()
                         expire_date = date.today() + timedelta(days=7)
-                        cur.execute('INSERT INTO keys (key, duration, SOLD, buyer_id, buy_date, expiration_date) VALUES (?, ?, ?, ?, ?, ?)', (vpn_key, 7, 0, callback.from_user.id, date.today(), expire_date))
+                        expire_date_str = expire_date.isoformat()  # Преобразуем дату в строку формата YYYY-MM-DD
+                        buy_date_str = date.today().isoformat()  # Преобразуем дату в строку формата YYYY-MM-DD
+                        cur.execute('INSERT INTO keys (key, duration, SOLD, buyer_id, buy_date, expiration_date) VALUES (?, ?, ?, ?, ?, ?)', (vpn_key, 7, 0, callback.from_user.id, buy_date_str, expire_date_str))
                         con.commit()
 
                 cur = con.cursor()
@@ -460,7 +464,9 @@ async def plan_month_callback(callback: CallbackQuery):
                     with sq.connect('database.db') as con:
                         cur = con.cursor()
                         expire_date = date.today() + timedelta(days=30)
-                        cur.execute('INSERT INTO keys (key, duration, SOLD, buyer_id, buy_date, expiration_date) VALUES (?, ?, ?, ?, ?, ?)', (vpn_key, 30, 0, callback.from_user.id, date.today(), expire_date))
+                        expire_date_str = expire_date.isoformat()  # Преобразуем дату в строку формата YYYY-MM-DD
+                        buy_date_str = date.today().isoformat()  # Преобразуем дату в строку формата YYYY-MM-DD
+                        cur.execute('INSERT INTO keys (key, duration, SOLD, buyer_id, buy_date, expiration_date) VALUES (?, ?, ?, ?, ?, ?)', (vpn_key, 30, 0, callback.from_user.id, buy_date_str, expire_date_str))
                         con.commit()
 
                 cur = con.cursor()
@@ -504,7 +510,9 @@ async def plan_halfyear_callback(callback: CallbackQuery):
                     with sq.connect('database.db') as con:
                         cur = con.cursor()
                         expire_date = date.today() + timedelta(days=180)
-                        cur.execute('INSERT INTO keys (key, duration, SOLD, buyer_id, buy_date, expiration_date) VALUES (?, ?, ?, ?, ?, ?)', (vpn_key, 180, 0, callback.from_user.id, date.today(), expire_date))
+                        expire_date_str = expire_date.isoformat()  # Преобразуем дату в строку формата YYYY-MM-DD
+                        buy_date_str = date.today().isoformat()  # Преобразуем дату в строку формата YYYY-MM-DD
+                        cur.execute('INSERT INTO keys (key, duration, SOLD, buyer_id, buy_date, expiration_date) VALUES (?, ?, ?, ?, ?, ?)', (vpn_key, 180, 0, callback.from_user.id, buy_date_str, expire_date_str))
                         con.commit()
 
                 cur = con.cursor()
@@ -548,7 +556,9 @@ async def plan_year_callback(callback: CallbackQuery):
                     with sq.connect('database.db') as con:
                         cur = con.cursor()
                         expire_date = date.today() + timedelta(days=365)
-                        cur.execute('INSERT INTO keys (key, duration, SOLD, buyer_id, buy_date, expiration_date) VALUES (?, ?, ?, ?, ?, ?)', (vpn_key, 365, 0, callback.from_user.id, date.today(), expire_date))
+                        expire_date_str = expire_date.isoformat()  # Преобразуем дату в строку формата YYYY-MM-DD
+                        buy_date_str = date.today().isoformat()  # Преобразуем дату в строку формата YYYY-MM-DD
+                        cur.execute('INSERT INTO keys (key, duration, SOLD, buyer_id, buy_date, expiration_date) VALUES (?, ?, ?, ?, ?, ?)', (vpn_key, 365, 0, callback.from_user.id, buy_date_str, expire_date_str))
                         con.commit()
 
                 cur = con.cursor()
@@ -578,7 +588,8 @@ async def my_keys_callback(callback: CallbackQuery):
     with sq.connect('database.db') as con:
         cur = con.cursor()
         today = date.today()
-        cur.execute('SELECT key, expiration_date FROM keys WHERE buyer_id = ? AND expiration_date >= ? ', (callback.from_user.id, today)) # вытащить ключи из базы данных текущего пользователя
+        today_str = today.isoformat()  # Преобразуем дату в строку формата YYYY-MM-DD для корректного сравнения
+        cur.execute('SELECT key, expiration_date FROM keys WHERE buyer_id = ? AND expiration_date >= ? ', (callback.from_user.id, today_str)) # вытащить ключи из базы данных текущего пользователя
         result = cur.fetchall() # получить результат из базы данных
         
         for key_id, key in enumerate(result): # перебрать все ключи и вывести их номер
@@ -779,11 +790,12 @@ async def admin_users_callback(callback: CallbackQuery):
     with sq.connect('database.db') as con:
         cur = con.cursor()
         today = date.today()
+        today_str = today.isoformat()  # Преобразуем дату в строку формата YYYY-MM-DD для корректного сравнения
         cur.execute('SELECT id FROM users')
         users_list = cur.fetchall() # получить список всех пользователей
         for user in users_list:
             user_id = user[0] # извлекаем ID пользователя из кортежа
-            cur.execute('SELECT key FROM keys WHERE buyer_id = ? AND expiration_date >= ?', (user_id, today))
+            cur.execute('SELECT key FROM keys WHERE buyer_id = ? AND expiration_date >= ?', (user_id, today_str))
             result = cur.fetchall() # проверить активные ключи для каждого пользователя
             if result:
                 cur.execute("UPDATE users SET has_active_keys = 1 WHERE id = ?", (user_id,))
@@ -907,7 +919,54 @@ async def withdraw_callback(callback: CallbackQuery):
 
 
 
+async def check_expired_subscriptions():
+    """Проверяет истекшие подписки и отправляет уведомления пользователям"""
+    while True:
+        try:
+            today = date.today()
+            today_str = today.isoformat()  # Преобразуем дату в строку формата YYYY-MM-DD для корректного сравнения
+            with sq.connect('database.db') as con:
+                cur = con.cursor()
+                # Находим всех пользователей, у которых сегодня истекает подписка
+                cur.execute('''
+                    SELECT DISTINCT buyer_id 
+                    FROM keys 
+                    WHERE expiration_date = ? AND buyer_id IS NOT NULL
+                ''', (today_str,))
+                expired_users = cur.fetchall()
+                
+                for user_tuple in expired_users:
+                    user_id = user_tuple[0]
+                    try:
+                        # Проверяем, есть ли у пользователя другие активные ключи
+                        cur.execute('''
+                            SELECT COUNT(*) 
+                            FROM keys 
+                            WHERE buyer_id = ? AND expiration_date > ?
+                        ''', (user_id, today_str))
+                        active_keys_count = cur.fetchone()[0]
+                        
+                        # Отправляем сообщение только если нет других активных ключей
+                        if active_keys_count == 0:
+                            await bot.send_message(
+                                user_id,
+                                "⏰ <b>У вас закончилась подписка</b>\n\n"
+                                "Ваша подписка VPN истекла сегодня. Для продолжения использования сервиса, пожалуйста, приобретите новый ключ.",
+                                parse_mode='HTML'
+                            )
+                    except Exception as e:
+                        print(f"Ошибка при отправке сообщения пользователю {user_id}: {e}")
+                        continue
+                        
+        except Exception as e:
+            print(f"Ошибка при проверке истекших подписок: {e}")
+        
+        # Проверяем раз в день (86400 секунд = 24 часа)
+        await asyncio.sleep(86400)
+
 async def main():
+    # Запускаем фоновую задачу для проверки подписок
+    asyncio.create_task(check_expired_subscriptions()) # бесокнечная задача параллельно, если не через create_task то не будет работать
     await dp.start_polling(bot) # отправить соединение к серверам телеграмма
 
 if __name__ == "__main__": # если файл запускается напрямую, то запустить главную функцию (подключение к серверам телеграмма)
