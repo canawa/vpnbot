@@ -580,7 +580,6 @@ async def my_keys_callback(callback: CallbackQuery):
         today = date.today()
         cur.execute('SELECT key, expiration_date FROM keys WHERE buyer_id = ? AND expiration_date >= ? ', (callback.from_user.id, today)) # вытащить ключи из базы данных текущего пользователя
         result = cur.fetchall() # получить результат из базы данных
-        print(result)
         
         for key_id, key in enumerate(result): # перебрать все ключи и вывести их номер
     
@@ -779,6 +778,14 @@ async def admin_users_callback(callback: CallbackQuery):
     await callback.message.delete() # удаляем соо на котором нажали на кнопку
     with sq.connect('database.db') as con:
         cur = con.cursor()
+        today = date.today()
+        cur.execute('SELECT key, expiration_date FROM keys WHERE buyer_id = ? AND expiration_date >= ? ', (callback.from_user.id, today)) # вытащить ключи из базы данных текущего пользователя
+        result = cur.fetchall() # получить результат из базы данных
+        if result:
+            cur.execute("UPDATE users SET has_active_keys = 1 WHERE id = ?", (callback.from_user.id,))
+        else:
+            cur.execute("UPDATE users SET has_active_keys = 0 WHERE id = ?", (callback.from_user.id,))
+        con.commit()
         cur.execute('SELECT id, username, balance, ref_amount, role, had_trial, has_active_keys FROM users')
         result = cur.fetchall()
         # используя пандас содаем xlsx файл
