@@ -63,6 +63,11 @@ with sq.connect('database.db') as con:
         cur.execute('ALTER TABLE users ADD COLUMN role TEXT DEFAULT NULL')
     except:
         pass  # Поле уже существует
+    # Добавляем поле runout_notified, если его еще нет
+    try:
+        cur.execute('ALTER TABLE users ADD COLUMN runout_notified INTEGER DEFAULT 0')
+    except:
+        pass  # Поле уже существует
     con.commit()
 
 @dp.message(CommandStart())
@@ -927,11 +932,11 @@ async def check_expired_subscriptions():
             today_str = today.isoformat()  # Преобразуем дату в строку формата YYYY-MM-DD для корректного сравнения
             with sq.connect('database.db') as con:
                 cur = con.cursor()
-                # Находим всех пользователей, у которых сегодня истекает подписка
+                # Находим всех пользователей, у которых сегодня истекает подписка и которым еще не отправляли уведомление
                 cur.execute('''
-                    SELECT DISTINCT buyer_id 
-                    FROM keys 
-                    WHERE expiration_date = ? AND buyer_id IS NOT NULL
+                    SELECT DISTINCT keys.buyer_id FROM keys 
+                    INNER JOIN users ON keys.buyer_id = users.id
+                    WHERE keys.expiration_date = ? AND keys.buyer_id IS NOT NULL AND (users.runout_notified IS NULL OR users.runout_notified = 0)
                 ''', (today_str,))
                 expired_users = cur.fetchall()
                 
@@ -948,12 +953,13 @@ async def check_expired_subscriptions():
                         
                         # Отправляем сообщение только если нет других активных ключей
                         if active_keys_count == 0:
+                            cur.execute('UPDATE users SET runout_notified = 1 WHERE id = ?', (user_id,))
+                            con.commit()
                             await bot.send_message(
                                 user_id,
                                 "⏰ <b>У вас закончилась подписка</b>\n\n"
                                 "Ваша подписка VPN истекла сегодня. Для продолжения использования сервиса, пожалуйста, приобретите новый ключ.",
-                                parse_mode='HTML'
-                            )
+                                parse_mode='HTML', reply_markup=ikb_plans)
                     except Exception as e:
                         print(f"Ошибка при отправке сообщения пользователю {user_id}: {e}")
                         continue
@@ -961,12 +967,42 @@ async def check_expired_subscriptions():
         except Exception as e:
             print(f"Ошибка при проверке истекших подписок: {e}")
         
-        # Проверяем раз в день (86400 секунд = 24 часа)
-        await asyncio.sleep(86400)
+        # Проверяем раз в час (3600 секунд = 1 час)
+        await asyncio.sleep(3600)
+
+async def reset_runout_notified_daily():
+    """Сбрасывает флаг runout_notified в 00:01 каждый день"""
+    while True:
+        try:
+            now = datetime.now()
+            # Вычисляем время до следующего 00:01
+            next_reset = now.replace(hour=0, minute=1, second=0, microsecond=0)
+            # Если уже прошло 00:01 сегодня, то следующий сброс будет завтра
+            if now >= next_reset:
+                next_reset += timedelta(days=1)
+            
+            # Вычисляем количество секунд до следующего 00:01
+            seconds_until_reset = (next_reset - now).total_seconds()
+            
+            print(f"Следующий сброс runout_notified будет в {next_reset.strftime('%Y-%m-%d %H:%M:%S')}")
+            await asyncio.sleep(seconds_until_reset)
+            
+            # Сбрасываем флаг для всех пользователей
+            with sq.connect('database.db') as con:
+                cur = con.cursor()
+                cur.execute('UPDATE users SET runout_notified = 0 WHERE runout_notified = 1')
+                con.commit()
+                print(f"Флаг runout_notified сброшен для всех пользователей в {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        except Exception as e:
+            print(f"Ошибка при сбросе runout_notified: {e}")
+            # В случае ошибки ждем час перед следующей попыткой
+            await asyncio.sleep(3600)
 
 async def main():
     # Запускаем фоновую задачу для проверки подписок
     asyncio.create_task(check_expired_subscriptions()) # бесокнечная задача параллельно, если не через create_task то не будет работать
+    # Запускаем фоновую задачу для сброса флага runout_notified в 00:01 каждый день
+    asyncio.create_task(reset_runout_notified_daily())
     await dp.start_polling(bot) # отправить соединение к серверам телеграмма
 
 if __name__ == "__main__": # если файл запускается напрямую, то запустить главную функцию (подключение к серверам телеграмма)
