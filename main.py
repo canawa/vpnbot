@@ -201,7 +201,7 @@ def yookassa_payment_keyboard(amount, confirmation_url, payment_id): # функ�
 
 ikb_admin = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text='👤 Пользователи', callback_data='admin_users')],
-    [InlineKeyboardButton(text='💰 Баланс', callback_data='admin_balance')],
+    # [InlineKeyboardButton(text='💰 Баланс', callback_data='admin_balance')],
     [InlineKeyboardButton(text='🔄 Оплаты', callback_data='admin_payments')],
     [InlineKeyboardButton(text='🔑 Ключи', callback_data='admin_keys')],
     [InlineKeyboardButton(text='👑 Роли', callback_data='admin_roles')],
@@ -381,7 +381,7 @@ async def plan_trial(callback: CallbackQuery):
         with sq.connect('database.db') as con:
             cur = con.cursor()
             expire_date = date.today() + timedelta(days=7)
-            cur.execute('INSERT INTO keys (key, duration, SOLD, buyer_id, buy_date, expiration_date) VALUES (?, ?, ?, ?, ?, ?)', (vpn_key, 7, 0, callback.from_user.id, date.today(), expire_date))
+            cur.execute('INSERT INTO keys (key, duration, SOLD, buyer_id, username, buy_date, expiration_date) VALUES (?, ?, ?, ?, ?, ?)', (vpn_key, 7, 0, callback.from_user.id, callback.from_user.username, date.today(), expire_date))
             cur.execute('SELECT key FROM keys WHERE duration = 7 AND SOLD = 0 ORDER BY rowid DESC LIMIT 1')
             con.commit()
             result = cur.fetchone() # получить результат из базы данных
@@ -809,9 +809,9 @@ async def admin_keys_callback(callback: CallbackQuery):
     await callback.message.delete()
     with sq.connect('database.db') as con:
         cur = con.cursor()
-        cur.execute('SELECT key, duration, buyer_id FROM keys')
+        cur.execute('SELECT key, duration, buyer_id, username, buy_date, expiration_date FROM keys')
         result = cur.fetchall()
-        df = pd.DataFrame(result, columns=['Key', 'Duration', 'Buyer_id'])
+        df = pd.DataFrame(result, columns=['Key', 'Duration', 'Buyer_id', 'username', 'buy_date', 'expires_at'])
         df.to_excel('keys.xlsx', index=False)
         await callback.message.answer_document(document=FSInputFile('keys.xlsx'), reply_markup=ikb_admin_back)
 
