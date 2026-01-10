@@ -289,7 +289,7 @@ def check_payment_yookassa_status(amount, payment_id, user_id): # функция
     if payment.status == 'succeeded':
         with sq.connect('database.db') as con:
             cur = con.cursor()
-            cur.execute('INSERT INTO transactions (user_id, amount, type, date) VALUES (?, ?, ?)', (user_id, amount, 'yookassa', datetime.now().isoformat() ))
+            cur.execute('INSERT INTO transactions (user_id, amount, type, date) VALUES (?, ?, ?, ?)', (user_id, amount, 'yookassa', datetime.now().isoformat() ))
             con.commit()
         return True
     else:
