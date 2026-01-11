@@ -210,6 +210,7 @@ ikb_admin = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text='🔄 Оплаты', callback_data='admin_payments')],
     [InlineKeyboardButton(text='🔑 Ключи', callback_data='admin_keys')],
     [InlineKeyboardButton(text='👑 Роли', callback_data='admin_roles')],
+    [InlineKeyboardButton(text='🔊 Напомнить юзерам о бесплатной неделе', callback_data='admin_notify_trial')],
 ])
 
 ikb_admin_back = InlineKeyboardMarkup(inline_keyboard=[
@@ -855,6 +856,21 @@ async def admin_keys_callback(callback: CallbackQuery):
         df = pd.DataFrame(result, columns=['Key', 'Duration', 'Buyer_id', 'username', 'buy_date', 'expires_at'])
         df.to_excel('keys.xlsx', index=False)
         await callback.message.answer_document(document=FSInputFile('keys.xlsx'), reply_markup=ikb_admin_back)
+
+@dp.callback_query(lambda c: c.data == 'admin_notify_trial')
+async def admin_notify_trial_callback(callback: CallbackQuery):
+    await callback.answer("🔊 Напомнить юзерам о бесплатной неделе") # на пол экрана хуйня высветится
+    await callback.message.delete()
+    with sq.connect('database.db') as con:
+        cur = con.cursor()
+        cur.execute('SELECT id FROM users WHERE had_trial != 1')
+        result = cur.fetchall()
+        for user in result:
+            try:
+                await bot.send_message(user[0], "🎁 <b>У вас есть бесплатная неделя VPN!</b>\n\nВы можете использовать ее, чтобы протестировать наш сервис.\n\n Пишите /start чтобы получить бесплатную неделю!", parse_mode='HTML')
+            except:
+                pass
+    await callback.message.answer("🔊 Напомнить юзерам о бесплатной неделе", parse_mode='HTML', reply_markup=ikb_admin_back)
 
 @dp.callback_query(lambda c: c.data == 'admin_roles')
 async def admin_roles_callback(callback: CallbackQuery):
