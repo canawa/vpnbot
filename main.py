@@ -839,9 +839,9 @@ async def admin_payments_callback(callback: CallbackQuery):
     await callback.message.delete()
     with sq.connect('database.db') as con:
         cur = con.cursor()
-        cur.execute('SELECT id, user_id, amount, type, date FROM transactions')
+        cur.execute('SELECT transactions.id, users.username, transactions.amount, transactions.type, transactions.date FROM transactions JOIN users ON transactions.user_id = users.id')
         result = cur.fetchall()
-        df = pd.DataFrame(result, columns=['ID', 'User_id', 'Amount', 'Type', 'Date'])
+        df = pd.DataFrame(result, columns=['ID', 'Username', 'Amount', 'Type', 'Date'])
         df.to_excel('payments.xlsx', index=False)
         await callback.message.answer_document(document=FSInputFile('payments.xlsx'), reply_markup=ikb_admin_back)
 
