@@ -30,7 +30,7 @@ try:
     MY_KEYS_PHOTO = FSInputFile("photos/my_keys.png")
     DEPOSIT_PHOTO = FSInputFile("photos/deposit.png")
 except FileNotFoundError:
-    print("Файлы фото не найдены")
+    print("Photo files not found")
     exit()
 
 
@@ -1001,11 +1001,11 @@ async def check_expired_subscriptions():
                                 parse_mode='HTML', reply_markup=ikb_plans)
                             print(f'{user_id} was notified about his subscription ending!')
                     except Exception as e:
-                        print(f"Errir {user_id}: {e}")
+                        print(f"Error {user_id}: {e}")
                         continue
                         
         except Exception as e:
-            print(f"Ошибка при проверке истекших подписок: {e}")
+            print(f"Error checking expired subscriptions: {e}")
         
         # Проверяем раз в час (3600 секунд = 1 час)
         await asyncio.sleep(3600)
@@ -1024,7 +1024,7 @@ async def reset_runout_notified_daily(): # НЕ ЕБУ КАК РАБОТАЕТ!
             # Вычисляем количество секунд до следующего 00:01
             seconds_until_reset = (next_reset - now).total_seconds()
             
-            print(f"Следующий сброс runout_notified будет в {next_reset.strftime('%Y-%m-%d %H:%M:%S')}")
+            print(f"Next runout_notified reset will be at {next_reset.strftime('%Y-%m-%d %H:%M:%S')}")
             await asyncio.sleep(seconds_until_reset)
             
             # Сбрасываем флаг для всех пользователей
@@ -1032,9 +1032,9 @@ async def reset_runout_notified_daily(): # НЕ ЕБУ КАК РАБОТАЕТ!
                 cur = con.cursor()
                 cur.execute('UPDATE users SET runout_notified = 0 WHERE runout_notified = 1')
                 con.commit()
-                print(f"Флаг runout_notified сброшен для всех пользователей в {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+                print(f"runout_notified flag reset for all users at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         except Exception as e:
-            print(f"Ошибка при сбросе runout_notified: {e}")
+            print(f"Error resetting runout_notified: {e}")
             # В случае ошибки ждем час перед следующей попыткой
             await asyncio.sleep(3600)
 
