@@ -1,4 +1,3 @@
-import aiogram
 from datetime import date, timedelta
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.fsm.context import FSMContext
@@ -9,7 +8,6 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 import asyncio # для работы с асинхронными функциями
 import sqlite3 as sq
 import requests
-import pprint
 import dotenv
 import os
 from yookassa import Configuration, Payment # для работы с Юкассой
@@ -55,7 +53,7 @@ dp = Dispatcher() # объект диспетчера
 
 with sq.connect('database.db') as con:
     cur = con.cursor()
-    cur.execute("CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, username TEXT, balance INTEGER, ref_balance INTEGER DEFAULT 0, ref_amount INTEGER DEFAULT 0, keys TEXT, role TEXT DEFAULT NULL)")
+    cur.execute("CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, username TEXT, balance INTEGER, ref_balance INTEGER DEFAULT 0, ref_amount INTEGER DEFAULT 0, keys TEXT, role TEXT DEFAULT NULL, had_trial INTEGER DEFAULT 0, runout_notified INTEGER DEFAULT 0, has_active_keys INTEGER DEFAULT 0)")
     cur.execute('CREATE TABLE IF NOT EXISTS referal_users (id INTEGER PRIMARY KEY, referral_id INTEGER UNIQUE, ref_master_id INTEGER)')
     cur.execute('CREATE TABLE IF NOT EXISTS transactions (id INTEGER PRIMARY KEY, user_id INTEGER, amount INTEGER, type TEXT, date TEXT)')
     # Добавляем поле role, если его еще нет
@@ -66,6 +64,16 @@ with sq.connect('database.db') as con:
     # Добавляем поле runout_notified, если его еще нет
     try:
         cur.execute('ALTER TABLE users ADD COLUMN runout_notified INTEGER DEFAULT 0')
+    except:
+        pass  # Поле уже существует
+    # Добавляем поле had_trial, если его еще нет
+    try:
+        cur.execute('ALTER TABLE users ADD COLUMN had_trial INTEGER DEFAULT 0')
+    except:
+        pass  # Поле уже существует
+    # Добавляем поле has_active_keys, если его еще нет
+    try:
+        cur.execute('ALTER TABLE users ADD COLUMN has_active_keys INTEGER DEFAULT 0')
     except:
         pass  # Поле уже существует
     con.commit()
@@ -83,7 +91,7 @@ async def start_command(message):
             cur = con.cursor()
             # Проверяем, что referral_id != ref_master_id перед вставкой
             if message.from_user.id != ref:
-                bot.send_message(ref, f' <b>🎉 У вас новый реферал - {message.from_user.username}! </b>', parse_mode='HTML')
+                await bot.send_message(ref, f' <b>🎉 У вас новый реферал - {message.from_user.username}! </b>', parse_mode='HTML')
                 cur.execute(
                     "INSERT OR IGNORE INTO referal_users (referral_id, ref_master_id) VALUES (?, ?)", (message.from_user.id, ref)
                 )
@@ -117,15 +125,13 @@ def check_payment_status(invoice_id):
     headers = {"Crypto-Pay-API-Token": API_TOKEN,
     "Content-Type": "application/json"
     }
-    response = requests.post('https://pay.crypt.bot/api/getInvoices', headers=headers, json={})
+    # Получаем только нужный инвойс по ID, а не все инвойсы
+    response = requests.post('https://pay.crypt.bot/api/getInvoices', headers=headers, json={"invoice_ids": [invoice_id]})
     response = response.json()
-    pprint.pprint(response)
-    for inv in response['result']['items']:
-        print(inv['status'], float(inv['amount'])*rub_to_usdt)
+    if response.get('ok') and response.get('result', {}).get('items'):
+        inv = response['result']['items'][0]
         if inv['invoice_id'] == invoice_id:
-            
             return inv['status'], float(inv['amount'])*rub_to_usdt # возвращаем статус оплаты и сумму в рублях
-
     
     return None, None
 
@@ -228,11 +234,15 @@ ikb_withdraw = InlineKeyboardMarkup(inline_keyboard=[
 @dp.callback_query(lambda c: c.data.startswith('check_payment_'))
 async def check_payment_callback(callback: CallbackQuery):
     await callback.answer("✅️ Я оплатил") # на пол экрана хуйня высветится
-    print(callback.data.split() , 'это то что пришло в callback.data')
-    invoice_id = int(callback.data.split('_')[2])
+    # Убрали лишний print для экономии памяти
+    parts = callback.data.split('_')
+    if len(parts) < 3:
+        await callback.message.answer('❌ Ошибка: неверный формат данных', parse_mode='HTML')
+        return
+    invoice_id = int(parts[2])
     status, amount = check_payment_status(invoice_id)
     try:
-        print(invoice_id, status)
+        # Убрали лишний print для экономии памяти
         if status == 'paid':
             await callback.message.answer(f'🤑 Оплачено! \n\n ➕ Начислено {amount} ₽ на баланс', parse_mode='HTML', reply_markup=ikb_back)
             await callback.message.delete()
@@ -261,14 +271,13 @@ async def check_payment_callback(callback: CallbackQuery):
 async def check_payment_yookassa_callback(callback: CallbackQuery): # сюды
     await callback.answer("🔄 Проверка статуса оплаты") # на пол экрана хуйня высветится
     _ , amount , payment_id = callback.data.split('_')
-    print(amount, payment_id, callback.from_user.id, 'это то что пришло в check_payment_yookassa_callback')
+    # Убрали лишний print для экономии памяти
     if check_payment_yookassa_status(int(amount), payment_id, callback.from_user.id):
         with sq.connect('database.db') as con:
             cur = con.cursor()
             cur.execute('UPDATE users SET balance = balance + ? WHERE id = ?', (amount, callback.from_user.id))
             cur.execute('SELECT ref_master_id FROM referal_users WHERE referral_id = ?', (callback.from_user.id,))
             ref_master = cur.fetchone() 
-            print(ref_master)
             if ref_master: # если есть рефовод то:
                 ref_master_id = ref_master[0]
                 # Проверяем роль рефмастера
@@ -415,7 +424,6 @@ async def plan_week_callback(callback: CallbackQuery):
             with sq.connect('database.db') as con:
                 try:
                     vpn_key = await generate_vpn_key(callback.from_user.id, 7)
-                    print(vpn_key)
                 except Exception as e:
                     await callback.message.answer(f'❌ Не удалось сгенерировать ключ: {e}. Напишите в техподдержку, мы обязательно поможем!', parse_mode='HTML', reply_markup=ikb_support)
                     raise e
@@ -432,7 +440,6 @@ async def plan_week_callback(callback: CallbackQuery):
                 cur = con.cursor()
                 cur.execute('SELECT key FROM keys WHERE duration = 7 AND SOLD = 0 ORDER BY rowid DESC LIMIT 1')
                 result = cur.fetchone() # получить результат из базы данных
-                print(result)
                 if result:
                     cur.execute('UPDATE users SET balance = balance - 50 WHERE id = ? AND balance >= 50' , (callback.from_user.id,)) # вычесть 100 из баланса текущего пользователя
                     con.commit() # сохранить изменения в базе данных
@@ -461,7 +468,6 @@ async def plan_month_callback(callback: CallbackQuery):
             with sq.connect('database.db') as con:
                 try:
                     vpn_key = await generate_vpn_key(callback.from_user.id, 30)
-                    print(vpn_key)
                 except Exception as e:
                     await callback.message.answer(f'❌ Не удалось сгенерировать ключ: {e}. Напишите в техподдержку, мы обязательно поможем!', parse_mode='HTML', reply_markup=ikb_support)
                     raise e
@@ -478,7 +484,6 @@ async def plan_month_callback(callback: CallbackQuery):
                 cur = con.cursor()
                 cur.execute('SELECT key FROM keys WHERE duration = 30 AND SOLD = 0 ORDER BY rowid DESC LIMIT 1')
                 result = cur.fetchone() # получить результат из базы данных
-                print(result)
                 if result:
                     cur.execute('UPDATE users SET balance = balance - 100 WHERE id = ? AND balance >= 100' , (callback.from_user.id,)) # вычесть 100 из баланса текущего пользователя
                     con.commit() # сохранить изменения в базе данных
@@ -507,7 +512,6 @@ async def plan_halfyear_callback(callback: CallbackQuery):
             with sq.connect('database.db') as con:
                 try:
                     vpn_key = await generate_vpn_key(callback.from_user.id, 180)
-                    print(vpn_key)
                 except Exception as e:
                     await callback.message.answer(f'❌ Не удалось сгенерировать ключ: {e}. Напишите в техподдержку, мы обязательно поможем!', parse_mode='HTML', reply_markup=ikb_support)
                     raise e
@@ -524,7 +528,6 @@ async def plan_halfyear_callback(callback: CallbackQuery):
                 cur = con.cursor()
                 cur.execute('SELECT key FROM keys WHERE duration = 180 AND SOLD = 0 ORDER BY rowid DESC LIMIT 1')
                 result = cur.fetchone() # получить результат из базы данных
-                print(result)
                 if result:
                     cur.execute('UPDATE users SET balance = balance - 500 WHERE id = ? AND balance >= 500' , (callback.from_user.id,)) # вычесть 500 из баланса текущего пользователя
                     con.commit() # сохранить изменения в базе данных
@@ -553,7 +556,6 @@ async def plan_year_callback(callback: CallbackQuery):
             with sq.connect('database.db') as con:
                 try:
                     vpn_key = await generate_vpn_key(callback.from_user.id, 365)
-                    print(vpn_key)
                 except Exception as e:
                     await callback.message.answer(f'❌ Не удалось сгенерировать ключ: {e}. Напишите в техподдержку, мы обязательно поможем!', parse_mode='HTML', reply_markup=ikb_support)
                     raise e
@@ -570,7 +572,6 @@ async def plan_year_callback(callback: CallbackQuery):
                 cur = con.cursor()
                 cur.execute('SELECT key FROM keys WHERE duration = 365 AND SOLD = 0 ORDER BY rowid DESC LIMIT 1')
                 result = cur.fetchone() # получить результат из базы данных
-                print(result)
                 if result:
                     cur.execute('UPDATE users SET balance = balance - 800 WHERE id = ? AND balance >= 800' , (callback.from_user.id,)) # вычесть 800 из баланса текущего пользователя
                     con.commit() # сохранить изменения в базе данных
@@ -644,7 +645,7 @@ async def deposit_stars_callback(callback : CallbackQuery):
 
 @dp.callback_query(lambda c: c.data.startswith('deposit_'))
 async def process_deposit(callback: CallbackQuery):
-    print(callback.data.split())
+    # Убрали лишний print для экономии памяти
     _ , sum , method = callback.data.split('_')
     
     amount = int(sum)
@@ -667,7 +668,7 @@ async def process_deposit(callback: CallbackQuery):
                     "user_id": callback.from_user.id,
                 }
             }, uuid.uuid4())
-            pprint.pprint(payment.json())
+            # Убрали pprint для экономии памяти
             payment_id = payment.id
             confirmation_url = payment.confirmation.confirmation_url
             await callback.message.answer(f'👉 Создали заявку на оплату, переходите по ссылке и оплатите.\n\n <b>❗ После оплаты нажмите на кнопку "Я оплатил"</b>', parse_mode='HTML', reply_markup=yookassa_payment_keyboard(amount, confirmation_url, payment_id))
@@ -696,13 +697,11 @@ async def process_deposit(callback: CallbackQuery):
         
     if method == 'CryptoBot': # рассматриваем оплату криптой
         response = get_pay_link(amount/rub_to_usdt) # переводим рубли в доллары от руки пока что пох
-        print(response)
         ok = response['ok'] # тру фолс
         result = response['result'] # содержит инфу о результате запроса
         pay_url = result['pay_url'] # ссылка на оплату
         bot_invoice_url = result['bot_invoice_url'] # ссылка на оплату в боте
         invoice_id = result['invoice_id'] # id заявки
-        print(invoice_id)
         # print(pay_url, bot_invoice_url, ok)
 
         ikb = InlineKeyboardMarkup(inline_keyboard=[
@@ -797,16 +796,19 @@ async def admin_users_callback(callback: CallbackQuery):
         cur = con.cursor()
         today = date.today()
         today_str = today.isoformat()  # Преобразуем дату в строку формата YYYY-MM-DD для корректного сравнения
-        cur.execute('SELECT id FROM users')
-        users_list = cur.fetchall() # получить список всех пользователей
-        for user in users_list:
-            user_id = user[0] # извлекаем ID пользователя из кортежа
-            cur.execute('SELECT key FROM keys WHERE buyer_id = ? AND expiration_date >= ?', (user_id, today_str))
-            result = cur.fetchall() # проверить активные ключи для каждого пользователя
-            if result:
-                cur.execute("UPDATE users SET has_active_keys = 1 WHERE id = ?", (user_id,))
-            else:
-                cur.execute("UPDATE users SET has_active_keys = 0 WHERE id = ?", (user_id,))
+        # Оптимизация: обновляем has_active_keys одним запросом вместо цикла
+        # Сначала устанавливаем всем 0
+        cur.execute("UPDATE users SET has_active_keys = 0")
+        # Затем устанавливаем 1 тем, у кого есть активные ключи
+        cur.execute('''
+            UPDATE users 
+            SET has_active_keys = 1 
+            WHERE id IN (
+                SELECT DISTINCT buyer_id 
+                FROM keys 
+                WHERE expiration_date >= ? AND buyer_id IS NOT NULL
+            )
+        ''', (today_str,))
         con.commit()
         cur.execute('SELECT id, username, balance, ref_amount, role, had_trial, has_active_keys FROM users')
         result = cur.fetchall()
@@ -826,7 +828,14 @@ async def admin_users_callback(callback: CallbackQuery):
         df['Has_active_keys_%'] = round(has_active_keys_percent, 2)
         
         df.to_excel('users.xlsx', index=False)
-        await callback.message.answer_document(document=FSInputFile('users.xlsx'), reply_markup=ikb_admin_back)
+        try:
+            await callback.message.answer_document(document=FSInputFile('users.xlsx'), reply_markup=ikb_admin_back)
+        finally:
+            # Удаляем файл после отправки, чтобы не засорять диск
+            try:
+                os.remove('users.xlsx')
+            except:
+                pass
         
     #     message_text = "Список пользователей:\n\n" + "\n".join(
     # f'👤 {user[0]} - {user[1]} - {user[2]} Р - {user[3]} рефов' for user in result)
@@ -843,7 +852,14 @@ async def admin_payments_callback(callback: CallbackQuery):
         result = cur.fetchall()
         df = pd.DataFrame(result, columns=['ID', 'Username', 'Amount', 'Type', 'Date'])
         df.to_excel('payments.xlsx', index=False)
-        await callback.message.answer_document(document=FSInputFile('payments.xlsx'), reply_markup=ikb_admin_back)
+        try:
+            await callback.message.answer_document(document=FSInputFile('payments.xlsx'), reply_markup=ikb_admin_back)
+        finally:
+            # Удаляем файл после отправки, чтобы не засорять диск
+            try:
+                os.remove('payments.xlsx')
+            except:
+                pass
 
 @dp.callback_query(lambda c: c.data == 'admin_keys')
 async def admin_keys_callback(callback: CallbackQuery):
@@ -855,7 +871,14 @@ async def admin_keys_callback(callback: CallbackQuery):
         result = cur.fetchall()
         df = pd.DataFrame(result, columns=['Key', 'Duration', 'Buyer_id', 'username', 'buy_date', 'expires_at'])
         df.to_excel('keys.xlsx', index=False)
-        await callback.message.answer_document(document=FSInputFile('keys.xlsx'), reply_markup=ikb_admin_back)
+        try:
+            await callback.message.answer_document(document=FSInputFile('keys.xlsx'), reply_markup=ikb_admin_back)
+        finally:
+            # Удаляем файл после отправки, чтобы не засорять диск
+            try:
+                os.remove('keys.xlsx')
+            except:
+                pass
 
 @dp.callback_query(lambda c: c.data == 'admin_notify_trial')
 async def admin_notify_trial_callback(callback: CallbackQuery):
