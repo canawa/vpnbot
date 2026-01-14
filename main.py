@@ -77,28 +77,7 @@ with sq.connect('database.db') as con:
     except:
         pass  # Поле уже существует
     
-    # Обновляем существующие тестовые записи (duration=7) на duration=3 и пересчитываем expiration_date
-    try:
-        # Проверяем, существует ли таблица keys
-        cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='keys'")
-        if cur.fetchone():
-            # Обновляем только тестовые записи: duration=7 и expiration_date соответствует buy_date + 7 дней
-            # Это позволяет отличить тестовые ключи от платных ключей "Неделя"
-            cur.execute('''
-                UPDATE keys 
-                SET duration = 3, 
-                    expiration_date = date(buy_date, '+3 days')
-                WHERE duration = 7 
-                AND buy_date IS NOT NULL 
-                AND expiration_date = date(buy_date, '+7 days')
-            ''')
-            updated_count = cur.rowcount
-            if updated_count > 0:
-                print(f"Обновлено тестовых записей: {updated_count}")
-    except Exception as e:
-        print(f"Ошибка при обновлении тестовых записей: {e}")
-    
-    con.commit()
+
 
 @dp.message(CommandStart())
 async def start_command(message):
@@ -239,6 +218,7 @@ ikb_admin = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text='🔑 Ключи', callback_data='admin_keys')],
     [InlineKeyboardButton(text='👑 Роли', callback_data='admin_roles')],
     [InlineKeyboardButton(text='🔊 Напомнить юзерам о бесплатном тестовом периоде', callback_data='admin_notify_trial')],
+    [InlineKeyboardButton(text='⏰ Уведомить о завершении пробной подписки', callback_data='admin_notify_expired')],
 ])
 
 ikb_admin_back = InlineKeyboardMarkup(inline_keyboard=[
@@ -916,6 +896,54 @@ async def admin_notify_trial_callback(callback: CallbackQuery):
             except:
                 pass
     await callback.message.answer("🔊 Напомнить юзерам о бесплатном тестовом периоде", parse_mode='HTML', reply_markup=ikb_admin_back)
+
+@dp.callback_query(lambda c: c.data == 'admin_notify_expired')
+async def admin_notify_expired_callback(callback: CallbackQuery):
+    await callback.answer("⏰ Уведомить о завершении пробной подписки") # на пол экрана хуйня высветится
+    await callback.message.delete()
+    today = date.today()
+    today_str = today.isoformat()  # Преобразуем дату в строку формата YYYY-MM-DD для корректного сравнения
+    
+    with sq.connect('database.db') as con:
+        cur = con.cursor()
+        # Находим всех пользователей, у которых нет активных ключей
+        # (либо вообще нет ключей, либо все ключи истекли)
+        cur.execute('''
+            SELECT DISTINCT users.id 
+            FROM users 
+            WHERE users.id NOT IN (
+                SELECT DISTINCT buyer_id 
+                FROM keys 
+                WHERE buyer_id IS NOT NULL 
+                AND expiration_date >= ?
+            )
+        ''', (today_str,))
+        users_without_active_keys = cur.fetchall()
+        
+        sent_count = 0
+        failed_count = 0
+        
+        for user in users_without_active_keys:
+            try:
+                await bot.send_message(
+                    user[0], 
+                    "⏰ <b>Ваша пробная подписка закончилась</b>\n\n"
+                    "Ваш тестовый период VPN истек. Для продолжения использования сервиса, пожалуйста, приобретите новый ключ.",
+                    parse_mode='HTML',
+                    reply_markup=ikb_plans
+                )
+                sent_count += 1
+            except Exception as e:
+                failed_count += 1
+                print(f"Error sending message to user {user[0]}: {e}")
+        
+        await callback.message.answer(
+            f"✅ Уведомления отправлены!\n\n"
+            f"📤 Отправлено: {sent_count}\n"
+            f"❌ Ошибок: {failed_count}",
+            parse_mode='HTML',
+            reply_markup=ikb_admin_back
+        )
 
 @dp.callback_query(lambda c: c.data == 'admin_roles')
 async def admin_roles_callback(callback: CallbackQuery):
