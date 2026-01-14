@@ -76,6 +76,28 @@ with sq.connect('database.db') as con:
         cur.execute('ALTER TABLE users ADD COLUMN has_active_keys INTEGER DEFAULT 0')
     except:
         pass  # Поле уже существует
+    
+    # Обновляем существующие тестовые записи (duration=7) на duration=3 и пересчитываем expiration_date
+    try:
+        # Проверяем, существует ли таблица keys
+        cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='keys'")
+        if cur.fetchone():
+            # Обновляем только тестовые записи: duration=7 и expiration_date соответствует buy_date + 7 дней
+            # Это позволяет отличить тестовые ключи от платных ключей "Неделя"
+            cur.execute('''
+                UPDATE keys 
+                SET duration = 3, 
+                    expiration_date = date(buy_date, '+3 days')
+                WHERE duration = 7 
+                AND buy_date IS NOT NULL 
+                AND expiration_date = date(buy_date, '+7 days')
+            ''')
+            updated_count = cur.rowcount
+            if updated_count > 0:
+                print(f"Обновлено тестовых записей: {updated_count}")
+    except Exception as e:
+        print(f"Ошибка при обновлении тестовых записей: {e}")
+    
     con.commit()
 
 @dp.message(CommandStart())
@@ -216,7 +238,7 @@ ikb_admin = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text='🔄 Оплаты', callback_data='admin_payments')],
     [InlineKeyboardButton(text='🔑 Ключи', callback_data='admin_keys')],
     [InlineKeyboardButton(text='👑 Роли', callback_data='admin_roles')],
-    [InlineKeyboardButton(text='🔊 Напомнить юзерам о бесплатной неделе', callback_data='admin_notify_trial')],
+    [InlineKeyboardButton(text='🔊 Напомнить юзерам о бесплатном тестовом периоде', callback_data='admin_notify_trial')],
 ])
 
 ikb_admin_back = InlineKeyboardMarkup(inline_keyboard=[
@@ -386,7 +408,7 @@ async def back_callback(callback: CallbackQuery):
 async def plan_trial(callback: CallbackQuery):
     await callback.message.delete()
     try:
-        vpn_key = await generate_vpn_key(callback.from_user.id, 7)
+        vpn_key = await generate_vpn_key(callback.from_user.id, 3)
         # print(vpn_key)
     except Exception as e:
         await callback.message.answer(f'❌ Не удалось сгенерировать ключ: {e}. Напишите в техподдержку, мы обязательно поможем!', parse_mode='HTML', reply_markup=ikb_support)
@@ -395,15 +417,15 @@ async def plan_trial(callback: CallbackQuery):
     if vpn_key:
         with sq.connect('database.db') as con:
             cur = con.cursor()
-            expire_date = date.today() + timedelta(days=7)
+            expire_date = date.today() + timedelta(days=3)
             expire_date_str = expire_date.isoformat()  # Преобразуем дату в строку формата YYYY-MM-DD
             buy_date_str = date.today().isoformat()  # Преобразуем дату в строку формата YYYY-MM-DD
-            cur.execute('INSERT INTO keys (key, duration, SOLD, buyer_id, username, buy_date, expiration_date) VALUES (?, ?, ?, ?, ?, ?, ?)', (vpn_key, 7, 0, callback.from_user.id, callback.from_user.username, buy_date_str, expire_date_str))
-            cur.execute('SELECT key FROM keys WHERE duration = 7 AND SOLD = 0 ORDER BY rowid DESC LIMIT 1')
+            cur.execute('INSERT INTO keys (key, duration, SOLD, buyer_id, username, buy_date, expiration_date) VALUES (?, ?, ?, ?, ?, ?, ?)', (vpn_key, 3, 0, callback.from_user.id, callback.from_user.username, buy_date_str, expire_date_str))
+            cur.execute('SELECT key FROM keys WHERE duration = 3 AND SOLD = 0 ORDER BY rowid DESC LIMIT 1')
             con.commit()
             result = cur.fetchone() # получить результат из базы данных
             cur.execute('UPDATE users SET had_trial = 1 WHERE id = ?', (callback.from_user.id,))
-        await callback.message.answer(f"🙋🏻‍♂️ ВАШ КЛЮЧ:\n\n<code>{result[0]}</code>\n<i>(нажмите чтобы скопировать)</i> \n\n<b>⌛Срок действия: 7 дней</b>\n\n <b> 📌 1 КЛЮЧ - ОДНО УСТРОЙСТВО</b>\n 🧐 Гайд на установку: https://telegra.ph/Instrukciya-po-ustanovke-VPN-01-10", parse_mode='HTML', reply_markup=ikb_back)
+        await callback.message.answer(f"🙋🏻‍♂️ ВАШ КЛЮЧ:\n\n<code>{result[0]}</code>\n<i>(нажмите чтобы скопировать)</i> \n\n<b>⌛Срок действия: 3 дня</b>\n\n <b> 📌 1 КЛЮЧ - ОДНО УСТРОЙСТВО</b>\n 🧐 Гайд на установку: https://telegra.ph/Instrukciya-po-ustanovke-VPN-01-10", parse_mode='HTML', reply_markup=ikb_back)
  
 
 
@@ -882,7 +904,7 @@ async def admin_keys_callback(callback: CallbackQuery):
 
 @dp.callback_query(lambda c: c.data == 'admin_notify_trial')
 async def admin_notify_trial_callback(callback: CallbackQuery):
-    await callback.answer("🔊 Напомнить юзерам о бесплатной неделе") # на пол экрана хуйня высветится
+    await callback.answer("🔊 Напомнить юзерам о бесплатном тестовом периоде") # на пол экрана хуйня высветится
     await callback.message.delete()
     with sq.connect('database.db') as con:
         cur = con.cursor()
@@ -890,10 +912,10 @@ async def admin_notify_trial_callback(callback: CallbackQuery):
         result = cur.fetchall()
         for user in result:
             try:
-                await bot.send_message(user[0], "🎁 <b>У вас есть бесплатная неделя VPN!</b>\n\nВы можете использовать ее, чтобы протестировать наш сервис.\n\n Пишите /start чтобы получить бесплатную неделю!", parse_mode='HTML')
+                await bot.send_message(user[0], "🎁 <b>У вас есть бесплатный тестовый период VPN на 3 дня!</b>\n\nВы можете использовать его, чтобы протестировать наш сервис.\n\n Пишите /start чтобы получить бесплатный тестовый период!", parse_mode='HTML')
             except:
                 pass
-    await callback.message.answer("🔊 Напомнить юзерам о бесплатной неделе", parse_mode='HTML', reply_markup=ikb_admin_back)
+    await callback.message.answer("🔊 Напомнить юзерам о бесплатном тестовом периоде", parse_mode='HTML', reply_markup=ikb_admin_back)
 
 @dp.callback_query(lambda c: c.data == 'admin_roles')
 async def admin_roles_callback(callback: CallbackQuery):

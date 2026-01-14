@@ -6,6 +6,6 @@ async def upload_keys(k):
             if key.startswith('NS7'):
                 key = key.split(' ')[1]
                 with sq.connect('database.db') as con:
-                    cur = con.execute('INSERT INTO keys (key, duration, SOLD, buyer_id) VALUES (?, ?, ?, ?)', (key, 7, 0, None))
+                    cur = con.execute('INSERT INTO keys (key, duration, SOLD, buyer_id) VALUES (?, ?, ?, ?)', (key, 3, 0, None))
                     con.commit()
 
