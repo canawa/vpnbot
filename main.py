@@ -219,6 +219,7 @@ ikb_admin = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text='👑 Роли', callback_data='admin_roles')],
     [InlineKeyboardButton(text='🔊 Напомнить юзерам о бесплатном тестовом периоде', callback_data='admin_notify_trial')],
     [InlineKeyboardButton(text='⏰ Уведомить о завершении пробной подписки', callback_data='admin_notify_expired')],
+    [InlineKeyboardButton(text='🙏 Извините', callback_data='admin_apologize')],
 ])
 
 ikb_admin_back = InlineKeyboardMarkup(inline_keyboard=[
@@ -939,6 +940,58 @@ async def admin_notify_expired_callback(callback: CallbackQuery):
         
         await callback.message.answer(
             f"✅ Уведомления отправлены!\n\n"
+            f"📤 Отправлено: {sent_count}\n"
+            f"❌ Ошибок: {failed_count}",
+            parse_mode='HTML',
+            reply_markup=ikb_admin_back
+        )
+
+@dp.callback_query(lambda c: c.data == 'admin_apologize')
+async def admin_apologize_callback(callback: CallbackQuery):
+    await callback.answer("🙏 Извините") # на пол экрана хуйня высветится
+    await callback.message.delete()
+    
+    with sq.connect('database.db') as con:
+        cur = con.cursor()
+        # Находим всех пользователей с активными ключами
+        cur.execute('SELECT id FROM users WHERE has_active_keys = 1')
+        users_with_active_keys = cur.fetchall()
+        
+        sent_count = 0
+        failed_count = 0
+        
+        for user_tuple in users_with_active_keys:
+            user_id = user_tuple[0]
+            try:
+                # Получаем текущий баланс пользователя для отображения
+                cur.execute('SELECT balance FROM users WHERE id = ?', (user_id,))
+                balance_result = cur.fetchone()
+                current_balance = balance_result[0] if balance_result else 0
+                
+                # Формируем сообщение с жирным шрифтом для основных тезисов
+                message_text = (
+                    "Сегодня произошла печальная ситуация, которая вас никак не должна волновать.\n"
+                    "<b>Все ключи были сброшены.</b> Нам очень жаль, что VPN был недоступен на протяжении 8 часов.\n\n"
+                    "<b>ПОЭТОМУ:</b>\n\n"
+                    "👉 <b>Мы выдали всем вам 100р компенсации.</b>\n"
+                    "👉 <b>Вернули деньги на баланс, которые вы депозитнули.</b>\n\n"
+                    "<b>Просьба, зайти и купить ключ заново.</b>\n\n"
+                    f"<b>Ваш баланс: {current_balance} ₽</b>"
+                )
+                
+                await bot.send_message(
+                    user_id,
+                    message_text,
+                    parse_mode='HTML',
+                    reply_markup=ikb_plans
+                )
+                sent_count += 1
+            except Exception as e:
+                failed_count += 1
+                print(f"Error sending apologize message to user {user_id}: {e}")
+        
+        await callback.message.answer(
+            f"✅ Сообщения отправлены!\n\n"
             f"📤 Отправлено: {sent_count}\n"
             f"❌ Ошибок: {failed_count}",
             parse_mode='HTML',
