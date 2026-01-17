@@ -213,13 +213,12 @@ def yookassa_payment_keyboard(amount, confirmation_url, payment_id): # функ�
 
 ikb_admin = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text='👤 Пользователи', callback_data='admin_users')],
-    # [InlineKeyboardButton(text='💰 Баланс', callback_data='admin_balance')],
     [InlineKeyboardButton(text='🔄 Оплаты', callback_data='admin_payments')],
     [InlineKeyboardButton(text='🔑 Ключи', callback_data='admin_keys')],
     [InlineKeyboardButton(text='👑 Роли', callback_data='admin_roles')],
     [InlineKeyboardButton(text='🔊 Напомнить юзерам о бесплатном тестовом периоде', callback_data='admin_notify_trial')],
     [InlineKeyboardButton(text='⏰ Уведомить о завершении пробной подписки', callback_data='admin_notify_expired')],
-    [InlineKeyboardButton(text='🙏 Извините', callback_data='admin_apologize')],
+    [InlineKeyboardButton(text='👉🏼 Рефералы', callback_data='admin_referrals')],
 ])
 
 ikb_admin_back = InlineKeyboardMarkup(inline_keyboard=[
@@ -1048,6 +1047,18 @@ async def ref_withdraw_callback(callback: CallbackQuery):
     await callback.message.delete()
     await callback.message.answer("<b> 🤝 Чтобы вывести реферальный баланс, на реферальном балансе должно быть минимум 200 ₽. \n\n 🟢 Выберите сумму для вывода:</b>", parse_mode='HTML', reply_markup=ikb_withdraw)
 
+
+@dp.callback_query(lambda c: c.data == 'admin_referrals')
+async def admin_referrals_callback(callback: CallbackQuery):
+    await callback.answer("👉🏼 Рефералы") # на пол экрана хуйня высветится
+    await callback.message.delete()
+    with sq.connect('database.db') as con:
+        cur = con.cursor()
+        cur.execute('SELECT id, ref_master_id, referral_id FROM referal_users')
+        result = cur.fetchall()
+        df = pd.DataFrame(result, index=['Айди','РефМастер Айди', 'Реферал Айди'])
+        df.to_excel('referals.xlsx')
+        await callback.message.answer_document(FSInputFile('referals.xlsx'))
 
 @dp.callback_query(lambda c: c.data.startswith('withdraw_'))
 async def withdraw_callback(callback: CallbackQuery):
