@@ -16,7 +16,7 @@ from vpn import generate_vpn_key, get_marzban_token
 import pandas as pd
 import openpyxl
 from datetime import datetime
-
+from check_subscription import is_subscribed
 print('BOT STARTED!!!')
 
 
@@ -135,6 +135,11 @@ def check_payment_status(invoice_id):
             return inv['status'], float(inv['amount'])*rub_to_usdt # возвращаем статус оплаты и сумму в рублях
     
     return None, None
+
+ikb_subscribe = InlineKeyboardMarkup(inline_keyboard=[
+    [InlineKeyboardButton(text='🔗 Подписаться на канал', url='https://t.me/coffemaniavpn')],
+    [InlineKeyboardButton(text='✅ Я подписался', callback_data='subscribe_confirmed')],
+])
 
 def generate_ikb_main(user_id):
     # запиши это через append
@@ -392,28 +397,56 @@ async def back_callback(callback: CallbackQuery):
 @dp.callback_query(lambda c: c.data == 'trial')
 async def plan_trial(callback: CallbackQuery):
     await callback.message.delete()
-    try:
-        vpn_key = await generate_vpn_key(callback.from_user.id, 3)
-        # print(vpn_key)
-    except Exception as e:
-        await callback.message.answer(f'❌ Не удалось сгенерировать ключ: {e}. Напишите в техподдержку, мы обязательно поможем!', parse_mode='HTML', reply_markup=ikb_support)
-        raise e
+    if is_subscribed(bot, callback.from_user.id):
+        try:
+            vpn_key = await generate_vpn_key(callback.from_user.id, 3)
+            # print(vpn_key)
+        except Exception as e:
+            await callback.message.answer(f'❌ Не удалось сгенерировать ключ: {e}. Напишите в техподдержку, мы обязательно поможем!', parse_mode='HTML', reply_markup=ikb_support)
+            raise e
 
-    if vpn_key:
-        with sq.connect('database.db') as con:
-            cur = con.cursor()
-            expire_date = date.today() + timedelta(days=3)
-            expire_date_str = expire_date.isoformat()  # Преобразуем дату в строку формата YYYY-MM-DD
-            buy_date_str = date.today().isoformat()  # Преобразуем дату в строку формата YYYY-MM-DD
-            cur.execute('INSERT INTO keys (key, duration, SOLD, buyer_id, username, buy_date, expiration_date) VALUES (?, ?, ?, ?, ?, ?, ?)', (vpn_key, 3, 0, callback.from_user.id, callback.from_user.username, buy_date_str, expire_date_str))
-            cur.execute('SELECT key FROM keys WHERE duration = 3 AND SOLD = 0 ORDER BY rowid DESC LIMIT 1')
-            con.commit()
-            result = cur.fetchone() # получить результат из базы данных
-            cur.execute('UPDATE users SET had_trial = 1 WHERE id = ?', (callback.from_user.id,))
-        await callback.message.answer(f"🙋🏻‍♂️ ВАШ КЛЮЧ:\n\n<code>{result[0]}</code>\n<i>(нажмите чтобы скопировать)</i> \n\n<b>⌛Срок действия: 3 дня</b>\n\n <b> 📌 1 КЛЮЧ - ОДНО УСТРОЙСТВО</b>\n 🧐 Гайд на установку: https://telegra.ph/Instrukciya-po-ustanovke-VPN-01-10", parse_mode='HTML', reply_markup=ikb_back)
- 
+        if vpn_key:
+            with sq.connect('database.db') as con:
+                cur = con.cursor()
+                expire_date = date.today() + timedelta(days=3)
+                expire_date_str = expire_date.isoformat()  # Преобразуем дату в строку формата YYYY-MM-DD
+                buy_date_str = date.today().isoformat()  # Преобразуем дату в строку формата YYYY-MM-DD
+                cur.execute('INSERT INTO keys (key, duration, SOLD, buyer_id, username, buy_date, expiration_date) VALUES (?, ?, ?, ?, ?, ?, ?)', (vpn_key, 3, 0, callback.from_user.id, callback.from_user.username, buy_date_str, expire_date_str))
+                cur.execute('SELECT key FROM keys WHERE duration = 3 AND SOLD = 0 ORDER BY rowid DESC LIMIT 1')
+                con.commit()
+                result = cur.fetchone() # получить результат из базы данных
+                cur.execute('UPDATE users SET had_trial = 1 WHERE id = ?', (callback.from_user.id,))
+            await callback.message.answer(f"🙋🏻‍♂️ ВАШ КЛЮЧ:\n\n<code>{result[0]}</code>\n<i>(нажмите чтобы скопировать)</i> \n\n<b>⌛Срок действия: 3 дня</b>\n\n <b> 📌 1 КЛЮЧ - ОДНО УСТРОЙСТВО</b>\n 🧐 Гайд на установку: https://telegra.ph/Instrukciya-po-ustanovke-VPN-01-10", parse_mode='HTML', reply_markup=ikb_back)
+    else:
+        await callback.message.answer('❌ Вы не подписаны на канал! Подпишитесь на канал, чтобы получить бесплатный тестовый период!', parse_mode='HTML', reply_markup=ikb_subscribe)
 
 
+@dp.callback_query(lambda c: c.data == 'subscribe_confirmed')
+async def subscribe_confirmed_callback(callback: CallbackQuery):
+    await callback.answer("✅ Я подписался") # на пол экрана хуйня высветится
+    await callback.message.delete()
+    if is_subscribed(bot, callback.from_user.id):
+        try:
+            vpn_key = await generate_vpn_key(callback.from_user.id, 3)
+            # print(vpn_key)
+        except Exception as e:
+            await callback.message.answer(f'❌ Не удалось сгенерировать ключ: {e}. Напишите в техподдержку, мы обязательно поможем!', parse_mode='HTML', reply_markup=ikb_support)
+            raise e
+
+        if vpn_key:
+            with sq.connect('database.db') as con:
+                cur = con.cursor()
+                expire_date = date.today() + timedelta(days=3)
+                expire_date_str = expire_date.isoformat()  # Преобразуем дату в строку формата YYYY-MM-DD
+                buy_date_str = date.today().isoformat()  # Преобразуем дату в строку формата YYYY-MM-DD
+                cur.execute('INSERT INTO keys (key, duration, SOLD, buyer_id, username, buy_date, expiration_date) VALUES (?, ?, ?, ?, ?, ?, ?)', (vpn_key, 3, 0, callback.from_user.id, callback.from_user.username, buy_date_str, expire_date_str))
+                cur.execute('SELECT key FROM keys WHERE duration = 3 AND SOLD = 0 ORDER BY rowid DESC LIMIT 1')
+                con.commit()
+                result = cur.fetchone() # получить результат из базы данных
+                cur.execute('UPDATE users SET had_trial = 1 WHERE id = ?', (callback.from_user.id,))
+            await callback.message.answer(f"🙋🏻‍♂️ ВАШ КЛЮЧ:\n\n<code>{result[0]}</code>\n<i>(нажмите чтобы скопировать)</i> \n\n<b>⌛Срок действия: 3 дня</b>\n\n <b> 📌 1 КЛЮЧ - ОДНО УСТРОЙСТВО</b>\n 🧐 Гайд на установку: https://telegra.ph/Instrukciya-po-ustanovke-VPN-01-10", parse_mode='HTML', reply_markup=ikb_back)
+    else:
+        await callback.message.answer('❌ Вы не подписаны на канал! Подпишитесь на канал, чтобы получить бесплатный тестовый период!', parse_mode='HTML', reply_markup=ikb_subscribe)
 
 @dp.callback_query(lambda c: c.data == 'plan_week')
 async def plan_week_callback(callback: CallbackQuery):
