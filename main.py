@@ -76,6 +76,11 @@ with sq.connect('database.db') as con:
         cur.execute('ALTER TABLE users ADD COLUMN has_active_keys INTEGER DEFAULT 0')
     except:
         pass  # Поле уже существует
+    # Добавляем поле expiring_tomorrow_notified, если его еще нет
+    try:
+        cur.execute('ALTER TABLE users ADD COLUMN expiring_tomorrow_notified INTEGER DEFAULT 0')
+    except:
+        pass  # Поле уже существует
     
 
 
@@ -1173,6 +1178,48 @@ async def check_expired_subscriptions():
         # Проверяем раз в час (3600 секунд = 1 час)
         await asyncio.sleep(3600)
 
+async def check_expiring_tomorrow_subscriptions():
+    """Проверяет подписки, истекающие завтра, и отправляет уведомления пользователям"""
+    while True:
+        try:
+            today = date.today()
+            tomorrow = today + timedelta(days=1)
+            tomorrow_str = tomorrow.isoformat()  # Преобразуем дату в строку формата YYYY-MM-DD
+            with sq.connect('database.db') as con:
+                cur = con.cursor()
+                # Находим всех пользователей, у которых завтра истекает подписка и которым еще не отправляли уведомление
+                cur.execute('''
+                    SELECT DISTINCT keys.buyer_id FROM keys 
+                    INNER JOIN users ON keys.buyer_id = users.id
+                    WHERE keys.expiration_date = ? AND keys.buyer_id IS NOT NULL 
+                    AND (users.expiring_tomorrow_notified IS NULL OR users.expiring_tomorrow_notified = 0)
+                ''', (tomorrow_str,))
+                expiring_users = cur.fetchall()
+                
+                for user_tuple in expiring_users:
+                    user_id = user_tuple[0]
+                    try:
+                        cur.execute('UPDATE users SET expiring_tomorrow_notified = 1 WHERE id = ?', (user_id,))
+                        cur.execute('SELECT balance FROM users WHERE id = ?', (user_id,))
+                        result = cur.fetchone()
+                        balance = result[0] if result else 0
+                        con.commit()
+                        await bot.send_message(
+                            user_id,
+                            f"⏰ <b>Ваша подписка истекает завтра</b>\n\n"
+                            f"Ваша подписка VPN истечет завтра. Чтобы не прерывать использование сервиса, пожалуйста, приобретите новый ключ заранее.\n\n👉🏼 <b>Баланс: {balance}₽</b>",
+                            parse_mode='HTML', reply_markup=ikb_plans)
+                        print(f'{user_id} was notified about his subscription expiring tomorrow!')
+                    except Exception as e:
+                        print(f"Error {user_id}: {e}")
+                        continue
+                        
+        except Exception as e:
+            print(f"Error checking expiring tomorrow subscriptions: {e}")
+        
+        # Проверяем раз в час (3600 секунд = 1 час)
+        await asyncio.sleep(3600)
+
 async def reset_runout_notified_daily(): # НЕ ЕБУ КАК РАБОТАЕТ!
     """Сбрасывает флаг runout_notified в 00:01 каждый день"""
     while True:
@@ -1190,12 +1237,13 @@ async def reset_runout_notified_daily(): # НЕ ЕБУ КАК РАБОТАЕТ!
             print(f"Next runout_notified reset will be at {next_reset.strftime('%Y-%m-%d %H:%M:%S')}")
             await asyncio.sleep(seconds_until_reset)
             
-            # Сбрасываем флаг для всех пользователей
+            # Сбрасываем флаги для всех пользователей
             with sq.connect('database.db') as con:
                 cur = con.cursor()
                 cur.execute('UPDATE users SET runout_notified = 0 WHERE runout_notified = 1')
+                cur.execute('UPDATE users SET expiring_tomorrow_notified = 0 WHERE expiring_tomorrow_notified = 1')
                 con.commit()
-                print(f"runout_notified flag reset for all users at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+                print(f"runout_notified and expiring_tomorrow_notified flags reset for all users at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         except Exception as e:
             print(f"Error resetting runout_notified: {e}")
             # В случае ошибки ждем час перед следующей попыткой
@@ -1204,6 +1252,8 @@ async def reset_runout_notified_daily(): # НЕ ЕБУ КАК РАБОТАЕТ!
 async def main():
     # Запускаем фоновую задачу для проверки подписок
     asyncio.create_task(check_expired_subscriptions()) # бесокнечная задача параллельно, если не через create_task то не будет работать
+    # Запускаем фоновую задачу для проверки подписок, истекающих завтра
+    asyncio.create_task(check_expiring_tomorrow_subscriptions())
     # Запускаем фоновую задачу для сброса флага runout_notified в 00:01 каждый день
     asyncio.create_task(reset_runout_notified_daily())
     await dp.start_polling(bot) # отправить соединение к серверам телеграмма
