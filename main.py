@@ -4,7 +4,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.filters import CommandStart
 from aiogram.types import Message, CallbackQuery, invoice, LabeledPrice, FSInputFile
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ChatMember
 import asyncio # для работы с асинхронными функциями
 import sqlite3 as sq
 import requests
@@ -148,7 +148,7 @@ def generate_ikb_main(user_id):
             ikb_main.inline_keyboard.append([InlineKeyboardButton(text='🎁 Попробовать бесплатно', callback_data='trial')])
     ikb_main.inline_keyboard.append([InlineKeyboardButton(text='🛒 Получить VPN', callback_data='buy_vpn')])
     ikb_main.inline_keyboard.append([InlineKeyboardButton(text='👤 Личный кабинет', callback_data='profile')])
-    ikb_main.inline_keyboard.append([InlineKeyboardButton(text='🤝 Пригласить друга', callback_data='referral')])
+    ikb_main.inline_keyboard.append([InlineKeyboardButton(text='🤝 Получить 50₽ на баланс', callback_data='referral')])
     ikb_main.inline_keyboard.append([InlineKeyboardButton(text='📄 Документы', callback_data='documents')])
     return ikb_main
 
