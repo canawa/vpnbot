@@ -313,7 +313,12 @@ def check_payment_yookassa_status(amount, payment_id, user_id): # функция
 async def buy_vpn_callback(callback: CallbackQuery):
     await callback.message.delete()
     await callback.answer("🛒 Раздел покупки VPN") # на пол экрана хуйня высветится
-    await callback.message.answer_photo(FSInputFile("photos/buy_vpn.png"), caption="🛒 <b>Купить VPN</b>\n\nВыберите тарифный план:", parse_mode='HTML', reply_markup=ikb_plans)
+    with sq.connect('database.db') as con:
+        cur = con.cursor()
+        cur.execute('SELECT balance FROM users WHERE id = ?', (callback.from_user.id,))
+        result = cur.fetchone()
+        balance = result[0] if result else 0
+    await callback.message.answer_photo(FSInputFile("photos/buy_vpn.png"), caption=f"🛒 <b>Купить VPN</b>\n\nВыберите тарифный план:\n\n👉🏼 <b>Баланс: {balance}₽</b>", parse_mode='HTML', reply_markup=ikb_plans)
 
 @dp.callback_query(lambda c: c.data == 'profile')
 async def profile_callback(callback: CallbackQuery):
@@ -351,7 +356,7 @@ async def documents_callback(callback: CallbackQuery):
 
 @dp.callback_query(lambda c: c.data == 'referral')
 async def referral_callback(callback: CallbackQuery):
-    await callback.answer("🤝 Пригласить друга") # на пол экрана хуйня высветится
+    await callback.answer("🤝 Получить 50₽ на баланс") # на пол экрана хуйня высветится
     await callback.message.delete()
     with sq.connect('database.db') as con:
         cur = con.cursor()
@@ -608,7 +613,11 @@ async def my_keys_callback(callback: CallbackQuery):
         if result:
             await callback.message.answer_photo(MY_KEYS_PHOTO, caption=f"🔗 Мои ключи:", parse_mode='HTML', reply_markup=ikb_my_keys)
         else:
-            await callback.message.answer_photo(MY_KEYS_PHOTO, caption="🔗 У вас нет ключей. Купите ключ и используйте его.", parse_mode='HTML', reply_markup=ikb_plans)
+            cur.execute('SELECT balance FROM users WHERE id = ?', (callback.from_user.id,))
+            result = cur.fetchone() # получить результат из базы данных
+            balance = result[0] if result else 0 # если результат не пустой, то вытащить баланс, иначе 0
+            await callback.message.answer_photo(MY_KEYS_PHOTO, caption=f"🔗 У вас нет ключей. Купите ключ и используйте его. \n\n👉🏼 <b>Баланс: {balance}₽</b>", parse_mode='HTML', reply_markup=ikb_plans)
+            con.commit() # сохранить изменения в базе данных
 
 @dp.callback_query(lambda c: c.data.startswith('use_key_')) # ЭТО ПОСМОТРЕТЬ КЛЮЧИ
 async def use_key_callback(callback: CallbackQuery):
@@ -926,10 +935,12 @@ async def admin_notify_expired_callback(callback: CallbackQuery):
         
         for user in users_without_active_keys:
             try:
+                cur.execute('SELECT balance FROM users WHERE id = ?', (user[0],))
+                result = cur.fetchone() # получить результат из базы данных
+                balance = result[0] if result else 0 # если результат не пустой, то вытащить баланс, иначе 0
                 await bot.send_message(
                     user[0], 
-                    "⏰ <b>Ваша пробная подписка закончилась</b>\n\n"
-                    "Ваш тестовый период VPN истек. Для продолжения использования сервиса, пожалуйста, приобретите новый ключ.",
+                    f"⏰ <b>Ваша пробная подписка закончилась</b>\n\nВаш тестовый период VPN истек. Для продолжения использования сервиса, пожалуйста, приобретите новый ключ.\n\n<b>Баланс: {balance}₽</b>",
                     parse_mode='HTML',
                     reply_markup=ikb_plans
                 )
@@ -976,7 +987,7 @@ async def admin_apologize_callback(callback: CallbackQuery):
                     "👉 <b>Мы выдали всем вам 100р компенсации.</b>\n"
                     "👉 <b>Вернули деньги на баланс, которые вы депозитнули.</b>\n\n"
                     "<b>Просьба, зайти и купить ключ заново.</b>\n\n"
-                    f"<b>Ваш баланс: {current_balance} ₽</b>"
+                    f"👉🏼 <b>Баланс: {current_balance}₽</b>"
                 )
                 
                 await bot.send_message(
@@ -1096,11 +1107,14 @@ async def check_expired_subscriptions():
                         # Отправляем сообщение только если нет других активных ключей
                         if active_keys_count == 0:
                             cur.execute('UPDATE users SET runout_notified = 1 WHERE id = ?', (user_id,))
+                            cur.execute('SELECT balance FROM users WHERE id = ?', (user_id,))
+                            result = cur.fetchone()
+                            balance = result[0] if result else 0
                             con.commit()
                             await bot.send_message(
                                 user_id,
-                                "⏰ <b>У вас закончилась подписка</b>\n\n"
-                                "Ваша подписка VPN истекла сегодня. Для продолжения использования сервиса, пожалуйста, приобретите новый ключ.",
+                                f"⏰ <b>У вас закончилась подписка</b>\n\n"
+                                f"Ваша подписка VPN истекла сегодня. Для продолжения использования сервиса, пожалуйста, приобретите новый ключ.\n\n👉🏼 <b>Баланс: {balance}₽</b>",
                                 parse_mode='HTML', reply_markup=ikb_plans)
                             print(f'{user_id} was notified about his subscription ending!')
                     except Exception as e:
