@@ -397,7 +397,7 @@ async def back_callback(callback: CallbackQuery):
 @dp.callback_query(lambda c: c.data == 'trial')
 async def plan_trial(callback: CallbackQuery):
     await callback.message.delete()
-    if is_subscribed(bot, callback.from_user.id):
+    if await is_subscribed(bot, callback.from_user.id):
         try:
             vpn_key = await generate_vpn_key(callback.from_user.id, 3)
             # print(vpn_key)
