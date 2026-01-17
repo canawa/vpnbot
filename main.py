@@ -1056,7 +1056,7 @@ async def admin_referrals_callback(callback: CallbackQuery):
         cur = con.cursor()
         cur.execute('SELECT id, ref_master_id, referral_id FROM referal_users')
         result = cur.fetchall()
-        df = pd.DataFrame(result, index=['Айди','РефМастер Айди', 'Реферал Айди'])
+        df = pd.DataFrame(result, columns=['Айди','РефМастер Айди', 'Реферал Айди'])
         df.to_excel('referals.xlsx')
         await callback.message.answer_document(FSInputFile('referals.xlsx'))
 
