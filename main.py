@@ -425,7 +425,7 @@ async def plan_trial(callback: CallbackQuery):
 async def subscribe_confirmed_callback(callback: CallbackQuery):
     await callback.answer("✅ Я подписался") # на пол экрана хуйня высветится
     await callback.message.delete()
-    if is_subscribed(bot, callback.from_user.id):
+    if await is_subscribed(bot, callback.from_user.id):
         try:
             vpn_key = await generate_vpn_key(callback.from_user.id, 3)
             # print(vpn_key)
