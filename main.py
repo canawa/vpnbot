@@ -1054,8 +1054,9 @@ async def admin_referrals_callback(callback: CallbackQuery):
     await callback.message.delete()
     with sq.connect('database.db') as con:
         cur = con.cursor()
-        cur.execute("""SELECT r.ref_master_id, u.username r.referral_id FROM referal_users as r 
-                    JOIN users as u ON r.ref_master_id = users.id """)
+        cur.execute("""SELECT u.username, u2.username, r.ref_master_id,  r.referral_id FROM referal_users as r 
+                    JOIN users as u ON r.ref_master_id = u.id
+                    JOIN users as u2 ON r.referral_id = u2.id """)
         result = cur.fetchall()
         df = pd.DataFrame(result, columns=['РефМастер Айди', 'Рефмастер Юзернейм' 'Реферал Айди'])
         df.to_excel('referals.xlsx')
