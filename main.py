@@ -662,9 +662,12 @@ async def use_key_callback(callback: CallbackQuery):
     await callback.message.delete()
     with sq.connect('database.db') as con:
         cur = con.cursor()
-        cur.execute('SELECT key FROM keys WHERE buyer_id = ? LIMIT 1 OFFSET ?' , (callback.from_user.id, callback.data.split('_')[2])) # вытащить ключ из базы данных по ID
+        cur.execute('SELECT key, expiration_date FROM keys WHERE buyer_id = ? LIMIT 1 OFFSET ?' , (callback.from_user.id, callback.data.split('_')[2])) # вытащить ключ из базы данных по ID
         result = cur.fetchone() # получить результат из базы данных
-    await callback.message.answer(f"🔑 Использовать ключ: \n\n<code>{result[0]}</code> \n\n <b> 📌 1 КЛЮЧ - ОДНО УСТРОЙСТВО</b>\n 🧐 Гайд на установку: https://telegra.ph/Instrukciya-po-ustanovke-VPN-01-10", parse_mode='HTML', reply_markup=ikb_back)
+        key = result[0]
+        expiration_date = result[1]
+        expiration_date_str = expiration_date.isoformat()  # Преобразуем дату в строку формата YYYY-MM-DD
+    await callback.message.answer(f"🔑 Использовать ключ: \n\n<code>{key}</code> \n <b>📅 Срок действия до: {expiration_date_str}</b>\n <b> 📌 1 КЛЮЧ - ОДНО УСТРОЙСТВО</b>\n 🧐 Гайд на установку: https://telegra.ph/Instrukciya-po-ustanovke-VPN-01-10", parse_mode='HTML', reply_markup=ikb_back)
 
 
 @dp.callback_query(lambda c: c.data == 'deposit')
