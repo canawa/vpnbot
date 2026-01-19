@@ -670,7 +670,7 @@ async def use_key_callback(callback: CallbackQuery):
         expiration_date = result[1]
         expiration_date = datetime.strptime(expiration_date, '%Y-%m-%d') # преобразуем дату в объект datetime
         human_date = expiration_date.strftime('%d.%m.%Y') # преобразуем дату в строку формата дд.мм.гггг
-    await callback.message.answer(f"🔑 Использовать ключ: \n\n<code>{key}</code> \n <b>📅 Срок действия до: {human_date}</b>\n <b> 📌 1 КЛЮЧ - ОДНО УСТРОЙСТВО</b>\n 🧐 Гайд на установку: https://telegra.ph/Instrukciya-po-ustanovke-VPN-01-10", parse_mode='HTML', reply_markup=ikb_back)
+    await callback.message.answer(f"🔑 Использовать ключ: \n\n<code>{key}</code> \n\n <b>📅 Срок действия до: {human_date}</b>\n\n <b> 📌 1 КЛЮЧ - ОДНО УСТРОЙСТВО</b>\n 🧐 Гайд на установку: https://telegra.ph/Instrukciya-po-ustanovke-VPN-01-10", parse_mode='HTML', reply_markup=ikb_back)
 
 
 @dp.callback_query(lambda c: c.data == 'deposit')
