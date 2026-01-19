@@ -666,7 +666,6 @@ async def use_key_callback(callback: CallbackQuery):
         result = cur.fetchone() # получить результат из базы данных
         key = result[0]
         expiration_date = result[1]
-        expiration_date = expiration_date[6:8] + '.' + expiration_date[4:6] + '.' + expiration_date[0:4]
     await callback.message.answer(f"🔑 Использовать ключ: \n\n<code>{key}</code> \n <b>📅 Срок действия до: {expiration_date}</b>\n <b> 📌 1 КЛЮЧ - ОДНО УСТРОЙСТВО</b>\n 🧐 Гайд на установку: https://telegra.ph/Instrukciya-po-ustanovke-VPN-01-10", parse_mode='HTML', reply_markup=ikb_back)
 
 
