@@ -17,6 +17,8 @@ import pandas as pd
 import openpyxl
 from datetime import datetime
 from check_subscription import is_subscribed
+import locale 
+locale.setlocale(locale.LC_TIME, 'ru_RU.UTF-8')
 print('BOT STARTED!!!')
 
 
@@ -666,7 +668,9 @@ async def use_key_callback(callback: CallbackQuery):
         result = cur.fetchone() # получить результат из базы данных
         key = result[0]
         expiration_date = result[1]
-    await callback.message.answer(f"🔑 Использовать ключ: \n\n<code>{key}</code> \n <b>📅 Срок действия до: {expiration_date}</b>\n <b> 📌 1 КЛЮЧ - ОДНО УСТРОЙСТВО</b>\n 🧐 Гайд на установку: https://telegra.ph/Instrukciya-po-ustanovke-VPN-01-10", parse_mode='HTML', reply_markup=ikb_back)
+        expiration_date = datetime.strptime(expiration_date, '%Y-%m-%d') # преобразуем дату в объект datetime
+        human_date = expiration_date.strftime('%d.%m.%Y') # преобразуем дату в строку формата дд.мм.гггг
+    await callback.message.answer(f"🔑 Использовать ключ: \n\n<code>{key}</code> \n <b>📅 Срок действия до: {human_date}</b>\n <b> 📌 1 КЛЮЧ - ОДНО УСТРОЙСТВО</b>\n 🧐 Гайд на установку: https://telegra.ph/Instrukciya-po-ustanovke-VPN-01-10", parse_mode='HTML', reply_markup=ikb_back)
 
 
 @dp.callback_query(lambda c: c.data == 'deposit')
