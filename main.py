@@ -56,7 +56,7 @@ dp = Dispatcher() # объект диспетчера
 with sq.connect('database.db') as con:
     cur = con.cursor()
     cur.execute("CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, username TEXT, balance INTEGER, ref_balance INTEGER DEFAULT 0, ref_amount INTEGER DEFAULT 0, keys TEXT, role TEXT DEFAULT NULL, had_trial INTEGER DEFAULT 0, runout_notified INTEGER DEFAULT 0, has_active_keys INTEGER DEFAULT 0)")
-    cur.execute('CREATE TABLE IF NOT EXISTS referal_users (id INTEGER PRIMARY KEY, referral_id INTEGER UNIQUE, ref_master_id INTEGER)')
+    cur.execute('CREATE TABLE IF NOT EXISTS referal_users (id INTEGER PRIMARY KEY, referral_id INTEGER UNIQUE, ref_master_id INTEGER, registration_date TEXT)')
     cur.execute('CREATE TABLE IF NOT EXISTS transactions (id INTEGER PRIMARY KEY, user_id INTEGER, amount INTEGER, type TEXT, date TEXT)')
     # Добавляем поле role, если его еще нет
     try:
@@ -83,6 +83,11 @@ with sq.connect('database.db') as con:
         cur.execute('ALTER TABLE users ADD COLUMN expiring_tomorrow_notified INTEGER DEFAULT 0')
     except:
         pass  # Поле уже существует
+    # Добавляем поле registration_date в таблицу referal_users, если его еще нет
+    try:
+        cur.execute('ALTER TABLE referal_users ADD COLUMN registration_date TEXT')
+    except:
+        pass  # Поле уже существует
     
 
 
@@ -100,8 +105,9 @@ async def start_command(message):
             # Проверяем, что referral_id != ref_master_id перед вставкой
             if message.from_user.id != ref:
                 await bot.send_message(ref, f' <b>🎉 У вас новый реферал - {message.from_user.username}! </b>', parse_mode='HTML')
+                registration_date = date.today().isoformat()
                 cur.execute(
-                    "INSERT OR IGNORE INTO referal_users (referral_id, ref_master_id) VALUES (?, ?)", (message.from_user.id, ref)
+                    "INSERT OR IGNORE INTO referal_users (referral_id, ref_master_id, registration_date) VALUES (?, ?, ?)", (message.from_user.id, ref, registration_date)
                 )
                 cur.execute("UPDATE users SET balance = balance + 50 WHERE id = ?", (ref,))
                 cur.execute('UPDATE users SET ref_amount = ref_amount + 1 WHERE id = ?', (ref,))
@@ -265,14 +271,19 @@ async def check_payment_callback(callback: CallbackQuery):
                 cur.execute('UPDATE users SET balance = balance + ? WHERE id = ?', (amount, callback.from_user.id))
                 cur.execute('INSERT INTO transactions (user_id, amount, type, date) VALUES (?, ?, ?, ?)', (callback.from_user.id, amount, 'CryptoBot', datetime.now().strftime('%Y-%m-%d %H:%M:%S')))
                 # Проверяем реферала и его роль
-                cur.execute('SELECT ref_master_id FROM referal_users WHERE referral_id = ?', (callback.from_user.id,))
+                cur.execute('SELECT ref_master_id, registration_date FROM referal_users WHERE referral_id = ?', (callback.from_user.id,))
                 ref_master = cur.fetchone()
                 if ref_master:
                     ref_master_id = ref_master[0]
-                    cur.execute('SELECT role FROM users WHERE id = ?', (ref_master_id,))
-                    ref_master_role = cur.fetchone()
-                    if ref_master_role and ref_master_role[0] == 'refmaster':
-                        cur.execute('UPDATE users SET ref_balance = ref_balance + ? WHERE id = ?', (int(amount)/2, ref_master_id))
+                    registration_date_str = ref_master[1]
+                    if registration_date_str:
+                        registration_date = date.fromisoformat(registration_date_str)
+                        three_months_later = registration_date + timedelta(days=90)
+                        if date.today() <= three_months_later:
+                            cur.execute('SELECT role FROM users WHERE id = ?', (ref_master_id,))
+                            ref_master_role = cur.fetchone()
+                            if ref_master_role and ref_master_role[0] == 'refmaster':
+                                cur.execute('UPDATE users SET ref_balance = ref_balance + ? WHERE id = ?', (int(amount)/2, ref_master_id))
                 con.commit()
         else:
             await callback.message.answer('👀 Ожидаем оплату, оплатите и попробуйте снова!', parse_mode='HTML')
@@ -290,15 +301,20 @@ async def check_payment_yookassa_callback(callback: CallbackQuery): # сюды
         with sq.connect('database.db') as con:
             cur = con.cursor()
             cur.execute('UPDATE users SET balance = balance + ? WHERE id = ?', (amount, callback.from_user.id))
-            cur.execute('SELECT ref_master_id FROM referal_users WHERE referral_id = ?', (callback.from_user.id,))
+            cur.execute('SELECT ref_master_id, registration_date FROM referal_users WHERE referral_id = ?', (callback.from_user.id,))
             ref_master = cur.fetchone() 
             if ref_master: # если есть рефовод то:
                 ref_master_id = ref_master[0]
-                # Проверяем роль рефмастера
-                cur.execute('SELECT role FROM users WHERE id = ?', (ref_master_id,))
-                ref_master_role = cur.fetchone()
-                if ref_master_role and ref_master_role[0] == 'refmaster':
-                    cur.execute('UPDATE users SET ref_balance = ref_balance + ? WHERE id = ?', (int(amount)/2, ref_master_id)) # начислить 50% реферального бонуса рефоводу
+                registration_date_str = ref_master[1]
+                if registration_date_str:
+                    registration_date = date.fromisoformat(registration_date_str)
+                    three_months_later = registration_date + timedelta(days=90)
+                    if date.today() <= three_months_later:
+                        # Проверяем роль рефмастера
+                        cur.execute('SELECT role FROM users WHERE id = ?', (ref_master_id,))
+                        ref_master_role = cur.fetchone()
+                        if ref_master_role and ref_master_role[0] == 'refmaster':
+                            cur.execute('UPDATE users SET ref_balance = ref_balance + ? WHERE id = ?', (int(amount)/2, ref_master_id)) # начислить 50% реферального бонуса рефоводу
             con.commit()
         await callback.message.answer(f'🤑 Оплачено! \n\n ➕ Начислено {amount} ₽ на баланс', parse_mode='HTML', reply_markup=ikb_back)
         await callback.message.delete()
@@ -802,14 +818,19 @@ async def handle_successful_payment(message: Message):
             cur = con.cursor()
             cur.execute('UPDATE users SET balance = balance + ? WHERE id = ?', (amount_rub, user_id))
             # Проверяем реферала и его роль
-            cur.execute('SELECT ref_master_id FROM referal_users WHERE referral_id = ?', (user_id,))
+            cur.execute('SELECT ref_master_id, registration_date FROM referal_users WHERE referral_id = ?', (user_id,))
             ref_master = cur.fetchone()
             if ref_master:
                 ref_master_id = ref_master[0]
-                cur.execute('SELECT role FROM users WHERE id = ?', (ref_master_id,))
-                ref_master_role = cur.fetchone()
-                if ref_master_role and ref_master_role[0] == 'refmaster':
-                    cur.execute('UPDATE users SET ref_balance = ref_balance + ? WHERE id = ?', (int(amount_rub)/2, ref_master_id))
+                registration_date_str = ref_master[1]
+                if registration_date_str:
+                    registration_date = date.fromisoformat(registration_date_str)
+                    three_months_later = registration_date + timedelta(days=90)
+                    if date.today() <= three_months_later:
+                        cur.execute('SELECT role FROM users WHERE id = ?', (ref_master_id,))
+                        ref_master_role = cur.fetchone()
+                        if ref_master_role and ref_master_role[0] == 'refmaster':
+                            cur.execute('UPDATE users SET ref_balance = ref_balance + ? WHERE id = ?', (int(amount_rub)/2, ref_master_id))
             con.commit()
         await message.answer(f'🤑 Оплачено! \n\n ➕ Начислено {amount_rub} ₽ на баланс', parse_mode='HTML', reply_markup=ikb_back)
 
