@@ -177,6 +177,10 @@ ikb_back = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text='🔙 Назад', callback_data='back')],
     ])
 
+ikb_referral_reminder = InlineKeyboardMarkup(inline_keyboard=[ # клава которая вылезит людям
+    [InlineKeyboardButton(text='🤝 Получить 50₽ на баланс', callback_data='referral')],
+    [InlineKeyboardButton(text='🔙 Назад', callback_data='back')],
+])
 # ikb_profile будет создаваться динамически в зависимости от роли пользователя
 
 
@@ -239,6 +243,7 @@ ikb_admin = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text='👑 Роли', callback_data='admin_roles')],
     [InlineKeyboardButton(text='🔊 Напомнить юзерам о бесплатном тестовом периоде', callback_data='admin_notify_trial')],
     [InlineKeyboardButton(text='⏰ Уведомить о завершении пробной подписки', callback_data='admin_notify_expired')],
+    [InlineKeyboardButton(text='🤝 Напомнить о рефке', callback_data='admin_notify_referral')],
     [InlineKeyboardButton(text='👉🏼 Рефералы', callback_data='admin_referrals')],
 ])
 
@@ -717,6 +722,7 @@ async def deposit_stars_callback(callback : CallbackQuery):
     await callback.message.answer('🌟 Выберите сумму пополнения:', parse_mode='HTML', reply_markup=deposit_keyboard('stars')) 
 
 
+
 @dp.callback_query(lambda c: c.data.startswith('deposit_'))
 async def process_deposit(callback: CallbackQuery):
     # Убрали лишний print для экономии памяти
@@ -1024,6 +1030,31 @@ async def admin_notify_expired_callback(callback: CallbackQuery):
             parse_mode='HTML',
             reply_markup=ikb_admin_back
         )
+
+@dp.callback_query(lambda c: c.data == 'admin_notify_referral')
+async def admin_notify_referral_callback(callback: CallbackQuery):
+    await callback.answer("🤝 Напомнить о рефке") # на пол экрана хуйня высветится
+    await callback.message.delete()
+    with sq.connect('database.db') as con:
+        cur = con.cursor()
+        cur.execute('SELECT id FROM users')
+        result = cur.fetchall()
+        sent_count = 0
+        failed_count = 0
+        for user in result:
+            try:
+                await bot.send_message(user[0], 'Кстати, небольшой бонус: если пригласить друга по реферальной ссылке, можно получить +50₽ 🙂', reply_markup=ikb_referral_reminder)
+                sent_count += 1
+            except:
+                failed_count += 1
+                pass
+    await callback.message.answer(
+        f"✅ Уведомления отправлены!\n\n"
+        f"📤 Отправлено: {sent_count}\n"
+        f"❌ Ошибок: {failed_count}",
+        parse_mode='HTML',
+        reply_markup=ikb_admin_back
+    )
 
 @dp.callback_query(lambda c: c.data == 'admin_apologize')
 async def admin_apologize_callback(callback: CallbackQuery):
