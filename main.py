@@ -205,6 +205,7 @@ ikb_plans = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text='🇩🇪 Месяц (100₽)', callback_data='plan_month')],
     [InlineKeyboardButton(text='🇩🇪 Полгода (500₽)', callback_data='plan_halfyear')],
     [InlineKeyboardButton(text='🇩🇪 Год (800₽)', callback_data='plan_year')],
+    [InlineKeyboardButton(text='🇩🇪 Пожизненно (2900₽)', callback_data='plan_lifetime')],
     [InlineKeyboardButton(text='🔙 Назад', callback_data='back')],
 ])
 
@@ -478,6 +479,41 @@ async def subscribe_confirmed_callback(callback: CallbackQuery):
             await callback.message.answer(f"🙋🏻‍♂️ ВАШ КЛЮЧ:\n\n<code>{result[0]}</code>\n<i>(нажмите чтобы скопировать)</i> \n\n<b>⌛Срок действия: 3 дня</b>\n\n <b> 📌 1 КЛЮЧ - ОДНО УСТРОЙСТВО</b>\n 🧐 Гайд на установку: https://telegra.ph/Instrukciya-po-ustanovke-VPN-01-10", parse_mode='HTML', reply_markup=ikb_back)
     else:
         await callback.message.answer('❌ Вы не подписаны на канал! Подпишитесь на канал, чтобы получить бесплатный тестовый период!', parse_mode='HTML', reply_markup=ikb_subscribe)
+
+@dp.callback_query(lambda c: c.data == 'plan_lifetime')
+async def plan_lifetime_callback(callback: CallbackQuery):
+    await callback.answer("👶🏻 🇩🇪 Пожизненно (2900₽)") # на пол экрана хуйня высветится
+    await callback.message.delete()
+    
+    with sq.connect('database.db') as con:
+        cur = con.cursor()
+        cur.execute('SELECT balance FROM users WHERE id = ?', (callback.from_user.id,))
+        result = cur.fetchone() # получить результат из базы данных
+        balance = result[0] if result else 0 # если результат не пустой, то вытащить баланс, иначе 0
+        # con.commit() # сохранить изменения в базе данных
+        if balance >= 2900:
+            with sq.connect('database.db') as con:
+                try:
+                    vpn_key = await generate_vpn_key(callback.from_user.id, )
+                except Exception as e:
+                    await callback.message.answer(f'❌ Не удалось сгенерировать ключ: {e}. Напишите в техподдержку, мы обязательно поможем!', parse_mode='HTML', reply_markup=ikb_support)
+                    raise e
+
+                if vpn_key:
+                    with sq.connect('database.db') as con:
+                        cur = con.cursor()
+                        expire_date = date.today() + timedelta(days=10000)
+                        expire_date_str = expire_date.isoformat()  # Преобразуем дату в строку формата YYYY-MM-DD
+                        buy_date_str = date.today().isoformat()  # Преобразуем дату в строку формата YYYY-MM-DD
+                        cur.execute('INSERT INTO keys (key, duration, SOLD, buyer_id, username, buy_date, expiration_date) VALUES (?, ?, ?, ?, ?, ?, ?)', (vpn_key, 10000, 0, callback.from_user.id, callback.from_user.username, buy_date_str, expire_date_str))
+                        con.commit()
+                        result = cur.fetchone() # получить результат из базы данных
+                        cur.execute('UPDATE users SET had_trial = 1 WHERE id = ?', (callback.from_user.id,))
+                        await callback.message.answer(f"🙋🏻‍♂️ ВАШ КЛЮЧ:\n\n<code>{result[0]}</code>\n<i>(нажмите чтобы скопировать)</i> \n\n<b>⌛Срок действия: ∞ дней</b>\n\n <b> 📌 1 КЛЮЧ - ОДНО УСТРОЙСТВО</b>\n 🧐 Гайд на установку: https://telegra.ph/Instrukciya-po-ustanovke-VPN-01-10", parse_mode='HTML', reply_markup=ikb_back)
+                else:
+                    await callback.message.answer('‼️ Нет доступных ключей. Свяжитесь с поддержкой.', parse_mode='HTML', reply_markup=ikb_support)
+        else:
+            await callback.message.answer('💰 Недостаточно средств на балансе. Пополните баланс и попробуйте снова.', parse_mode='HTML', reply_markup=ikb_deposit)
 
 @dp.callback_query(lambda c: c.data == 'plan_week')
 async def plan_week_callback(callback: CallbackQuery):
