@@ -226,7 +226,7 @@ ikb_deposit_methods = InlineKeyboardMarkup(inline_keyboard=[
 ])
 
 def deposit_keyboard(method):
-    amount = [5, 10, 50, 100, 200, 300, 400, 500]
+    amount = [50, 100, 200, 500, 2900]
     ikb_deposit_sums = InlineKeyboardMarkup(inline_keyboard=[])
     for sum in amount:
         ikb_deposit_sums.inline_keyboard.append([InlineKeyboardButton(text=f'🟣 {sum}₽', callback_data=f'deposit_{sum}_{method}')])
@@ -500,7 +500,6 @@ async def plan_lifetime_callback(callback: CallbackQuery):
 async def lifetime_agreement_confirmed_callback(callback: CallbackQuery):
     await callback.answer("✅ Я согласен") # на пол экрана хуйня высветится
     await callback.message.delete()
-    await callback.message.answer("👶🏻 🇩🇪 Пожизненно (2900₽)", parse_mode='HTML', reply_markup=ikb_back)
     with sq.connect('database.db') as con:
         cur = con.cursor()
         cur.execute('SELECT balance FROM users WHERE id = ?', (callback.from_user.id,))
