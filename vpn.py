@@ -38,7 +38,9 @@ async def generate_vpn_key(user_id: int, duration_days: int) -> str:
             return None
 
     username = f"user_{user_id}_{secrets.token_hex(8)}"
-    expire_ts = int((datetime.now() + timedelta(days=duration_days)).timestamp())
+    expire_ts = 0 if duration_days <= 0 else int(
+    (datetime.now() + timedelta(days=duration_days)).timestamp()
+)
 
     try:
         new_user = UserCreate(

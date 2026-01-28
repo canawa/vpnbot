@@ -510,7 +510,7 @@ async def lifetime_agreement_confirmed_callback(callback: CallbackQuery):
         if balance >= 2900:
             with sq.connect('database.db') as con:
                 try:
-                    vpn_key = await generate_vpn_key(callback.from_user.id, )
+                    vpn_key = await generate_vpn_key(callback.from_user.id, 0)
                 except Exception as e:
                     await callback.message.answer(f'❌ Не удалось сгенерировать ключ: {e}. Напишите в техподдержку, мы обязательно поможем!', parse_mode='HTML', reply_markup=ikb_support)
                     raise e
