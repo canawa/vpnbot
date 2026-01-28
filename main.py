@@ -508,26 +508,33 @@ async def lifetime_agreement_confirmed_callback(callback: CallbackQuery):
         balance = result[0] if result else 0 # если результат не пустой, то вытащить баланс, иначе 0
         # con.commit() # сохранить изменения в базе данных
         if balance >= 2900:
-            with sq.connect('database.db') as con:
-                try:
-                    vpn_key = await generate_vpn_key(callback.from_user.id, 0)
-                except Exception as e:
-                    await callback.message.answer(f'❌ Не удалось сгенерировать ключ: {e}. Напишите в техподдержку, мы обязательно поможем!', parse_mode='HTML', reply_markup=ikb_support)
-                    raise e
+            try:
+                vpn_key = await generate_vpn_key(callback.from_user.id, 0)
+            except Exception as e:
+                await callback.message.answer(f'❌ Не удалось сгенерировать ключ: {e}. Напишите в техподдержку, мы обязательно поможем!', parse_mode='HTML', reply_markup=ikb_support)
+                raise e
 
-                if vpn_key:
-                    with sq.connect('database.db') as con:
-                        cur = con.cursor()
-                        expire_date = date.today() + timedelta(days=10000)
-                        expire_date_str = expire_date.isoformat()  # Преобразуем дату в строку формата YYYY-MM-DD
-                        buy_date_str = date.today().isoformat()  # Преобразуем дату в строку формата YYYY-MM-DD
-                        cur.execute('INSERT INTO keys (key, duration, SOLD, buyer_id, username, buy_date, expiration_date) VALUES (?, ?, ?, ?, ?, ?, ?)', (vpn_key, 10000, 0, callback.from_user.id, callback.from_user.username, buy_date_str, expire_date_str))
-                        con.commit()
-                        result = cur.fetchone() # получить результат из базы данных
-                        cur.execute('UPDATE users SET had_trial = 1 WHERE id = ?', (callback.from_user.id,))
+            if vpn_key:
+                with sq.connect('database.db') as con:
+                    cur = con.cursor()
+                    expire_date = date.today() + timedelta(days=10000)
+                    expire_date_str = expire_date.isoformat()  # Преобразуем дату в строку формата YYYY-MM-DD
+                    buy_date_str = date.today().isoformat()  # Преобразуем дату в строку формата YYYY-MM-DD
+                    cur.execute('INSERT INTO keys (key, duration, SOLD, buyer_id, username, buy_date, expiration_date) VALUES (?, ?, ?, ?, ?, ?, ?)', (vpn_key, 10000, 0, callback.from_user.id, callback.from_user.username, buy_date_str, expire_date_str))
+                    con.commit()
+
+                    cur.execute('SELECT key FROM keys WHERE duration = 10000 AND SOLD = 0 ORDER BY rowid DESC LIMIT 1')
+                    result = cur.fetchone() # получить результат из базы данных
+                    if result:
+                        cur.execute('UPDATE users SET balance = balance - 2900 WHERE id = ? AND balance >= 2900', (callback.from_user.id,))
+                        con.commit() # сохранить изменения в базе данных
                         await callback.message.answer(f"🙋🏻‍♂️ ВАШ КЛЮЧ:\n\n<code>{result[0]}</code>\n<i>(нажмите чтобы скопировать)</i> \n\n<b>⌛Срок действия: ∞ дней</b>\n\n <b> 📌 1 КЛЮЧ - ОДНО УСТРОЙСТВО</b>\n 🧐 Гайд на установку: https://telegra.ph/Instrukciya-po-ustanovke-VPN-01-10", parse_mode='HTML', reply_markup=ikb_back)
-                else:
-                    await callback.message.answer('‼️ Нет доступных ключей. Свяжитесь с поддержкой.', parse_mode='HTML', reply_markup=ikb_support)
+                        cur.execute('UPDATE keys SET SOLD = 1 WHERE key = ?', (result[0],))
+                        cur.execute('UPDATE keys SET buyer_id = ? WHERE key = ?', (callback.from_user.id, result[0]))
+                        cur.execute('UPDATE users SET had_trial = 1 WHERE id = ?', (callback.from_user.id,))
+                        con.commit() # сохранить изменения в базе данных
+                    else:
+                        await callback.message.answer('‼️ Нет доступных ключей. Свяжитесь с поддержкой.', parse_mode='HTML', reply_markup=ikb_support)
         else:
             await callback.message.answer('💰 Недостаточно средств на балансе. Пополните баланс и попробуйте снова.', parse_mode='HTML', reply_markup=ikb_deposit)
 
