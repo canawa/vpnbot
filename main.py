@@ -208,6 +208,10 @@ ikb_plans = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text='🇩🇪 Пожизненно (2900₽)', callback_data='plan_lifetime')],
     [InlineKeyboardButton(text='🔙 Назад', callback_data='back')],
 ])
+ikb_lifetime_agreement = InlineKeyboardMarkup(inline_keyboard=[
+    [InlineKeyboardButton(text='✅ Я согласен', callback_data='lifetime_agreement_confirmed')],
+    [InlineKeyboardButton(text='🔙 Назад', callback_data='back')],
+])
 
 ikb_deposit = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text='💰 Пополнить', callback_data='deposit')],
@@ -484,7 +488,19 @@ async def subscribe_confirmed_callback(callback: CallbackQuery):
 async def plan_lifetime_callback(callback: CallbackQuery):
     await callback.answer("👶🏻 🇩🇪 Пожизненно (2900₽)") # на пол экрана хуйня высветится
     await callback.message.delete()
+    await callback.message.answer("""
+    Пользователь понимает и соглашается, что пожизненный доступ не означает пожизненное обязательство Исполнителя и не гарантирует бессрочное функционирование Сервиса, а предоставляет право использования Сервиса без установленного срока окончания исключительно на период существования и поддержки Сервиса.
+
+В случае прекращения работы Сервиса по любой причине (включая, но не ограничиваясь: экономические, технические, юридические, регуляторные), обязательства Исполнителя по предоставлению пожизненного доступа считаются исполненными, и возврат денежных средств не производится.
+
+<b>Я согласен с условиями</b>
+    """, parse_mode='HTML', reply_markup=ikb_lifetime_agreement)
     
+@dp.callback_query(lambda c: c.data == 'lifetime_agreement_confirmed')
+async def lifetime_agreement_confirmed_callback(callback: CallbackQuery):
+    await callback.answer("✅ Я согласен") # на пол экрана хуйня высветится
+    await callback.message.delete()
+    await callback.message.answer("👶🏻 🇩🇪 Пожизненно (2900₽)", parse_mode='HTML', reply_markup=ikb_back)
     with sq.connect('database.db') as con:
         cur = con.cursor()
         cur.execute('SELECT balance FROM users WHERE id = ?', (callback.from_user.id,))
