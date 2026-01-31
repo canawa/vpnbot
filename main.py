@@ -245,11 +245,12 @@ ikb_admin = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text='👤 Пользователи', callback_data='admin_users')],
     [InlineKeyboardButton(text='🔄 Оплаты', callback_data='admin_payments')],
     [InlineKeyboardButton(text='🔑 Ключи', callback_data='admin_keys')],
+    [InlineKeyboardButton(text='👉🏼 Рефералы', callback_data='admin_referrals')],
     [InlineKeyboardButton(text='👑 Роли', callback_data='admin_roles')],
     [InlineKeyboardButton(text='🔊 Напомнить юзерам о бесплатном тестовом периоде', callback_data='admin_notify_trial')],
-    [InlineKeyboardButton(text='⏰ Уведомить о завершении пробной подписки', callback_data='admin_notify_expired')],
+    # [InlineKeyboardButton(text='⏰ Уведомить о завершении пробной подписки', callback_data='admin_notify_expired')],
     [InlineKeyboardButton(text='🤝 Напомнить о рефке', callback_data='admin_notify_referral')],
-    [InlineKeyboardButton(text='👉🏼 Рефералы', callback_data='admin_referrals')],
+
 ])
 
 ikb_admin_back = InlineKeyboardMarkup(inline_keyboard=[
@@ -1030,7 +1031,7 @@ async def admin_notify_trial_callback(callback: CallbackQuery):
     await callback.message.delete()
     with sq.connect('database.db') as con:
         cur = con.cursor()
-        cur.execute('SELECT id FROM users WHERE had_trial != 1')
+        cur.execute('SELECT id FROM users WHERE had_trial != 1 AND has_active_keys = 0')
         result = cur.fetchall()
         for user in result:
             try:
