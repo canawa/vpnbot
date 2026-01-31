@@ -1033,12 +1033,16 @@ async def admin_notify_trial_callback(callback: CallbackQuery):
         cur = con.cursor()
         cur.execute('SELECT id FROM users WHERE had_trial != 1 AND has_active_keys = 0')
         result = cur.fetchall()
+        success = 0
+        fail = 0
         for user in result:
             try:
                 await bot.send_message(user[0], "🎁 <b>У вас есть бесплатный тестовый период VPN на 3 дня!</b>\n\nВы можете использовать его, чтобы протестировать наш сервис.\n\n Пишите /start чтобы получить бесплатный тестовый период!", parse_mode='HTML')
+                success+=1
             except:
+                fail+=1
                 pass
-    await callback.message.answer("🔊 Напомнить юзерам о бесплатном тестовом периоде", parse_mode='HTML', reply_markup=ikb_admin_back)
+    await callback.message.answer(f"Итого: \n\n ✅ {success} \n\n ❌ {fail} ", parse_mode='HTML', reply_markup=ikb_admin_back)
 
 @dp.callback_query(lambda c: c.data == 'admin_notify_expired')
 async def admin_notify_expired_callback(callback: CallbackQuery):
