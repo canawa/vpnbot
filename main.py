@@ -749,7 +749,7 @@ async def use_key_callback(callback: CallbackQuery):
         today = date.today()
         today_str = today.isoformat()  # Преобразуем дату в строку формата YYYY-MM-DD для корректного сравнения
         cur = con.cursor()
-        cur.execute(f'SELECT key, expiration_date FROM keys WHERE buyer_id = ? AND expiration_date >= {today_str} ORDER BY expiration_date LIMIT 1 OFFSET ? ' , (callback.from_user.id, callback.data.split('_')[2])) # вытащить ключ из базы данных по ID
+        cur.execute(f'SELECT key, expiration_date FROM keys WHERE buyer_id = ? AND expiration_date >= ? ORDER BY expiration_date LIMIT 1 OFFSET ? ' , (callback.from_user.id, today_str, callback.data.split('_')[2])) # вытащить ключ из базы данных по ID
         result = cur.fetchone() # получить результат из базы данных
         key = result[0]
         expiration_date = result[1]
