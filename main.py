@@ -753,7 +753,7 @@ async def use_key_callback(callback: CallbackQuery):
         result = cur.fetchone() # получить результат из базы данных
         key = result[0]
         expiration_date = result[1]
-        expiration_date = datetime.strptime(expiration_date, '%Y-%m-%d') # преобразуем дату в объект datetime
+        expiration_date = datetime.strptime(expiration_date, '%Y-%m-%d').date() # преобразуем дату в объект datetime
         if expiration_date >= today + timedelta(days=5000): # это ублюдская затычка но ладно (типо если не дотягивает до бесконечности)
             human_date = '∞'
         else:
