@@ -747,7 +747,7 @@ async def use_key_callback(callback: CallbackQuery):
     await callback.message.delete()
     with sq.connect('database.db') as con:
         cur = con.cursor()
-        cur.execute('SELECT key, expiration_date FROM keys WHERE buyer_id = ? LIMIT 1 OFFSET ?' , (callback.from_user.id, callback.data.split('_')[2])) # вытащить ключ из базы данных по ID
+        cur.execute('SELECT key, expiration_date FROM keys WHERE buyer_id = ? ORDER BY rowid LIMIT 1 OFFSET ? ' , (callback.from_user.id, callback.data.split('_')[2])) # вытащить ключ из базы данных по ID
         result = cur.fetchone() # получить результат из базы данных
         key = result[0]
         expiration_date = result[1]
