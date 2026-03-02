@@ -109,19 +109,19 @@ async def start_command(message):
         with sq.connect('database.db') as con:
             cur = con.cursor()
             # Проверяем, что referral_id != ref_master_id перед вставкой
-                if message.from_user.id != ref:
-                    cur.execute("SELECT * FROM referal_users WHERE referral_id = ?", (message.from_user.id,))
-                    result = cur.fetchone()
-                    if not result:
-                        ref_lang = get_lang(ref)
-                        await bot.send_message(ref, t(ref_lang, 'ref_new', username=message.from_user.username or ''), parse_mode='HTML')
+            if message.from_user.id != ref:
+                cur.execute("SELECT * FROM referal_users WHERE referral_id = ?", (message.from_user.id,))
+                result = cur.fetchone()
+                if not result:
+                    ref_lang = get_lang(ref)
+                    await bot.send_message(ref, t(ref_lang, 'ref_new', username=message.from_user.username or ''), parse_mode='HTML')
                     registration_date = date.today().isoformat()
                     cur.execute(
                         "INSERT OR IGNORE INTO referal_users (referral_id, ref_master_id, registration_date) VALUES (?, ?, ?)", (message.from_user.id, ref, registration_date)
                     )
                     cur.execute("UPDATE users SET balance = balance + 50 WHERE id = ?", (ref,))
                     cur.execute('UPDATE users SET ref_amount = ref_amount + 1 WHERE id = ?', (ref,))
-                con.commit()
+            con.commit()
 
     with sq.connect('database.db') as con:
         cur = con.cursor()
