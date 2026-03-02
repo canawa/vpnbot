@@ -178,10 +178,10 @@ def set_lang(user_id, lang):
         con.commit()
 
 
-def t(lang, key, **kwargs):
+def t(lang, text_key, **kwargs):
     """Вернуть строку по ключу для языка lang. kwargs подставляются в строку."""
     lang = lang or 'ru'
-    s = TEXTS.get(lang, TEXTS['ru']).get(key, TEXTS['ru'].get(key, key))
+    s = TEXTS.get(lang, TEXTS['ru']).get(text_key, TEXTS['ru'].get(text_key, text_key))
     if kwargs:
         try:
             return s.format(**kwargs)
