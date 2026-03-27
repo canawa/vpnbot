@@ -590,7 +590,7 @@ async def plan_week_callback(callback: CallbackQuery):
                 try:
                     vpn_key = await generate_vpn_key(callback.from_user.id, 7, country)
                 except Exception as e:
-                    await callback.message.answer(f'❌ Не удалось сгенерировать ключ: {e}. Напишите в техподдержку, мы обязательно поможем!', parse_mode='HTML', reply_markup=ikb_support)
+                    await callback.message.answer(f'❌ Не удалось сгенерировать ключ: {e}. Напишите в техподдержку, мы обязательно поможем!', reply_markup=ikb_support)
                     raise e
 
                 if vpn_key:
