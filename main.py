@@ -371,7 +371,7 @@ async def buy_vpn_callback(callback: CallbackQuery):
         cur.execute('SELECT balance FROM users WHERE id = ?', (callback.from_user.id,))
         result = cur.fetchone()
         balance = result[0] if result else 0
-    await callback.message.answer_photo(FSInputFile("photos/buy_vpn.png"), caption=f"🛒 <b>Купить VPN</b>\n\nВыберите тарифный план:\n\n👉🏼 <b>Баланс: {balance}₽</b>", parse_mode='HTML', reply_markup=ikb_locations)
+    await callback.message.answer_photo(FSInputFile("photos/buy_vpn.png"), caption=f"🛒 <b>Купить VPN</b>\n\nВыберите тарифный локацию:\n\n👉🏼 <b>Баланс: {balance}₽</b>", parse_mode='HTML', reply_markup=ikb_locations)
 
 @dp.callback_query(lambda c: c.data == 'profile')
 async def profile_callback(callback: CallbackQuery):
