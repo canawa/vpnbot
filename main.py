@@ -124,10 +124,7 @@ async def start_command(message):
 
     await message.answer_photo(FSInputFile("photos/welcome.png"), caption=f"""👋 Добро пожаловать в Кофеманию
     \nНаш сервис предлагает доступ к локациям:
-    \n 🇩🇪 <b>Германия</b>
-\n 🇫🇮 <b>Финляндия</b>
-\n 🇦🇹 <b>Австрия</b>
-\n 🇫🇷 <b>Франция</b>
+    \n 🇩🇪 <b>Германия</b>\n 🇫🇮 <b>Финляндия</b>\n 🇦🇹 <b>Австрия</b>\n 🇫🇷 <b>Франция</b>
     \n 👉🏼 <b> Баланс : {balance} ₽</b>""", parse_mode='HTML', reply_markup=generate_ikb_main(message.from_user.id)) # парсинг HTML чтобы работали теги с хтмл и прилепили маркап к сообщению
     with sq.connect('database.db') as con:
         cur = con.cursor()
@@ -210,13 +207,14 @@ ikb_locations = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text='🇫🇷 Франция', callback_data='france')],
     [InlineKeyboardButton(text='🔙 Назад', callback_data='back')],
 ])
+
 def get_ikb_plans(country:str):
     ikb_plans = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text='👉 Неделя (50₽)', callback_data=f'plan_week_{country}')],
-        [InlineKeyboardButton(text='👉 Месяц (100₽)', callback_data=f'plan_month_{country}')],
-        [InlineKeyboardButton(text='👉 Полгода (500₽)', callback_data=f'plan_halfyear_{country}')],
-        [InlineKeyboardButton(text='👉 Год (800₽)', callback_data=f'plan_year_{country}')],
-        [InlineKeyboardButton(text='👉 Пожизненно (2900₽)', callback_data=f'plan_lifetime_{country}')],
+        [InlineKeyboardButton(text='👶🏻 Неделя (50₽)', callback_data=f'plan_week_{country}')],
+        [InlineKeyboardButton(text='👦🏻 Месяц (100₽)', callback_data=f'plan_month_{country}')],
+        [InlineKeyboardButton(text='🧔 Полгода (500₽)', callback_data=f'plan_halfyear_{country}')],
+        [InlineKeyboardButton(text='👨🏻 Год (800₽)', callback_data=f'plan_year_{country}')],
+        [InlineKeyboardButton(text='👴🏻 Пожизненно (2900₽)', callback_data=f'plan_lifetime_{country}')],
         [InlineKeyboardButton(text='🔙 Назад', callback_data='back')],
     ])
     return ikb_plans
@@ -371,7 +369,7 @@ async def buy_vpn_callback(callback: CallbackQuery):
         cur.execute('SELECT balance FROM users WHERE id = ?', (callback.from_user.id,))
         result = cur.fetchone()
         balance = result[0] if result else 0
-    await callback.message.answer_photo(FSInputFile("photos/buy_vpn.png"), caption=f"🛒 <b>Купить VPN</b>\n\nВыберите тарифный локацию:\n\n👉🏼 <b>Баланс: {balance}₽</b>", parse_mode='HTML', reply_markup=ikb_locations)
+    await callback.message.answer_photo(FSInputFile("photos/buy_vpn.png"), caption=f"🛒 <b>Купить VPN</b>\n\nВыберите локацию:\n\n👉🏼 <b>Баланс: {balance}₽</b>", parse_mode='HTML', reply_markup=ikb_locations)
 
 @dp.callback_query(lambda c: c.data == 'profile')
 async def profile_callback(callback: CallbackQuery):
@@ -440,9 +438,7 @@ async def back_callback(callback: CallbackQuery):
         balance = result[0] if result else 0
     await callback.message.answer_photo(WELCOME_PHOTO, caption=f"""👋 Добро пожаловать в Кофеманию
     \nНаш сервис предлагает доступ к локациям:
-    \n 🇩🇪 <b>Германия</b>\n 🇫🇮 <b>Финляндия</b>
-\n 🇦🇹 <b>Австрия</b>
-\n 🇫🇷 <b>Франция</b>
+    \n 🇩🇪 <b>Германия</b>\n 🇫🇮 <b>Финляндия</b>\n 🇦🇹 <b>Австрия</b>\n 🇫🇷 <b>Франция</b>
     \n 👉🏼 <b> Баланс : {balance} ₽</b>""", parse_mode='HTML', reply_markup=generate_ikb_main(callback.from_user.id)) # парсинг HTML чтобы работали теги с хтмл и прилепили маркап к сообщению
 
 @dp.callback_query(lambda c: c.data == 'trial')
@@ -577,10 +573,10 @@ async def germany_location(callback: CallbackQuery):
     await callback.message.delete()
     await callback.message.answer('Выберите тарифный план:' , parse_mode = 'HTML', reply_markup = get_ikb_plans('germany'))
 
-@dp.callback_query(lambda c: c.data == 'plan_week')
+@dp.callback_query(lambda c: c.data.startswith('plan_week_'))
 async def plan_week_callback(callback: CallbackQuery):
-    await callback.answer("👶🏻 🇩🇪 Неделя (50₽)") # на пол экрана хуйня высветится
     await callback.message.delete()
+    country = callback.data.split('_')[2]
     
 
     with sq.connect('database.db') as con:
@@ -592,7 +588,7 @@ async def plan_week_callback(callback: CallbackQuery):
         if balance >= 50:
             with sq.connect('database.db') as con:
                 try:
-                    vpn_key = await generate_vpn_key(callback.from_user.id, 7)
+                    vpn_key = await generate_vpn_key(callback.from_user.id, 7, country)
                 except Exception as e:
                     await callback.message.answer(f'❌ Не удалось сгенерировать ключ: {e}. Напишите в техподдержку, мы обязательно поможем!', parse_mode='HTML', reply_markup=ikb_support)
                     raise e
