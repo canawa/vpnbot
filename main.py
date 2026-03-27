@@ -618,9 +618,8 @@ async def plan_week_callback(callback: CallbackQuery):
         else:
             await callback.message.answer('💰 Недостаточно средств на балансе. Пополните баланс и попробуйте снова.', parse_mode='HTML', reply_markup=ikb_deposit)
           
-@dp.callback_query(lambda c: c.data == 'plan_month')
+@dp.callback_query(lambda c: c.data.startswith('plan_month'))
 async def plan_month_callback(callback: CallbackQuery):
-    await callback.answer("🧑 🇩🇪 Месяц (100₽)") # на пол экрана хуйня высветится
     await callback.message.delete()
 
     with sq.connect('database.db') as con:
