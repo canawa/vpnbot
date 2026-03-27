@@ -446,7 +446,7 @@ async def plan_trial(callback: CallbackQuery):
     await callback.message.delete()
     if await is_subscribed(bot, callback.from_user.id):
         try:
-            vpn_key = await generate_vpn_key(callback.from_user.id, 3)
+            vpn_key = await generate_vpn_key(callback.from_user.id, 3, 'germany')
             # print(vpn_key)
         except Exception as e:
             await callback.message.answer(f'❌ Не удалось сгенерировать ключ: {e}. Напишите в техподдержку, мы обязательно поможем!', parse_mode='HTML', reply_markup=ikb_support)
@@ -474,7 +474,7 @@ async def subscribe_confirmed_callback(callback: CallbackQuery):
     await callback.message.delete()
     if await is_subscribed(bot, callback.from_user.id):
         try:
-            vpn_key = await generate_vpn_key(callback.from_user.id, 3)
+            vpn_key = await generate_vpn_key(callback.from_user.id, 3, 'germany')
             # print(vpn_key)
         except Exception as e:
             await callback.message.answer(f'❌ Не удалось сгенерировать ключ: {e}. Напишите в техподдержку, мы обязательно поможем!', parse_mode='HTML', reply_markup=ikb_support)
