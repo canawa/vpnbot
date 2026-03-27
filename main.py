@@ -511,6 +511,7 @@ async def plan_lifetime_callback(callback: CallbackQuery):
 async def lifetime_agreement_confirmed_callback(callback: CallbackQuery):
     await callback.answer("✅ Я согласен") # на пол экрана хуйня высветится
     await callback.message.delete()
+    country = callback.data.split('_')[2]
     with sq.connect('database.db') as con:
         cur = con.cursor()
         cur.execute('SELECT balance FROM users WHERE id = ?', (callback.from_user.id,))
@@ -519,7 +520,7 @@ async def lifetime_agreement_confirmed_callback(callback: CallbackQuery):
         # con.commit() # сохранить изменения в базе данных
         if balance >= 2900:
             try:
-                vpn_key = await generate_vpn_key(callback.from_user.id, 0)
+                vpn_key = await generate_vpn_key(callback.from_user.id, 0, country)
             except Exception as e:
                 await callback.message.answer(f'❌ Не удалось сгенерировать ключ: {e}. Напишите в техподдержку, мы обязательно поможем!', parse_mode='HTML', reply_markup=ikb_support)
                 raise e
@@ -618,10 +619,10 @@ async def plan_week_callback(callback: CallbackQuery):
         else:
             await callback.message.answer('💰 Недостаточно средств на балансе. Пополните баланс и попробуйте снова.', parse_mode='HTML', reply_markup=ikb_deposit)
           
-@dp.callback_query(lambda c: c.data.startswith('plan_month'))
+@dp.callback_query(lambda c: c.data.startswith('plan_month_'))
 async def plan_month_callback(callback: CallbackQuery):
     await callback.message.delete()
-
+    country = callback.data.split('_')[2]
     with sq.connect('database.db') as con:
         cur = con.cursor()
         cur.execute('SELECT balance FROM users WHERE id = ?', (callback.from_user.id,))
@@ -631,7 +632,7 @@ async def plan_month_callback(callback: CallbackQuery):
         if balance >= 100:
             with sq.connect('database.db') as con:
                 try:
-                    vpn_key = await generate_vpn_key(callback.from_user.id, 30)
+                    vpn_key = await generate_vpn_key(callback.from_user.id, 30, country)
                 except Exception as e:
                     await callback.message.answer(f'❌ Не удалось сгенерировать ключ: {e}. Напишите в техподдержку, мы обязательно поможем!', parse_mode='HTML', reply_markup=ikb_support)
                     raise e
@@ -665,7 +666,7 @@ async def plan_month_callback(callback: CallbackQuery):
 async def plan_halfyear_callback(callback: CallbackQuery):
     await callback.answer("📅 🇩🇪 Полгода (500₽)") # на пол экрана хуйня высветится
     await callback.message.delete()
-
+    country = callback.data.split('_')[2]
     with sq.connect('database.db') as con:
         cur = con.cursor()
         cur.execute('SELECT balance FROM users WHERE id = ?', (callback.from_user.id,))
@@ -675,7 +676,7 @@ async def plan_halfyear_callback(callback: CallbackQuery):
         if balance >= 500:
             with sq.connect('database.db') as con:
                 try:
-                    vpn_key = await generate_vpn_key(callback.from_user.id, 180)
+                    vpn_key = await generate_vpn_key(callback.from_user.id, 180, country)
                 except Exception as e:
                     await callback.message.answer(f'❌ Не удалось сгенерировать ключ: {e}. Напишите в техподдержку, мы обязательно поможем!', parse_mode='HTML', reply_markup=ikb_support)
                     raise e
@@ -709,7 +710,7 @@ async def plan_halfyear_callback(callback: CallbackQuery):
 async def plan_year_callback(callback: CallbackQuery):
     await callback.answer("🎉 🇩🇪 Год (800₽)") # на пол экрана хуйня высветится
     await callback.message.delete()
-
+    country = callback.data.split('_')[2]
     with sq.connect('database.db') as con:
         cur = con.cursor()
         cur.execute('SELECT balance FROM users WHERE id = ?', (callback.from_user.id,))
@@ -719,7 +720,7 @@ async def plan_year_callback(callback: CallbackQuery):
         if balance >= 800:
             with sq.connect('database.db') as con:
                 try:
-                    vpn_key = await generate_vpn_key(callback.from_user.id, 365)
+                    vpn_key = await generate_vpn_key(callback.from_user.id, 365, country)
                 except Exception as e:
                     await callback.message.answer(f'❌ Не удалось сгенерировать ключ: {e}. Напишите в техподдержку, мы обязательно поможем!', parse_mode='HTML', reply_markup=ikb_support)
                     raise e
