@@ -11,7 +11,7 @@ dotenv.load_dotenv()
 
 COUNTRIES = {
     "germany": {
-        "url": os.getenv("MARZBAN_URL_GERMANY"),
+        "url": os.getenv("MARZABAN_URL_GERMANY"),
         "username": os.getenv("MARZABAN_USERNAME_GERMANY"),
         "password": os.getenv("MARZABAN_PASSWORD_GERMANY"),
     },
