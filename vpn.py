@@ -16,7 +16,7 @@ COUNTRIES = {
         "password": os.getenv("MARZABAN_PASSWORD_GERMANY"),
     },
     "finland": {
-        "url": os.getenv("MARZBAN_URL_FINLAND"),
+        "url": os.getenv("MARZABAN_URL_FINLAND"),
         "username": os.getenv("MARZABAN_USERNAME_FINLAND"),
         "password": os.getenv("MARZABAN_PASSWORD_FINLAND"),
     },
