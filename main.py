@@ -371,7 +371,7 @@ async def buy_vpn_callback(callback: CallbackQuery):
         cur.execute('SELECT balance FROM users WHERE id = ?', (callback.from_user.id,))
         result = cur.fetchone()
         balance = result[0] if result else 0
-    await callback.message.answer_photo(FSInputFile("photos/buy_vpn.png"), caption=f"🛒 <b>Купить VPN</b>\n\nВыберите тарифный план:\n\n👉🏼 <b>Баланс: {balance}₽</b>", parse_mode='HTML', reply_markup=ikb_plans)
+    await callback.message.answer_photo(FSInputFile("photos/buy_vpn.png"), caption=f"🛒 <b>Купить VPN</b>\n\nВыберите тарифный план:\n\n👉🏼 <b>Баланс: {balance}₽</b>", parse_mode='HTML', reply_markup=ikb_locations)
 
 @dp.callback_query(lambda c: c.data == 'profile')
 async def profile_callback(callback: CallbackQuery):
@@ -778,7 +778,7 @@ async def my_keys_callback(callback: CallbackQuery):
             cur.execute('SELECT balance FROM users WHERE id = ?', (callback.from_user.id,))
             result = cur.fetchone() # получить результат из базы данных
             balance = result[0] if result else 0 # если результат не пустой, то вытащить баланс, иначе 0
-            await callback.message.answer_photo(MY_KEYS_PHOTO, caption=f"🔗 У вас нет ключей. Купите ключ и используйте его. \n\n👉🏼 <b>Баланс: {balance}₽</b>", parse_mode='HTML', reply_markup=ikb_plans)
+            await callback.message.answer_photo(MY_KEYS_PHOTO, caption=f"🔗 У вас нет ключей. Купите ключ и используйте его. \n\n👉🏼 <b>Баланс: {balance}₽</b>", parse_mode='HTML', reply_markup=ikb_locations)
             con.commit() # сохранить изменения в базе данных
 
 @dp.callback_query(lambda c: c.data.startswith('use_key_')) # ЭТО ПОСМОТРЕТЬ КЛЮЧИ
@@ -1124,7 +1124,7 @@ async def admin_notify_expired_callback(callback: CallbackQuery):
                     user[0], 
                     f"⏰ <b>Ваша пробная подписка закончилась</b>\n\nВаш тестовый период VPN истек. Для продолжения использования сервиса, пожалуйста, приобретите новый ключ.\n\n<b>Баланс: {balance}₽</b>",
                     parse_mode='HTML',
-                    reply_markup=ikb_plans
+                    reply_markup=ikb_locations
                 )
                 sent_count += 1
             except Exception as e:
@@ -1201,7 +1201,7 @@ async def admin_apologize_callback(callback: CallbackQuery):
                     user_id,
                     message_text,
                     parse_mode='HTML',
-                    reply_markup=ikb_plans
+                    reply_markup=ikb_locations
                 )
                 sent_count += 1
             except Exception as e:
@@ -1336,7 +1336,7 @@ async def check_expired_subscriptions():
                                 user_id,
                                 f"⏰ <b>У вас закончилась подписка</b>\n\n"
                                 f"Ваша подписка VPN истекла сегодня. Для продолжения использования сервиса, пожалуйста, приобретите новый ключ.\n\n👉🏼 <b>Баланс: {balance}₽</b>",
-                                parse_mode='HTML', reply_markup=ikb_plans)
+                                parse_mode='HTML', reply_markup=ikb_locations)
                             print(f'{user_id} was notified about his subscription ending!')
                     except Exception as e:
                         print(f"Error {user_id}: {e}")
@@ -1378,7 +1378,7 @@ async def check_expiring_tomorrow_subscriptions():
                             user_id,
                             f"⏰ <b>Ваша подписка истекает завтра</b>\n\n"
                             f"Ваша подписка VPN истечет завтра. Чтобы не прерывать использование сервиса, пожалуйста, приобретите новый ключ заранее.\n\n👉🏼 <b>Баланс: {balance}₽</b>",
-                            parse_mode='HTML', reply_markup=ikb_plans)
+                            parse_mode='HTML', reply_markup=ikb_locations)
                         print(f'{user_id} was notified about his subscription expiring tomorrow!')
                     except Exception as e:
                         print(f"Error {user_id}: {e}")
