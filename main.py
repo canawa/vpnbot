@@ -449,7 +449,7 @@ async def plan_trial(callback: CallbackQuery):
             vpn_key = await generate_vpn_key(callback.from_user.id, 3, 'germany')
             # print(vpn_key)
         except Exception as e:
-            await callback.message.answer(f'❌ Не удалось сгенерировать ключ: {e}. Напишите в техподдержку, мы обязательно поможем!', parse_mode='HTML', reply_markup=ikb_support)
+            await callback.message.answer(f'❌ Не удалось сгенерировать ключ: {e}. Напишите в техподдержку, мы обязательно поможем!', reply_markup=ikb_support)
             raise e
 
         if vpn_key:
@@ -477,7 +477,7 @@ async def subscribe_confirmed_callback(callback: CallbackQuery):
             vpn_key = await generate_vpn_key(callback.from_user.id, 3, 'germany')
             # print(vpn_key)
         except Exception as e:
-            await callback.message.answer(f'❌ Не удалось сгенерировать ключ: {e}. Напишите в техподдержку, мы обязательно поможем!', parse_mode='HTML', reply_markup=ikb_support)
+            await callback.message.answer(f'❌ Не удалось сгенерировать ключ: {e}. Напишите в техподдержку, мы обязательно поможем!', reply_markup=ikb_support)
             raise e
 
         if vpn_key:
@@ -522,7 +522,7 @@ async def lifetime_agreement_confirmed_callback(callback: CallbackQuery):
             try:
                 vpn_key = await generate_vpn_key(callback.from_user.id, 0, country)
             except Exception as e:
-                await callback.message.answer(f'❌ Не удалось сгенерировать ключ: {e}. Напишите в техподдержку, мы обязательно поможем!', parse_mode='HTML', reply_markup=ikb_support)
+                await callback.message.answer(f'❌ Не удалось сгенерировать ключ: {e}. Напишите в техподдержку, мы обязательно поможем!', reply_markup=ikb_support)
                 raise e
 
             if vpn_key:
@@ -634,7 +634,7 @@ async def plan_month_callback(callback: CallbackQuery):
                 try:
                     vpn_key = await generate_vpn_key(callback.from_user.id, 30, country)
                 except Exception as e:
-                    await callback.message.answer(f'❌ Не удалось сгенерировать ключ: {e}. Напишите в техподдержку, мы обязательно поможем!', parse_mode='HTML', reply_markup=ikb_support)
+                    await callback.message.answer(f'❌ Не удалось сгенерировать ключ: {e}. Напишите в техподдержку, мы обязательно поможем!', reply_markup=ikb_support)
                     raise e
 
                 if vpn_key:
@@ -678,7 +678,7 @@ async def plan_halfyear_callback(callback: CallbackQuery):
                 try:
                     vpn_key = await generate_vpn_key(callback.from_user.id, 180, country)
                 except Exception as e:
-                    await callback.message.answer(f'❌ Не удалось сгенерировать ключ: {e}. Напишите в техподдержку, мы обязательно поможем!', parse_mode='HTML', reply_markup=ikb_support)
+                    await callback.message.answer(f'❌ Не удалось сгенерировать ключ: {e}. Напишите в техподдержку, мы обязательно поможем!', reply_markup=ikb_support)
                     raise e
 
                 if vpn_key:
@@ -722,7 +722,7 @@ async def plan_year_callback(callback: CallbackQuery):
                 try:
                     vpn_key = await generate_vpn_key(callback.from_user.id, 365, country)
                 except Exception as e:
-                    await callback.message.answer(f'❌ Не удалось сгенерировать ключ: {e}. Напишите в техподдержку, мы обязательно поможем!', parse_mode='HTML', reply_markup=ikb_support)
+                    await callback.message.answer(f'❌ Не удалось сгенерировать ключ: {e}. Напишите в техподдержку, мы обязательно поможем!',  reply_markup=ikb_support)
                     raise e
 
                 if vpn_key:
@@ -852,7 +852,7 @@ async def process_deposit(callback: CallbackQuery):
             confirmation_url = payment.confirmation.confirmation_url
             await callback.message.answer(f'👉 Создали заявку на оплату, переходите по ссылке и оплатите.\n\n <b>❗ После оплаты нажмите на кнопку "Я оплатил"</b>', parse_mode='HTML', reply_markup=yookassa_payment_keyboard(amount, confirmation_url, payment_id))
         except Exception as e:
-            await callback.message.answer(f'❌ Не удалось создать заявку: {e}. Напишите в техподдержку, мы обязательно поможем!', parse_mode='HTML', reply_markup=ikb_deposit_methods)
+            await callback.message.answer(f'❌ Не удалось создать заявку: {e}. Напишите в техподдержку, мы обязательно поможем!', reply_markup=ikb_deposit_methods)
             raise e
 
     if method == 'stars':
@@ -870,7 +870,7 @@ async def process_deposit(callback: CallbackQuery):
                 prices=[LabeledPrice(label=f"Пополнение на {amount} ₽", amount=amount_stars),],
             )
         except Exception as e:
-            await callback.message.answer(f'❌ Не удалось создать заявку: {e}', parse_mode='HTML', reply_markup=ikb_deposit_methods)
+            await callback.message.answer(f'❌ Не удалось создать заявку: {e}',  reply_markup=ikb_deposit_methods)
             raise e
 
         
@@ -893,7 +893,7 @@ async def process_deposit(callback: CallbackQuery):
         if ok:
             await callback.message.answer('👉 Создали заявку на оплату, переходите по ссылке и оплатите.\n\n <b>❗ После оплаты нажмите на кнопку "Я оплатил"</b>', parse_mode='HTML', reply_markup=ikb)
         else:
-            await callback.message.answer('❌ Не удалось создать заявку. Попробуйте позже.', parse_mode='HTML', reply_markup=ikb_deposit_methods)
+            await callback.message.answer('❌ Не удалось создать заявку. Попробуйте позже.',  reply_markup=ikb_deposit_methods)
 
 
 @dp.pre_checkout_query()
