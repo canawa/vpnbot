@@ -123,8 +123,11 @@ async def start_command(message):
         balance = result[0] if result else 0
 
     await message.answer_photo(FSInputFile("photos/welcome.png"), caption=f"""👋 Добро пожаловать в Кофеманию
-    \n Наш сервис предлагает доступ к локации:
-    \n 🇩🇪 <b>Германия:<code> 50₽</code></b>,
+    \nНаш сервис предлагает доступ к локациям:
+    \n 🇩🇪 <b>Германия</b>,
+\n 🇫🇮 <b>Финляндия</b>,
+\n 🇦🇹 <b>Австрия</b>,
+\n 🇫🇷 <b>Франция</b>
     \n 👉🏼 <b> Баланс : {balance} ₽</b>""", parse_mode='HTML', reply_markup=generate_ikb_main(message.from_user.id)) # парсинг HTML чтобы работали теги с хтмл и прилепили маркап к сообщению
     with sq.connect('database.db') as con:
         cur = con.cursor()
@@ -200,14 +203,23 @@ ikb_support = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text='🔙 Назад', callback_data='back')],
 ])
 
-ikb_plans = InlineKeyboardMarkup(inline_keyboard=[
-    [InlineKeyboardButton(text='🇩🇪 Неделя (50₽)', callback_data='plan_week')],
-    [InlineKeyboardButton(text='🇩🇪 Месяц (100₽)', callback_data='plan_month')],
-    [InlineKeyboardButton(text='🇩🇪 Полгода (500₽)', callback_data='plan_halfyear')],
-    [InlineKeyboardButton(text='🇩🇪 Год (800₽)', callback_data='plan_year')],
-    [InlineKeyboardButton(text='🇩🇪 Пожизненно (2900₽)', callback_data='plan_lifetime')],
+ikb_locations = InlineKeyboardMarkup(inline_keyboard=[
+    [InlineKeyboardButton(text='🇩🇪 Германия', callback_data='germany')],
+    [InlineKeyboardButton(text='🇫🇮 Финляндия', callback_data='finland')],
+    [InlineKeyboardButton(text='🇦🇹 Австрия', callback_data='austria')],
+    [InlineKeyboardButton(text='🇫🇷 Франция', callback_data='france')],
     [InlineKeyboardButton(text='🔙 Назад', callback_data='back')],
 ])
+def get_ikb_plans(country:str):
+    ikb_plans = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text='👉 Неделя (50₽)', callback_data=f'plan_week_{country}')],
+        [InlineKeyboardButton(text='👉 Месяц (100₽)', callback_data=f'plan_month_{country}')],
+        [InlineKeyboardButton(text='👉 Полгода (500₽)', callback_data=f'plan_halfyear_{country}')],
+        [InlineKeyboardButton(text='👉 Год (800₽)', callback_data=f'plan_year_{country}')],
+        [InlineKeyboardButton(text='👉 Пожизненно (2900₽)', callback_data=f'plan_lifetime_{country}')],
+        [InlineKeyboardButton(text='🔙 Назад', callback_data='back')],
+    ])
+    return ikb_plans
 ikb_lifetime_agreement = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text='✅ Я согласен', callback_data='lifetime_agreement_confirmed')],
     [InlineKeyboardButton(text='🔙 Назад', callback_data='back')],
@@ -427,8 +439,11 @@ async def back_callback(callback: CallbackQuery):
         result = cur.fetchone()
         balance = result[0] if result else 0
     await callback.message.answer_photo(WELCOME_PHOTO, caption=f"""👋 Добро пожаловать в Кофеманию
-    \n Наш сервис предлагает доступ к локации:
-    \n 🇩🇪 <b>Германия:<code> 50₽</code></b>,
+    \nНаш сервис предлагает доступ к локациям:
+    \n 🇩🇪 <b>Германия</b>,
+\n 🇫🇮 <b>Финляндия</b>,
+\n 🇦🇹 <b>Австрия</b>,
+\n 🇫🇷 <b>Франция</b>
     \n 👉🏼 <b> Баланс : {balance} ₽</b>""", parse_mode='HTML', reply_markup=generate_ikb_main(callback.from_user.id)) # парсинг HTML чтобы работали теги с хтмл и прилепили маркап к сообщению
 
 @dp.callback_query(lambda c: c.data == 'trial')
@@ -537,6 +552,31 @@ async def lifetime_agreement_confirmed_callback(callback: CallbackQuery):
                         await callback.message.answer('‼️ Нет доступных ключей. Свяжитесь с поддержкой.', parse_mode='HTML', reply_markup=ikb_support)
         else:
             await callback.message.answer('💰 Недостаточно средств на балансе. Пополните баланс и попробуйте снова.', parse_mode='HTML', reply_markup=ikb_deposit)
+
+@dp.callback_query(lambda c: c.data == 'finland')
+async def germany_location(callback: CallbackQuery):
+    await callback.answer("Финляндия") # на пол экрана хуйня высветится
+    await callback.message.delete()
+    await callback.message.answer('Выберите тарифный план:' , parse_mode = 'HTML', reply_markup = get_ikb_plans('finland'))
+
+@dp.callback_query(lambda c: c.data == 'france')
+async def germany_location(callback: CallbackQuery):
+    await callback.answer("Франция") # на пол экрана хуйня высветится
+    await callback.message.delete()
+    await callback.message.answer('Выберите тарифный план:' , parse_mode = 'HTML', reply_markup = get_ikb_plans('france'))
+
+@dp.callback_query(lambda c: c.data == 'austria')
+async def germany_location(callback: CallbackQuery):
+    await callback.answer("Австрия") # на пол экрана хуйня высветится
+    await callback.message.delete()
+    await callback.message.answer('Выберите тарифный план:' , parse_mode = 'HTML', reply_markup = get_ikb_plans('austria'))
+
+
+@dp.callback_query(lambda c: c.data == 'germany')
+async def germany_location(callback: CallbackQuery):
+    await callback.answer("Германия") # на пол экрана хуйня высветится
+    await callback.message.delete()
+    await callback.message.answer('Выберите тарифный план:' , parse_mode = 'HTML', reply_markup = get_ikb_plans('germany'))
 
 @dp.callback_query(lambda c: c.data == 'plan_week')
 async def plan_week_callback(callback: CallbackQuery):
