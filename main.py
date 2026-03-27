@@ -124,9 +124,9 @@ async def start_command(message):
 
     await message.answer_photo(FSInputFile("photos/welcome.png"), caption=f"""👋 Добро пожаловать в Кофеманию
     \nНаш сервис предлагает доступ к локациям:
-    \n 🇩🇪 <b>Германия</b>,
-\n 🇫🇮 <b>Финляндия</b>,
-\n 🇦🇹 <b>Австрия</b>,
+    \n 🇩🇪 <b>Германия</b>
+\n 🇫🇮 <b>Финляндия</b>
+\n 🇦🇹 <b>Австрия</b>
 \n 🇫🇷 <b>Франция</b>
     \n 👉🏼 <b> Баланс : {balance} ₽</b>""", parse_mode='HTML', reply_markup=generate_ikb_main(message.from_user.id)) # парсинг HTML чтобы работали теги с хтмл и прилепили маркап к сообщению
     with sq.connect('database.db') as con:
@@ -440,9 +440,8 @@ async def back_callback(callback: CallbackQuery):
         balance = result[0] if result else 0
     await callback.message.answer_photo(WELCOME_PHOTO, caption=f"""👋 Добро пожаловать в Кофеманию
     \nНаш сервис предлагает доступ к локациям:
-    \n 🇩🇪 <b>Германия</b>,
-\n 🇫🇮 <b>Финляндия</b>,
-\n 🇦🇹 <b>Австрия</b>,
+    \n 🇩🇪 <b>Германия</b>\n 🇫🇮 <b>Финляндия</b>
+\n 🇦🇹 <b>Австрия</b>
 \n 🇫🇷 <b>Франция</b>
     \n 👉🏼 <b> Баланс : {balance} ₽</b>""", parse_mode='HTML', reply_markup=generate_ikb_main(callback.from_user.id)) # парсинг HTML чтобы работали теги с хтмл и прилепили маркап к сообщению
 
