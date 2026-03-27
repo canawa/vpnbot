@@ -495,7 +495,7 @@ async def subscribe_confirmed_callback(callback: CallbackQuery):
     else:
         await callback.message.answer('❌ Вы не подписаны на канал! Подпишитесь на канал, чтобы получить бесплатный тестовый период!', parse_mode='HTML', reply_markup=ikb_subscribe)
 
-@dp.callback_query(lambda c: c.data == 'plan_lifetime')
+@dp.callback_query(lambda c: c.data.startswith('plan_lifetime'))
 async def plan_lifetime_callback(callback: CallbackQuery):
     await callback.answer("👶🏻 🇩🇪 Пожизненно (2900₽)") # на пол экрана хуйня высветится
     await callback.message.delete()
@@ -662,7 +662,7 @@ async def plan_month_callback(callback: CallbackQuery):
         else:
             await callback.message.answer('💰 Недостаточно средств на балансе. Пополните баланс и попробуйте снова.', parse_mode='HTML', reply_markup=ikb_deposit)
 
-@dp.callback_query(lambda c: c.data == 'plan_halfyear')
+@dp.callback_query(lambda c: c.data.startswith('plan_halfyear'))
 async def plan_halfyear_callback(callback: CallbackQuery):
     await callback.answer("📅 🇩🇪 Полгода (500₽)") # на пол экрана хуйня высветится
     await callback.message.delete()
@@ -706,7 +706,7 @@ async def plan_halfyear_callback(callback: CallbackQuery):
         else:
             await callback.message.answer('💰 Недостаточно средств на балансе. Пополните баланс и попробуйте снова.', parse_mode='HTML', reply_markup=ikb_deposit)
 
-@dp.callback_query(lambda c: c.data == 'plan_year')
+@dp.callback_query(lambda c: c.data.startswith('plan_year'))
 async def plan_year_callback(callback: CallbackQuery):
     await callback.answer("🎉 🇩🇪 Год (800₽)") # на пол экрана хуйня высветится
     await callback.message.delete()
