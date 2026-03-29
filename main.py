@@ -186,7 +186,7 @@ ikb_referral_reminder = InlineKeyboardMarkup(inline_keyboard=[ # клава ко
 
 ikb_documents = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text='📄 Пользовательское соглашение', url='https://telegra.ph/Polzovatelskoe-soglashenie-12-22-25')],
-    [InlineKeyboardButton(text='🔒 Политика конфиденциальности', url='https://telegra.ph/Politika-konfidencialnosti-12-22-25')],
+    [InlineKeyboardButton(text='🔒 Политика конфиденциальности', url='https://telegra.ph/POLITIKA-KONFIDENCIALNOSTI-03-29-41')],
     [InlineKeyboardButton(text='🔙 Назад', callback_data='back')],
 ])
 
