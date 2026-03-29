@@ -27,7 +27,7 @@ try:
     WELCOME_PHOTO = FSInputFile("photos/welcome.png")
     BUY_VPN_PHOTO = FSInputFile("photos/buy_vpn.png")
     PROFILE_PHOTO = FSInputFile("photos/profile.png")
-    DOCUMENTS_PHOTO = FSInputFile("photos/documents.jpg")
+    DOCUMENTS_PHOTO = FSInputFile("photos/documents.png")
     INVITE_FRIEND_PHOTO = FSInputFile("photos/invite_friend.png")
     MY_KEYS_PHOTO = FSInputFile("photos/my_keys.png")
     DEPOSIT_PHOTO = FSInputFile("photos/deposit.png")
