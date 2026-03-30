@@ -116,6 +116,7 @@ async def start_command(message):
                     cur.execute(
                         "INSERT OR IGNORE INTO referal_users (referral_id, ref_master_id, registration_date) VALUES (?, ?, ?)", (message.from_user.id, ref, registration_date)
                     )
+                    con.commit()
                     cur.execute("UPDATE users SET balance = balance + 50 WHERE id = ?", (ref,))
                     cur.execute('UPDATE users SET ref_amount = ref_amount + 1 WHERE id = ?', (ref,))
                 con.commit()
@@ -1267,7 +1268,7 @@ async def admin_referrals_callback(callback: CallbackQuery):
         result = cur.fetchall()
         df = pd.DataFrame(result, columns=['Рефовод Юзернейм', 'Реферал Юзернейм', 'Рефмастер Айди' , 'Реферал айди'])
         df.to_excel('referals.xlsx')
-        await callback.message.answer_document(FSInputFile('referals.xlsx'))
+        await callback.message.answer_document(FSInputFile('referals.xlsx'), reply_markup=ikb_admin_back)
 
 @dp.callback_query(lambda c: c.data.startswith('withdraw_'))
 async def withdraw_callback(callback: CallbackQuery):
