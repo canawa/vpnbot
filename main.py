@@ -107,7 +107,11 @@ async def start_command(message):
                 cur.execute("SELECT * FROM referal_users WHERE referral_id = ?", (message.from_user.id,))
                 result = cur.fetchone()
                 if not result:
-                    await bot.send_message(ref, f' <b>🎉 У вас новый реферал - {message.from_user.username}! </b>', parse_mode='HTML')
+                    try:
+                        await bot.send_message(ref, f' <b>🎉 У вас новый реферал - {message.from_user.username}! </b>', parse_mode='HTML')
+                    except:
+                        pass
+
                     registration_date = date.today().isoformat()
                     cur.execute(
                         "INSERT OR IGNORE INTO referal_users (referral_id, ref_master_id, registration_date) VALUES (?, ?, ?)", (message.from_user.id, ref, registration_date)
