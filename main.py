@@ -104,21 +104,25 @@ async def start_command(message):
             cur = con.cursor()
             # Проверяем, что referral_id != ref_master_id перед вставкой
             if message.from_user.id != ref:
-                cur.execute("SELECT * FROM referal_users WHERE referral_id = ?", (message.from_user.id,))
-                result = cur.fetchone()
-                if not result:
-                    try:
-                        await bot.send_message(ref, f' <b>🎉 У вас новый реферал - {message.from_user.username}! </b>', parse_mode='HTML')
-                    except:
-                        pass
+                cur.execute("SELECT 1 FROM users WHERE id = ?", (message.from_user.id,))
+                already_used_bot = cur.fetchone() is not None
+                # Бонус только за нового пользователя; возвращаться по реф-ссылке после первого /start — без выплаты
+                if not already_used_bot:
+                    cur.execute("SELECT * FROM referal_users WHERE referral_id = ?", (message.from_user.id,))
+                    result = cur.fetchone()
+                    if not result:
+                        try:
+                            await bot.send_message(ref, f' <b>🎉 У вас новый реферал - {message.from_user.username}! </b>', parse_mode='HTML')
+                        except:
+                            pass
 
-                    registration_date = date.today().isoformat()
-                    cur.execute(
-                        "INSERT OR IGNORE INTO referal_users (referral_id, ref_master_id, registration_date) VALUES (?, ?, ?)", (message.from_user.id, ref, registration_date)
-                    )
-                    con.commit()
-                    cur.execute("UPDATE users SET balance = balance + 50 WHERE id = ?", (ref,))
-                    cur.execute('UPDATE users SET ref_amount = ref_amount + 1 WHERE id = ?', (ref,))
+                        registration_date = date.today().isoformat()
+                        cur.execute(
+                            "INSERT OR IGNORE INTO referal_users (referral_id, ref_master_id, registration_date) VALUES (?, ?, ?)", (message.from_user.id, ref, registration_date)
+                        )
+                        con.commit()
+                        cur.execute("UPDATE users SET balance = balance + 50 WHERE id = ?", (ref,))
+                        cur.execute('UPDATE users SET ref_amount = ref_amount + 1 WHERE id = ?', (ref,))
                 con.commit()
 
     with sq.connect('database.db') as con:
@@ -1151,7 +1155,7 @@ async def admin_notify_referral_callback(callback: CallbackQuery):
         failed_count = 0
         for user in result:
             try:
-                await bot.send_message(user[0], 'Кстати, небольшой бонус: если пригласить друга по реферальной ссылке, можно получить +50₽ 🙂', reply_markup=ikb_referral_reminder)
+                await bot.send_message(user[0], 'Мало кто знает, но если позвать друга, то получишь приятный бонус ^_^', reply_markup=ikb_referral_reminder)
                 sent_count += 1
             except:
                 failed_count += 1
