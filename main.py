@@ -968,10 +968,10 @@ async def shout_message(message: Message):
         result = cur.fetchall()
         for user in result:
             try:
-                await bot.send_message(user[0], message.text[6:], parse_mode='HTML')
+                await bot.send_message(user[0], message.text[6:], parse_mode='Markdown')
             except:
                 pass
-    await message.answer("🔊 Сообщение отправлено всем пользователям", parse_mode='HTML', reply_markup=ikb_back)
+    await message.answer("🔊 Сообщение отправлено всем пользователям", parse_mode='Markdown', reply_markup=ikb_back)
 
 
 @dp.message(F.text == 'admin' , (F.from_user.id.in_([1979477416, 7562967579])))
