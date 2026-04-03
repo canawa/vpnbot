@@ -785,7 +785,7 @@ async def my_keys_callback(callback: CallbackQuery):
         
         for key_id, key in enumerate(result): # перебрать все ключи и вывести их номер
     
-            ikb_my_keys.inline_keyboard.append([InlineKeyboardButton(text=f'🔑 {key_id + 1}', callback_data=f'use_key_{key_id}')])
+            ikb_my_keys.inline_keyboard.append([InlineKeyboardButton(text=f'{key_id + 1}', callback_data=f'use_key_{key_id}', icon_custom_emoji_id = get_emoji('key_emoji')) ])
         if result:
             await callback.message.answer_photo(MY_KEYS_PHOTO, caption=f"🔗 Мои ключи:", parse_mode='HTML', reply_markup=ikb_my_keys)
         else:
