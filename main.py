@@ -778,22 +778,29 @@ async def my_keys_callback(callback: CallbackQuery):
         cur = con.cursor()
         today = date.today()
         today_str = today.isoformat()  # Преобразуем дату в строку формата YYYY-MM-DD для корректного сравнения
-        cur.execute('SELECT key, expiration_date FROM keys WHERE buyer_id = ? AND expiration_date >= ? ', (callback.from_user.id, today_str)) # вытащить ключи из базы данных текущего пользователя
-        result = cur.fetchall() # получить результат из базы данных
+        cur.execute(
+            'SELECT key, expiration_date, location FROM keys WHERE buyer_id = ? AND expiration_date >= ? ORDER BY expiration_date',
+            (callback.from_user.id, today_str),
+        )
+        result = cur.fetchall()  # кортежи (key, expiration_date, location)
 
-        # Каждая строка будет содержать до 2-х кнопок
         buttons_row = []
-        for key_id, key in enumerate(result): # перебрать все ключи и вывести их номер
+        for key_id, row in enumerate(result):
+            _key_str, exp_raw, loc = row[0], row[1], row[2]
+            try:
+                icon_id = get_emoji(loc) if loc else get_emoji('germany')
+            except KeyError:
+                icon_id = get_emoji('germany')
             btn = InlineKeyboardButton(
-                text=f'{key_id + 1}',
+                text=f'{key_id + 1} до {exp_raw}',
                 callback_data=f'use_key_{key_id}',
-                icon_custom_emoji_id=get_emoji('key_emoji')
+                icon_custom_emoji_id=icon_id,
             )
             buttons_row.append(btn)
             if len(buttons_row) == 2:
                 ikb_my_keys.inline_keyboard.append(buttons_row)
                 buttons_row = []
-        if buttons_row:  # если осталась нечетная строка
+        if buttons_row:
             ikb_my_keys.inline_keyboard.append(buttons_row)
 
         ikb_my_keys.inline_keyboard.append([InlineKeyboardButton(text='Назад', callback_data='back', icon_custom_emoji_id=get_emoji('exit'))])
