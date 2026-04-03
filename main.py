@@ -792,7 +792,7 @@ async def my_keys_callback(callback: CallbackQuery):
             except KeyError:
                 icon_id = get_emoji('germany')
             btn = InlineKeyboardButton(
-                text=f'{key_id + 1} до {exp_raw}',
+                text=f'До {exp_raw}',
                 callback_data=f'use_key_{key_id}',
                 icon_custom_emoji_id=icon_id,
             )
