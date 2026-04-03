@@ -89,7 +89,15 @@ with sq.connect('database.db') as con:
         cur.execute('ALTER TABLE referal_users ADD COLUMN registration_date TEXT')
     except:
         pass  # Поле уже существует
-    
+    try:
+        cur.execute('ALTER TABLE keys ADD COLUMN location TEXT')
+    except:
+        pass  # Поле уже существует
+    try:
+        cur.execute("UPDATE keys SET location = 'germany' WHERE location IS NULL OR TRIM(COALESCE(location, '')) = ''")
+        con.commit()
+    except Exception:
+        pass
 
 
 @dp.message(CommandStart())
@@ -179,17 +187,17 @@ def generate_ikb_main(user_id):
             ikb_main.inline_keyboard.append([InlineKeyboardButton(text='🎁 Попробовать бесплатно', callback_data='trial', style = 'success')])
     ikb_main.inline_keyboard.append([InlineKeyboardButton(text='Получить VPN', callback_data='buy_vpn', icon_custom_emoji_id=get_emoji('plus'))])
     ikb_main.inline_keyboard.append([InlineKeyboardButton(text='Личный кабинет', callback_data='profile', icon_custom_emoji_id=get_emoji('profile'))])
-    ikb_main.inline_keyboard.append([InlineKeyboardButton(text='Получить 50₽ на баланс', callback_data='referral', icon_custom_emoji_id=get_emoji('add_user'))])
+    ikb_main.inline_keyboard.append([InlineKeyboardButton(text='Реферальная программа', callback_data='referral', icon_custom_emoji_id=get_emoji('add_user'))])
     ikb_main.inline_keyboard.append([InlineKeyboardButton(text='Документы', callback_data='documents', icon_custom_emoji_id=get_emoji('documents'))])
     return ikb_main
 
 ikb_back = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text='🔙 Назад', callback_data='back')],
+        [InlineKeyboardButton(text='🔙 Назад', callback_data='back', icon_custom_emoji_id=get_emoji('exit'))],
     ])
 
 ikb_referral_reminder = InlineKeyboardMarkup(inline_keyboard=[ # клава которая вылезит людям
-    [InlineKeyboardButton(text='🤝 Получить 50₽ на баланс', callback_data='referral')],
-    [InlineKeyboardButton(text='🔙 Назад', callback_data='back')],
+    [InlineKeyboardButton(text='🤝 Получить 50₽ на баланс', callback_data='referral', icon_custom_emoji_id=get_emoji('game'), style = 'success')],
+    [InlineKeyboardButton(text='🔙 Назад', callback_data='back', icon_custom_emoji_id=get_emoji('exit'))],
 ])
 # ikb_profile будет создаваться динамически в зависимости от роли пользователя
 
@@ -197,17 +205,17 @@ ikb_referral_reminder = InlineKeyboardMarkup(inline_keyboard=[ # клава ко
 ikb_documents = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text='📄 Пользовательское соглашение', url='https://telegra.ph/Polzovatelskoe-soglashenie-12-22-25')],
     [InlineKeyboardButton(text='🔒 Политика конфиденциальности', url='https://telegra.ph/POLITIKA-KONFIDENCIALNOSTI-03-29-41')],
-    [InlineKeyboardButton(text='🔙 Назад', callback_data='back')],
+    [InlineKeyboardButton(text='🔙 Назад', callback_data='back', icon_custom_emoji_id=get_emoji('exit'))],
 ])
 
 ikb_referral = InlineKeyboardMarkup(inline_keyboard=[
     # [InlineKeyboardButton(text='💸 Вывести реферальный баланс', callback_data='ref_withdraw')], ПОКА ЧТО УБРАЛ 
-    [InlineKeyboardButton(text='🔙 Назад', callback_data='back')],
+    [InlineKeyboardButton(text='🔙 Назад', callback_data='back', icon_custom_emoji_id=get_emoji('exit'))],
 ])
 
 ikb_support = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text='💬 Написать в поддержку', url='https://t.me/CoffemaniaSupport')],
-    [InlineKeyboardButton(text='🔙 Назад', callback_data='back')],
+    [InlineKeyboardButton(text='🔙 Назад', callback_data='back', icon_custom_emoji_id=get_emoji('exit'))],
 ])
 
 ikb_locations = InlineKeyboardMarkup(inline_keyboard=[
@@ -215,7 +223,7 @@ ikb_locations = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text='🇫🇮 Финляндия', callback_data='finland')],
     [InlineKeyboardButton(text='🇦🇹 Австрия', callback_data='austria')],
     [InlineKeyboardButton(text='🇫🇷 Франция', callback_data='france')],
-    [InlineKeyboardButton(text='🔙 Назад', callback_data='back')],
+    [InlineKeyboardButton(text='🔙 Назад', callback_data='back', icon_custom_emoji_id=get_emoji('exit'))],
 ])
 
 def get_ikb_plans(country:str):
@@ -225,24 +233,26 @@ def get_ikb_plans(country:str):
         [InlineKeyboardButton(text='🧔 Полгода (500₽)', callback_data=f'plan_halfyear_{country}')],
         [InlineKeyboardButton(text='👨🏻 Год (800₽)', callback_data=f'plan_year_{country}')],
         [InlineKeyboardButton(text='👴🏻 Пожизненно (2900₽)', callback_data=f'plan_lifetime_{country}')],
-        [InlineKeyboardButton(text='🔙 Назад', callback_data='back')],
+        [InlineKeyboardButton(text='🔙 Назад', callback_data='back', icon_custom_emoji_id=get_emoji('exit'))],
     ])
     return ikb_plans
-ikb_lifetime_agreement = InlineKeyboardMarkup(inline_keyboard=[
-    [InlineKeyboardButton(text='✅ Я согласен', callback_data='lifetime_agreement_confirmed')],
-    [InlineKeyboardButton(text='🔙 Назад', callback_data='back')],
-])
+
+def get_ikb_lifetime_agreement(country: str):
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text='✅ Я согласен', callback_data=f'lifetime_confirm_{country}')],
+        [InlineKeyboardButton(text='🔙 Назад', callback_data='back', icon_custom_emoji_id=get_emoji('exit'))],
+    ])
 
 ikb_deposit = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text='💰 Пополнить', callback_data='deposit')],
-    [InlineKeyboardButton(text='🔙 Назад', callback_data='back')],
+    [InlineKeyboardButton(text='🔙 Назад', callback_data='back', icon_custom_emoji_id=get_emoji('exit'))],
 ])
 
 ikb_deposit_methods = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text='🍀 Криптобот', callback_data='deposit_crypto')],
     [InlineKeyboardButton(text='💳 Картой', callback_data='deposit_card')],
     [InlineKeyboardButton(text='🌟 Звёзды', callback_data='deposit_stars')],
-    [InlineKeyboardButton(text='🔙 Назад', callback_data='back')],
+    [InlineKeyboardButton(text='🔙 Назад', callback_data='back', icon_custom_emoji_id=get_emoji('exit'))],
 ])
 
 def deposit_keyboard(method):
@@ -250,14 +260,14 @@ def deposit_keyboard(method):
     ikb_deposit_sums = InlineKeyboardMarkup(inline_keyboard=[])
     for sum in amount:
         ikb_deposit_sums.inline_keyboard.append([InlineKeyboardButton(text=f'🟣 {sum}₽', callback_data=f'deposit_{sum}_{method}')])
-    ikb_deposit_sums.inline_keyboard.append([InlineKeyboardButton(text='🔙 Назад', callback_data='back')])
+    ikb_deposit_sums.inline_keyboard.append([InlineKeyboardButton(text='🔙 Назад', callback_data='back', icon_custom_emoji_id=get_emoji('exit'))])
     return ikb_deposit_sums
  
 def yookassa_payment_keyboard(amount, confirmation_url, payment_id): # функция для создания клавиатуры для оплаты через Юкассу
     ikb_yookassa = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text=f'👉 Перейти к оплате {amount} ₽', url=confirmation_url)],
         [InlineKeyboardButton(text='✅️ Я оплатил', callback_data=f'check_{amount}_{payment_id}')],
-        [InlineKeyboardButton(text='❌ Отменить платеж!', callback_data='back')],
+        [InlineKeyboardButton(text='❌ Отменить платеж!', callback_data='back', icon_custom_emoji_id=get_emoji('exit'))],
     ])
     return ikb_yookassa
 
@@ -274,7 +284,7 @@ ikb_admin = InlineKeyboardMarkup(inline_keyboard=[
 ])
 
 ikb_admin_back = InlineKeyboardMarkup(inline_keyboard=[
-    [InlineKeyboardButton(text='🔙 Назад', callback_data='admin_back')],
+    [InlineKeyboardButton(text='🔙 Назад', callback_data='admin_back', icon_custom_emoji_id=get_emoji('exit'))],
 ])
 
 ikb_withdraw = InlineKeyboardMarkup(inline_keyboard=[
@@ -282,7 +292,7 @@ ikb_withdraw = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text='💰 300 ₽', callback_data='withdraw_300')],
     [InlineKeyboardButton(text='💰 500 ₽', callback_data='withdraw_500')],
     [InlineKeyboardButton(text='💰 1000 ₽', callback_data='withdraw_1000')],
-    [InlineKeyboardButton(text='🔙 Назад', callback_data='back')],
+    [InlineKeyboardButton(text='🔙 Назад', callback_data='back', icon_custom_emoji_id=get_emoji('exit'))],
 ])
 
 @dp.callback_query(lambda c: c.data.startswith('check_payment_'))
@@ -403,7 +413,7 @@ async def profile_callback(callback: CallbackQuery):
     if role == 'refmaster':
         ikb_profile.inline_keyboard.append([InlineKeyboardButton(text='💸 Вывести реферальный баланс', callback_data='ref_withdraw')])
     
-    ikb_profile.inline_keyboard.append([InlineKeyboardButton(text='🔙 Назад', callback_data='back')])
+    ikb_profile.inline_keyboard.append([InlineKeyboardButton(text='🔙 Назад', callback_data='back', icon_custom_emoji_id=get_emoji('exit'))])
     
     await callback.message.answer_photo(PROFILE_PHOTO, caption=f"👤 <b>Личный кабинет</b>\n\n💰 Баланс: {balance} ₽\n💸 Реферальный баланс: {ref_balance} ₽\n🆔 ID: {callback.from_user.id}", parse_mode='HTML', reply_markup=ikb_profile)
 
@@ -468,7 +478,7 @@ async def plan_trial(callback: CallbackQuery):
                 expire_date = date.today() + timedelta(days=3)
                 expire_date_str = expire_date.isoformat()  # Преобразуем дату в строку формата YYYY-MM-DD
                 buy_date_str = date.today().isoformat()  # Преобразуем дату в строку формата YYYY-MM-DD
-                cur.execute('INSERT INTO keys (key, duration, SOLD, buyer_id, username, buy_date, expiration_date) VALUES (?, ?, ?, ?, ?, ?, ?)', (vpn_key, 3, 0, callback.from_user.id, callback.from_user.username, buy_date_str, expire_date_str))
+                cur.execute('INSERT INTO keys (key, duration, SOLD, buyer_id, username, buy_date, expiration_date, location) VALUES (?, ?, ?, ?, ?, ?, ?, ?)', (vpn_key, 3, 0, callback.from_user.id, callback.from_user.username, buy_date_str, expire_date_str, 'germany'))
                 cur.execute('SELECT key FROM keys WHERE duration = 3 AND SOLD = 0 ORDER BY rowid DESC LIMIT 1')
                 con.commit()
                 result = cur.fetchone() # получить результат из базы данных
@@ -496,7 +506,7 @@ async def subscribe_confirmed_callback(callback: CallbackQuery):
                 expire_date = date.today() + timedelta(days=3)
                 expire_date_str = expire_date.isoformat()  # Преобразуем дату в строку формата YYYY-MM-DD
                 buy_date_str = date.today().isoformat()  # Преобразуем дату в строку формата YYYY-MM-DD
-                cur.execute('INSERT INTO keys (key, duration, SOLD, buyer_id, username, buy_date, expiration_date) VALUES (?, ?, ?, ?, ?, ?, ?)', (vpn_key, 3, 0, callback.from_user.id, callback.from_user.username, buy_date_str, expire_date_str))
+                cur.execute('INSERT INTO keys (key, duration, SOLD, buyer_id, username, buy_date, expiration_date, location) VALUES (?, ?, ?, ?, ?, ?, ?, ?)', (vpn_key, 3, 0, callback.from_user.id, callback.from_user.username, buy_date_str, expire_date_str, 'germany'))
                 cur.execute('SELECT key FROM keys WHERE duration = 3 AND SOLD = 0 ORDER BY rowid DESC LIMIT 1')
                 con.commit()
                 result = cur.fetchone() # получить результат из базы данных
@@ -509,19 +519,20 @@ async def subscribe_confirmed_callback(callback: CallbackQuery):
 async def plan_lifetime_callback(callback: CallbackQuery):
     await callback.answer("👶🏻 🇩🇪 Пожизненно (2900₽)") # на пол экрана хуйня высветится
     await callback.message.delete()
+    country = callback.data.split('_')[2]
     await callback.message.answer("""
     Пользователь понимает и соглашается, что пожизненный доступ не означает пожизненное обязательство Исполнителя и не гарантирует бессрочное функционирование Сервиса, а предоставляет право использования Сервиса без установленного срока окончания исключительно на период существования и поддержки Сервиса.
 
 В случае прекращения работы Сервиса по любой причине (включая, но не ограничиваясь: экономические, технические, юридические, регуляторные), обязательства Исполнителя по предоставлению пожизненного доступа считаются исполненными, и возврат денежных средств не производится.
 
 <b>Я согласен с условиями</b>
-    """, parse_mode='HTML', reply_markup=ikb_lifetime_agreement)
+    """, parse_mode='HTML', reply_markup=get_ikb_lifetime_agreement(country))
     
-@dp.callback_query(lambda c: c.data == 'lifetime_agreement_confirmed')
+@dp.callback_query(lambda c: c.data.startswith('lifetime_confirm_'))
 async def lifetime_agreement_confirmed_callback(callback: CallbackQuery):
     await callback.answer("✅ Я согласен") # на пол экрана хуйня высветится
     await callback.message.delete()
-    country = callback.data.split('_')[2]
+    country = callback.data.removeprefix('lifetime_confirm_')
     with sq.connect('database.db') as con:
         cur = con.cursor()
         cur.execute('SELECT balance FROM users WHERE id = ?', (callback.from_user.id,))
@@ -541,7 +552,7 @@ async def lifetime_agreement_confirmed_callback(callback: CallbackQuery):
                     expire_date = date.today() + timedelta(days=10000)
                     expire_date_str = expire_date.isoformat()  # Преобразуем дату в строку формата YYYY-MM-DD
                     buy_date_str = date.today().isoformat()  # Преобразуем дату в строку формата YYYY-MM-DD
-                    cur.execute('INSERT INTO keys (key, duration, SOLD, buyer_id, username, buy_date, expiration_date) VALUES (?, ?, ?, ?, ?, ?, ?)', (vpn_key, 10000, 0, callback.from_user.id, callback.from_user.username, buy_date_str, expire_date_str))
+                    cur.execute('INSERT INTO keys (key, duration, SOLD, buyer_id, username, buy_date, expiration_date, location) VALUES (?, ?, ?, ?, ?, ?, ?, ?)', (vpn_key, 10000, 0, callback.from_user.id, callback.from_user.username, buy_date_str, expire_date_str, country))
                     con.commit()
 
                     cur.execute('SELECT key FROM keys WHERE duration = 10000 AND SOLD = 0 ORDER BY rowid DESC LIMIT 1')
@@ -610,7 +621,7 @@ async def plan_week_callback(callback: CallbackQuery):
                         expire_date = date.today() + timedelta(days=7)
                         expire_date_str = expire_date.isoformat()  # Преобразуем дату в строку формата YYYY-MM-DD
                         buy_date_str = date.today().isoformat()  # Преобразуем дату в строку формата YYYY-MM-DD
-                        cur.execute('INSERT INTO keys (key, duration, SOLD, buyer_id, buy_date, expiration_date) VALUES (?, ?, ?, ?, ?, ?)', (vpn_key, 7, 0, callback.from_user.id, buy_date_str, expire_date_str))
+                        cur.execute('INSERT INTO keys (key, duration, SOLD, buyer_id, buy_date, expiration_date, location) VALUES (?, ?, ?, ?, ?, ?, ?)', (vpn_key, 7, 0, callback.from_user.id, buy_date_str, expire_date_str, country))
                         con.commit()
 
                 cur = con.cursor()
@@ -653,7 +664,7 @@ async def plan_month_callback(callback: CallbackQuery):
                         expire_date = date.today() + timedelta(days=30)
                         expire_date_str = expire_date.isoformat()  # Преобразуем дату в строку формата YYYY-MM-DD
                         buy_date_str = date.today().isoformat()  # Преобразуем дату в строку формата YYYY-MM-DD
-                        cur.execute('INSERT INTO keys (key, duration, SOLD, buyer_id, buy_date, expiration_date) VALUES (?, ?, ?, ?, ?, ?)', (vpn_key, 30, 0, callback.from_user.id, buy_date_str, expire_date_str))
+                        cur.execute('INSERT INTO keys (key, duration, SOLD, buyer_id, buy_date, expiration_date, location) VALUES (?, ?, ?, ?, ?, ?, ?)', (vpn_key, 30, 0, callback.from_user.id, buy_date_str, expire_date_str, country))
                         con.commit()
 
                 cur = con.cursor()
@@ -697,7 +708,7 @@ async def plan_halfyear_callback(callback: CallbackQuery):
                         expire_date = date.today() + timedelta(days=180)
                         expire_date_str = expire_date.isoformat()  # Преобразуем дату в строку формата YYYY-MM-DD
                         buy_date_str = date.today().isoformat()  # Преобразуем дату в строку формата YYYY-MM-DD
-                        cur.execute('INSERT INTO keys (key, duration, SOLD, buyer_id, buy_date, expiration_date) VALUES (?, ?, ?, ?, ?, ?)', (vpn_key, 180, 0, callback.from_user.id, buy_date_str, expire_date_str))
+                        cur.execute('INSERT INTO keys (key, duration, SOLD, buyer_id, buy_date, expiration_date, location) VALUES (?, ?, ?, ?, ?, ?, ?)', (vpn_key, 180, 0, callback.from_user.id, buy_date_str, expire_date_str, country))
                         con.commit()
 
                 cur = con.cursor()
@@ -741,7 +752,7 @@ async def plan_year_callback(callback: CallbackQuery):
                         expire_date = date.today() + timedelta(days=365)
                         expire_date_str = expire_date.isoformat()  # Преобразуем дату в строку формата YYYY-MM-DD
                         buy_date_str = date.today().isoformat()  # Преобразуем дату в строку формата YYYY-MM-DD
-                        cur.execute('INSERT INTO keys (key, duration, SOLD, buyer_id, buy_date, expiration_date) VALUES (?, ?, ?, ?, ?, ?)', (vpn_key, 365, 0, callback.from_user.id, buy_date_str, expire_date_str))
+                        cur.execute('INSERT INTO keys (key, duration, SOLD, buyer_id, buy_date, expiration_date, location) VALUES (?, ?, ?, ?, ?, ?, ?)', (vpn_key, 365, 0, callback.from_user.id, buy_date_str, expire_date_str, country))
                         con.commit()
 
                 cur = con.cursor()
@@ -765,7 +776,7 @@ async def my_keys_callback(callback: CallbackQuery):
     await callback.answer("🔗 Мои ключи") # на пол экрана хуйня высветится
     await callback.message.delete()
     ikb_my_keys = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text='🔙 Назад', callback_data='back')],
+        [InlineKeyboardButton(text='🔙 Назад', callback_data='back', icon_custom_emoji_id=get_emoji('exit'))],
     ])
     with sq.connect('database.db') as con:
         cur = con.cursor()
@@ -896,7 +907,7 @@ async def process_deposit(callback: CallbackQuery):
         ikb = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text=f'👉 Перейти к оплате {amount} ₽', url=pay_url)],
             [InlineKeyboardButton(text='✅️ Я оплатил', callback_data=f'check_payment_{invoice_id}')],
-            [InlineKeyboardButton(text='❌ Отменить платеж!', callback_data='back')],
+            [InlineKeyboardButton(text='❌ Отменить платеж!', callback_data='back', icon_custom_emoji_id=get_emoji('exit'))],
         ])
         
 
@@ -1062,9 +1073,9 @@ async def admin_keys_callback(callback: CallbackQuery):
     await callback.message.delete()
     with sq.connect('database.db') as con:
         cur = con.cursor()
-        cur.execute('SELECT key, duration, buyer_id, username, buy_date, expiration_date FROM keys')
+        cur.execute('SELECT key, duration, buyer_id, username, buy_date, expiration_date, location FROM keys')
         result = cur.fetchall()
-        df = pd.DataFrame(result, columns=['Key', 'Duration', 'Buyer_id', 'username', 'buy_date', 'expires_at'])
+        df = pd.DataFrame(result, columns=['Key', 'Duration', 'Buyer_id', 'username', 'buy_date', 'expires_at', 'location'])
         df.to_excel('keys.xlsx', index=False)
         try:
             await callback.message.answer_document(document=FSInputFile('keys.xlsx'), reply_markup=ikb_admin_back)
@@ -1156,7 +1167,7 @@ async def admin_notify_referral_callback(callback: CallbackQuery):
         failed_count = 0
         for user in result:
             try:
-                await bot.send_message(user[0], 'Мало кто знает, но если позвать друга, то получишь приятный бонус ^_^', reply_markup=ikb_referral_reminder)
+                await bot.send_message(user[0], 'Кстати! Если позвать друга, то получишь 50₽ на баланс!', reply_markup=ikb_referral_reminder)
                 sent_count += 1
             except:
                 failed_count += 1
