@@ -134,7 +134,7 @@ async def start_command(message):
     await message.answer_photo(FSInputFile("photos/welcome.png"), caption=f"""👋 Добро пожаловать в Кофеманию
     \nНаш сервис предлагает доступ к локациям:
     \n 🇩🇪 <b>Германия</b>\n 🇫🇮 <b>Финляндия</b>\n 🇦🇹 <b>Австрия</b>\n 🇫🇷 <b>Франция</b>
-    \n 👉🏼 <b> Баланс : {balance} ₽</b>""", parse_mode='HTML', reply_markup=generate_ikb_main(message.from_user.id)) # парсинг HTML чтобы работали теги с хтмл и прилепили маркап к сообщению
+    \n 👉🏼 <b> Баланс : {balance} ₽</b>\n Купить ключи можно так же на сайте <a href='https://coffeemaniavpn.ru'>coffeemaniavpn.ru</a>""", parse_mode='HTML', reply_markup=generate_ikb_main(message.from_user.id)) # парсинг HTML чтобы работали теги с хтмл и прилепили маркап к сообщению
     with sq.connect('database.db') as con:
         cur = con.cursor()
         cur.execute("INSERT OR IGNORE INTO users (id, username, balance, had_trial) VALUES (?, ?, ?, ?)", (message.from_user.id, message.from_user.username, 0, 0))
