@@ -774,7 +774,7 @@ async def my_keys_callback(callback: CallbackQuery):
     await callback.answer("🔗 Мои ключи") # на пол экрана хуйня высветится
     await callback.message.delete()
     ikb_my_keys = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text='Назад', callback_data='back', icon_custom_emoji_id=get_emoji('exit'))],
+        
     ])
     with sq.connect('database.db') as con:
         cur = con.cursor()
@@ -786,6 +786,7 @@ async def my_keys_callback(callback: CallbackQuery):
         for key_id, key in enumerate(result): # перебрать все ключи и вывести их номер
     
             ikb_my_keys.inline_keyboard.append([InlineKeyboardButton(text=f'{key_id + 1}', callback_data=f'use_key_{key_id}', icon_custom_emoji_id = get_emoji('key_emoji')) ])
+        ikb_my_keys.inline_keyboard.append([InlineKeyboardButton(text='Назад', callback_data='back', icon_custom_emoji_id=get_emoji('exit'))]),
         if result:
             await callback.message.answer_photo(MY_KEYS_PHOTO, caption=f"🔗 Мои ключи:", parse_mode='HTML', reply_markup=ikb_my_keys)
         else:
