@@ -27,7 +27,7 @@ print('BOT STARTED!!!')
 try:
     WELCOME_PHOTO = FSInputFile("photos/welcome.png")
     BUY_VPN_PHOTO = FSInputFile("photos/buy_vpn.png")
-    PROFILE_PHOTO = FSInputFile("photos/profile.png")
+    # PROFILE_PHOTO = FSInputFile("photos/profile.png")  # раздел профиль скрыт
     DOCUMENTS_PHOTO = FSInputFile("photos/documents.png")
     INVITE_FRIEND_PHOTO = FSInputFile("photos/invite_friend.png")
     MY_KEYS_PHOTO = FSInputFile("photos/my_keys.png")
@@ -186,7 +186,8 @@ def generate_ikb_main(user_id):
         if had_trial != 1:
             ikb_main.inline_keyboard.append([InlineKeyboardButton(text='🎁 Попробовать бесплатно', callback_data='trial', style = 'success')])
     ikb_main.inline_keyboard.append([InlineKeyboardButton(text='Получить VPN', callback_data='buy_vpn', icon_custom_emoji_id=get_emoji('plus'))])
-    ikb_main.inline_keyboard.append([InlineKeyboardButton(text='Личный кабинет', callback_data='profile', icon_custom_emoji_id=get_emoji('profile'))])
+    ikb_main.inline_keyboard.append([InlineKeyboardButton(text='Пополнить', callback_data='deposit', icon_custom_emoji_id=get_emoji('purse'))])
+    ikb_main.inline_keyboard.append([InlineKeyboardButton(text='Мои ключи', callback_data='my_keys', icon_custom_emoji_id=get_emoji('keys'))])
     ikb_main.inline_keyboard.append([InlineKeyboardButton(text='Реферальная программа', callback_data='referral', icon_custom_emoji_id=get_emoji('add_user'))])
     ikb_main.inline_keyboard.append([InlineKeyboardButton(text='Документы', callback_data='documents', icon_custom_emoji_id=get_emoji('documents'))])
     return ikb_main
@@ -200,7 +201,7 @@ ikb_referral_reminder = InlineKeyboardMarkup(inline_keyboard=[ # клава ко
     [InlineKeyboardButton(text='Назад', callback_data='back', icon_custom_emoji_id=get_emoji('exit'))],
 ])
 # ikb_profile будет создаваться динамически в зависимости от роли пользователя
-
+# (раздел профиль отключён — см. закомментированный profile_callback ниже)
 
 ikb_documents = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text='Пользовательское соглашение', url='https://telegra.ph/Polzovatelskoe-soglashenie-12-22-25', icon_custom_emoji_id=get_emoji('documents'))],
@@ -392,31 +393,25 @@ async def buy_vpn_callback(callback: CallbackQuery):
         balance = result[0] if result else 0
     await callback.message.answer_photo(FSInputFile("photos/buy_vpn.png"), caption=f"🛒 <b>Купить VPN</b>\n\nВыберите локацию:\n\n👉🏼 <b>Баланс: {balance}₽</b>", parse_mode='HTML', reply_markup=ikb_locations)
 
-@dp.callback_query(lambda c: c.data == 'profile')
-async def profile_callback(callback: CallbackQuery):
-    await callback.answer("👤 Личный кабинет") # на пол экрана хуйня высветится
-    await callback.message.delete()
-    with sq.connect('database.db') as con:
-        cur = con.cursor()
-        cur.execute("SELECT balance, ref_balance, role FROM users WHERE id = ?", (callback.from_user.id,)) # вытащить баланс, реферальный баланс и роль из базы данных текущего пользователя
-        result = cur.fetchone() # получить результат из базы данных
-        balance = result[0] if result else 0 # если результат не пустой, то вытащить баланс, иначе 0
-        ref_balance = result[1] if result and len(result) > 1 else 0 # если результат не пустой, то вытащить реферальный баланс, иначе 0
-        role = result[2] if result and len(result) > 2 else None # если результат не пустой, то вытащить роль, иначе None
-    
-    # Создаем клавиатуру динамически в зависимости от роли
-    ikb_profile = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text='🔗 Мои ключи', callback_data='my_keys')],
-        [InlineKeyboardButton(text='💰 Пополнить', callback_data='deposit')],
-    ])
-    
-    # Добавляем кнопку "Вывести реферальный баланс" только для пользователей с ролью Refmaster
-    if role == 'refmaster':
-        ikb_profile.inline_keyboard.append([InlineKeyboardButton(text='💸 Вывести реферальный баланс', callback_data='ref_withdraw')])
-    
-    ikb_profile.inline_keyboard.append([InlineKeyboardButton(text='Назад', callback_data='back', icon_custom_emoji_id=get_emoji('exit'))])
-    
-    await callback.message.answer_photo(PROFILE_PHOTO, caption=f"👤 <b>Личный кабинет</b>\n\n💰 Баланс: {balance} ₽\n💸 Реферальный баланс: {ref_balance} ₽\n🆔 ID: {callback.from_user.id}", parse_mode='HTML', reply_markup=ikb_profile)
+# @dp.callback_query(lambda c: c.data == 'profile')
+# async def profile_callback(callback: CallbackQuery):
+#     await callback.answer("Мои ключи")
+#     await callback.message.delete()
+#     with sq.connect('database.db') as con:
+#         cur = con.cursor()
+#         cur.execute("SELECT balance, ref_balance, role FROM users WHERE id = ?", (callback.from_user.id,))
+#         result = cur.fetchone()
+#         balance = result[0] if result else 0
+#         ref_balance = result[1] if result and len(result) > 1 else 0
+#         role = result[2] if result and len(result) > 2 else None
+#     ikb_profile = InlineKeyboardMarkup(inline_keyboard=[
+#         [InlineKeyboardButton(text='🔗 Мои ключи', callback_data='my_keys')],
+#         [InlineKeyboardButton(text='Пополнить', callback_data='deposit', icon_custom_emoji_id=get_emoji('purse'))],
+#     ])
+#     if role == 'refmaster':
+#         pass
+#     ikb_profile.inline_keyboard.append([InlineKeyboardButton(text='Назад', callback_data='back', icon_custom_emoji_id=get_emoji('exit'))])
+#     await callback.message.answer_photo(PROFILE_PHOTO, caption=f"<b>Мои ключи</b>\n\n💰 Баланс: {balance} ₽\n💸 Реферальный баланс: {ref_balance} ₽\n🆔 ID: {callback.from_user.id}", parse_mode='HTML', reply_markup=ikb_profile)
 
 @dp.callback_query(lambda c: c.data == 'documents')
 async def documents_callback(callback: CallbackQuery):
