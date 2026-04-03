@@ -805,7 +805,7 @@ async def my_keys_callback(callback: CallbackQuery):
 
         ikb_my_keys.inline_keyboard.append([InlineKeyboardButton(text='Назад', callback_data='back', icon_custom_emoji_id=get_emoji('exit'))])
         if result:
-            await callback.message.answer_photo(MY_KEYS_PHOTO, caption=f"🔗 Мои ключи:", parse_mode='HTML', reply_markup=ikb_my_keys)
+            await callback.message.answer_photo(MY_KEYS_PHOTO, reply_markup=ikb_my_keys)
         else:
             cur.execute('SELECT balance FROM users WHERE id = ?', (callback.from_user.id,))
             result = cur.fetchone() # получить результат из базы данных
