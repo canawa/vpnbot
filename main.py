@@ -176,9 +176,9 @@ def generate_ikb_main(user_id):
         result = cur.fetchone()
         had_trial = result[0] if result else 0
         if had_trial != 1:
-            ikb_main.inline_keyboard.append([InlineKeyboardButton(text='🎁 Попробовать бесплатно', callback_data='trial', style = 'success', icon_custom_emoji_id=get_emoji('trial'))])
+            ikb_main.inline_keyboard.append([InlineKeyboardButton(text='🎁 Попробовать бесплатно', callback_data='trial', style = 'success')])
     ikb_main.inline_keyboard.append([InlineKeyboardButton(text='Получить VPN', callback_data='buy_vpn', icon_custom_emoji_id=get_emoji('plus'))])
-    ikb_main.inline_keyboard.append([InlineKeyboardButton(text='Личный кабинет', callback_data='profile', icon_custom_emoji_id=get_emoji('documents'))])
+    ikb_main.inline_keyboard.append([InlineKeyboardButton(text='Личный кабинет', callback_data='profile', icon_custom_emoji_id=get_emoji('profile'))])
     ikb_main.inline_keyboard.append([InlineKeyboardButton(text='Получить 50₽ на баланс', callback_data='referral', icon_custom_emoji_id=get_emoji('add_user'))])
     ikb_main.inline_keyboard.append([InlineKeyboardButton(text='Документы', callback_data='documents', icon_custom_emoji_id=get_emoji('documents'))])
     return ikb_main
