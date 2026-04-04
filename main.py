@@ -396,7 +396,7 @@ async def buy_vpn_callback(callback: CallbackQuery):
         cur.execute('SELECT balance FROM users WHERE id = ?', (callback.from_user.id,))
         result = cur.fetchone()
         balance = result[0] if result else 0
-    await callback.message.answer_photo(FSInputFile("photos/buy_vpn.png"), caption=f"🛒 <b>Купить VPN</b>\n\nВыберите локацию:\n\n👉🏼 <b>Баланс: {balance}₽</b>", parse_mode='HTML', reply_markup=ikb_locations)
+    await callback.message.answer_photo(FSInputFile("photos/buy_vpn.png"), caption=f"<b>Выберите локацию: </b>\n\n👉🏼 <b>Баланс: {balance}₽</b>", parse_mode='HTML', reply_markup=ikb_locations)
 
 # @dp.callback_query(lambda c: c.data == 'profile')
 # async def profile_callback(callback: CallbackQuery):
@@ -422,7 +422,7 @@ async def buy_vpn_callback(callback: CallbackQuery):
 async def documents_callback(callback: CallbackQuery):
     await callback.answer("📄 Документы") # на пол экрана хуйня высветится
     await callback.message.delete()
-    await callback.message.answer_photo(DOCUMENTS_PHOTO, caption="📄 <b>Документы</b>", parse_mode='HTML', reply_markup=ikb_documents)
+    await callback.message.answer_photo(DOCUMENTS_PHOTO, parse_mode='HTML', reply_markup=ikb_documents)
 
 # ДЛЯ ДОКУМЕНТОВ КОЛБЕК НЕ НУЖЕН, ОНИ ОТКРЫВАЮТСЯ КАК СТАТЬЯ
 
@@ -921,7 +921,7 @@ async def use_key_callback(callback: CallbackQuery):
 async def deposit_callback(callback: CallbackQuery):
     await callback.answer("💰 Пополнить") # на пол экрана хуйня высветится
     await callback.message.delete()
-    await callback.message.answer_photo(DEPOSIT_PHOTO, caption="💰 Выберите способ пополнения:", parse_mode='HTML', reply_markup=ikb_deposit_methods)
+    await callback.message.answer_photo(DEPOSIT_PHOTO, caption="<b>Выберите способ пополнения:</b>", parse_mode='HTML', reply_markup=ikb_deposit_methods)
 
 @dp.callback_query(lambda c: c.data == 'deposit_crypto')
 async def deposit_crypto_callback(callback: CallbackQuery):
