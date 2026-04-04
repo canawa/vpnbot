@@ -462,7 +462,7 @@ async def back_callback(callback: CallbackQuery):
     await callback.message.answer_photo(WELCOME_PHOTO, caption=text,
      entities=[MessageEntity(type="custom_emoji", offset=text.index('🙂'), length=1, custom_emoji_id=get_emoji('germany')),
      MessageEntity(type="custom_emoji", offset=text.index('🙃'), length=1, custom_emoji_id=get_emoji('finland')),
-     MessageEntity(type="custom_emoji", offset=text.index('🙃'), length=1, custom_emoji_id=get_emoji('austria')),
+     MessageEntity(type="custom_emoji", offset=text.index('😉'), length=1, custom_emoji_id=get_emoji('austria')),
      MessageEntity(type="custom_emoji", offset=text.index('😊'), length=1, custom_emoji_id=get_emoji('france')),
      ], reply_markup=generate_ikb_main(callback.from_user.id), parse_mode='HTML')
 
