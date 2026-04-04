@@ -464,7 +464,7 @@ async def back_callback(callback: CallbackQuery):
      MessageEntity(type="custom_emoji", offset=text.index('🙃'), length=1, custom_emoji_id=get_emoji('finland')),
      MessageEntity(type="custom_emoji", offset=text.index('🙃'), length=1, custom_emoji_id=get_emoji('austria')),
      MessageEntity(type="custom_emoji", offset=text.index('😊'), length=1, custom_emoji_id=get_emoji('france')),
-     ], reply_markup=generate_ikb_main(callback.from_user.id))
+     ], reply_markup=generate_ikb_main(callback.from_user.id), parse_mode='HTML')
 
 @dp.callback_query(lambda c: c.data == 'trial')
 async def plan_trial(callback: CallbackQuery):
