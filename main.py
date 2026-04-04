@@ -140,10 +140,13 @@ async def start_command(message):
         result = cur.fetchone()
         balance = result[0] if result else 0
 
-    await message.answer_photo(FSInputFile("photos/welcome.png"), caption=f"""👋 Добро пожаловать в Кофеманию
-    \nНаш сервис предлагает доступ к локациям:
-    \n 🇩🇪 <b>Германия</b>\n 🇫🇮 <b>Финляндия</b>\n 🇦🇹 <b>Австрия</b>\n 🇫🇷 <b>Франция</b>
-    \n 👉🏼 <b> Баланс : {balance} ₽</b>\n Купить ключи можно так же на сайте <a href='https://coffeemaniavpn.ru'>coffeemaniavpn.ru</a>""", parse_mode='HTML', reply_markup=generate_ikb_main(message.from_user.id)) # парсинг HTML чтобы работали теги с хтмл и прилепили маркап к сообщению
+    text, caption_entities = _welcome_back_caption(balance)
+    await message.answer_photo(
+        WELCOME_PHOTO,
+        caption=text,
+        caption_entities=caption_entities,
+        reply_markup=generate_ikb_main(message.from_user.id),
+    )
     with sq.connect('database.db') as con:
         cur = con.cursor()
         cur.execute("INSERT OR IGNORE INTO users (id, username, balance, had_trial) VALUES (?, ?, ?, ?)", (message.from_user.id, message.from_user.username, 0, 0))
@@ -471,6 +474,26 @@ def _welcome_back_caption(balance: int) -> tuple[str, list[MessageEntity]]:
         "Купить ключи можно так же на сайте coffeemaniavpn.ru"
     )
     entities: list[MessageEntity] = []
+
+    i = text.index("👋")
+    entities.append(
+        MessageEntity(
+            type="custom_emoji",
+            offset=_utf16_offset(text, i),
+            length=_utf16_span_len(text, i, i + len("👋")),
+            custom_emoji_id=get_emoji("hello"),
+        )
+    )
+    finger = "👉🏼"
+    i = text.index(finger)
+    entities.append(
+        MessageEntity(
+            type="custom_emoji",
+            offset=_utf16_offset(text, i),
+            length=_utf16_span_len(text, i, i + len(finger)),
+            custom_emoji_id=get_emoji("balance"),
+        )
+    )
 
     for ch, loc in (
         ("🙂", "germany"),
