@@ -458,6 +458,52 @@ def _utf16_span_len(s: str, start: int, end: int) -> int:
     return len(s[start:end].encode("utf-16-le")) // 2
 
 
+def _format_key_message(key: str, duration_line: str) -> tuple[str, list[MessageEntity]]:
+    """Ключ в моноширинном блоке; строка срока — всё после «➡️ » (например «Срок действия: 7 дней» или «Срок действия до: 01.04.2026»). Premium: arrow_right, exclamation_mark, pin."""
+    guide = "https://telegra.ph/Instrukciya-po-ustanovke-VPN-01-10"
+    text = (
+        "ВАШ КЛЮЧ:\n\n"
+        f"{key}\n"
+        "(нажмите чтобы скопировать)\n\n"
+        f"➡️ {duration_line}\n\n"
+        "❗️ 1 КЛЮЧ - ОДНО УСТРОЙСТВО\n"
+        f" 📌 Гайд на установку: {guide}"
+    )
+    entities: list[MessageEntity] = []
+
+    key_start = len("ВАШ КЛЮЧ:\n\n")
+    key_end = key_start + len(key)
+    entities.append(
+        MessageEntity(
+            type="code",
+            offset=_utf16_offset(text, key_start),
+            length=_utf16_span_len(text, key_start, key_end),
+        )
+    )
+
+    for marker, emoji_key in (
+        ("➡️", "arrow_right"),
+        ("❗️", "exclamation_mark"),
+        ("📌", "pin"),
+    ):
+        pos = text.index(marker)
+        entities.append(
+            MessageEntity(
+                type="custom_emoji",
+                offset=_utf16_offset(text, pos),
+                length=_utf16_span_len(text, pos, pos + len(marker)),
+                custom_emoji_id=get_emoji(emoji_key),
+            )
+        )
+
+    entities.sort(key=lambda e: e.offset)
+    return text, entities
+
+
+def _format_key_delivery_message(key: str, duration_phrase: str) -> tuple[str, list[MessageEntity]]:
+    return _format_key_message(key, f"Срок действия: {duration_phrase}")
+
+
 def _welcome_back_caption(balance: int) -> tuple[str, list[MessageEntity]]:
     """Текст приветствия без parse_mode: 👋 и 👉🏼 — обычные эмодзи; Premium — только флаги стран; bold и ссылка."""
     text = (
@@ -565,7 +611,8 @@ async def plan_trial(callback: CallbackQuery):
                 con.commit()
                 result = cur.fetchone() # получить результат из базы данных
                 cur.execute('UPDATE users SET had_trial = 1 WHERE id = ?', (callback.from_user.id,))
-            await callback.message.answer(f"🙋🏻‍♂️ ВАШ КЛЮЧ:\n\n<code>{result[0]}</code>\n<i>(нажмите чтобы скопировать)</i> \n\n<b>⌛Срок действия: 3 дня</b>\n\n <b> 📌 1 КЛЮЧ - ОДНО УСТРОЙСТВО</b>\n 🧐 Гайд на установку: https://telegra.ph/Instrukciya-po-ustanovke-VPN-01-10", parse_mode='HTML', reply_markup=ikb_back)
+            t, ent = _format_key_delivery_message(result[0], "3 дня")
+            await callback.message.answer(t, entities=ent, reply_markup=ikb_back)
     else:
         await callback.message.answer('❌ Вы не подписаны на канал! Подпишитесь на канал, чтобы получить бесплатный тестовый период!', parse_mode='HTML', reply_markup=ikb_subscribe)
 
@@ -593,7 +640,8 @@ async def subscribe_confirmed_callback(callback: CallbackQuery):
                 con.commit()
                 result = cur.fetchone() # получить результат из базы данных
                 cur.execute('UPDATE users SET had_trial = 1 WHERE id = ?', (callback.from_user.id,))
-            await callback.message.answer(f"🙋🏻‍♂️ ВАШ КЛЮЧ:\n\n<code>{result[0]}</code>\n<i>(нажмите чтобы скопировать)</i> \n\n<b>⌛Срок действия: 3 дня</b>\n\n <b> 📌 1 КЛЮЧ - ОДНО УСТРОЙСТВО</b>\n 🧐 Гайд на установку: https://telegra.ph/Instrukciya-po-ustanovke-VPN-01-10", parse_mode='HTML', reply_markup=ikb_back)
+            t, ent = _format_key_delivery_message(result[0], "3 дня")
+            await callback.message.answer(t, entities=ent, reply_markup=ikb_back)
     else:
         await callback.message.answer('❌ Вы не подписаны на канал! Подпишитесь на канал, чтобы получить бесплатный тестовый период!', parse_mode='HTML', reply_markup=ikb_subscribe)
 
@@ -642,7 +690,8 @@ async def lifetime_agreement_confirmed_callback(callback: CallbackQuery):
                     if result:
                         cur.execute('UPDATE users SET balance = balance - 2900 WHERE id = ? AND balance >= 2900', (callback.from_user.id,))
                         con.commit() # сохранить изменения в базе данных
-                        await callback.message.answer(f"🙋🏻‍♂️ ВАШ КЛЮЧ:\n\n<code>{result[0]}</code>\n<i>(нажмите чтобы скопировать)</i> \n\n<b>⌛Срок действия: ∞ дней</b>\n\n <b> 📌 1 КЛЮЧ - ОДНО УСТРОЙСТВО</b>\n 🧐 Гайд на установку: https://telegra.ph/Instrukciya-po-ustanovke-VPN-01-10", parse_mode='HTML', reply_markup=ikb_back)
+                        t, ent = _format_key_delivery_message(result[0], "∞ дней")
+                        await callback.message.answer(t, entities=ent, reply_markup=ikb_back)
                         cur.execute('UPDATE keys SET SOLD = 1 WHERE key = ?', (result[0],))
                         cur.execute('UPDATE keys SET buyer_id = ? WHERE key = ?', (callback.from_user.id, result[0]))
                         cur.execute('UPDATE users SET had_trial = 1 WHERE id = ?', (callback.from_user.id,))
@@ -712,7 +761,8 @@ async def plan_week_callback(callback: CallbackQuery):
                 if result:
                     cur.execute('UPDATE users SET balance = balance - 50 WHERE id = ? AND balance >= 50' , (callback.from_user.id,)) # вычесть 100 из баланса текущего пользователя
                     con.commit() # сохранить изменения в базе данных
-                    await callback.message.answer(f"🙋🏻‍♂️ ВАШ КЛЮЧ:\n\n<code>{result[0]}</code>\n<i>(нажмите чтобы скопировать)</i> \n\n<b>⌛Срок действия: 7 дней</b>\n\n <b> 📌 1 КЛЮЧ - ОДНО УСТРОЙСТВО</b>\n 🧐 Гайд на установку: https://telegra.ph/Instrukciya-po-ustanovke-VPN-01-10", parse_mode='HTML', reply_markup=ikb_back)
+                    t, ent = _format_key_delivery_message(result[0], "7 дней")
+                    await callback.message.answer(t, entities=ent, reply_markup=ikb_back)
                     cur.execute('UPDATE keys SET SOLD = 1 WHERE key = ?', (result[0],)) # обновить статус ключа в базе данных
                     cur.execute('UPDATE keys SET buyer_id = ? WHERE key = ?', (callback.from_user.id, result[0])) # обновить ID покупателя в базе данных
                     
@@ -755,7 +805,8 @@ async def plan_month_callback(callback: CallbackQuery):
                 if result:
                     cur.execute('UPDATE users SET balance = balance - 100 WHERE id = ? AND balance >= 100' , (callback.from_user.id,)) # вычесть 100 из баланса текущего пользователя
                     con.commit() # сохранить изменения в базе данных
-                    await callback.message.answer(f"🙋🏻‍♂️ ВАШ КЛЮЧ:\n\n<code>{result[0]}</code>\n<i>(нажмите чтобы скопировать)</i> \n\n<b>⌛Срок действия: 30 дней</b>\n\n <b> 📌 1 КЛЮЧ - ОДНО УСТРОЙСТВО</b>\n🧐 Гайд на установку: https://telegra.ph/Instrukciya-po-ustanovke-VPN-01-10", parse_mode='HTML', reply_markup=ikb_back)
+                    t, ent = _format_key_delivery_message(result[0], "30 дней")
+                    await callback.message.answer(t, entities=ent, reply_markup=ikb_back)
                     cur.execute('UPDATE keys SET SOLD = 1 WHERE key = ?', (result[0],)) # обновить статус ключа в базе данных
                     cur.execute('UPDATE keys SET buyer_id = ? WHERE key = ?', (callback.from_user.id, result[0])) # обновить ID покупателя в базе данных
                     
@@ -799,7 +850,8 @@ async def plan_halfyear_callback(callback: CallbackQuery):
                 if result:
                     cur.execute('UPDATE users SET balance = balance - 500 WHERE id = ? AND balance >= 500' , (callback.from_user.id,)) # вычесть 500 из баланса текущего пользователя
                     con.commit() # сохранить изменения в базе данных
-                    await callback.message.answer(f"🙋🏻‍♂️ ВАШ КЛЮЧ:\n\n<code>{result[0]}</code>\n<i>(нажмите чтобы скопировать)</i> \n\n<b>⌛Срок действия: 180 дней</b>\n\n <b> 📌 1 КЛЮЧ - ОДНО УСТРОЙСТВО</b>\n🧐 Гайд на установку: https://telegra.ph/Instrukciya-po-ustanovke-VPN-01-10", parse_mode='HTML', reply_markup=ikb_back)
+                    t, ent = _format_key_delivery_message(result[0], "180 дней")
+                    await callback.message.answer(t, entities=ent, reply_markup=ikb_back)
                     cur.execute('UPDATE keys SET SOLD = 1 WHERE key = ?', (result[0],)) # обновить статус ключа в базе данных
                     cur.execute('UPDATE keys SET buyer_id = ? WHERE key = ?', (callback.from_user.id, result[0])) # обновить ID покупателя в базе данных
                     
@@ -843,7 +895,8 @@ async def plan_year_callback(callback: CallbackQuery):
                 if result:
                     cur.execute('UPDATE users SET balance = balance - 800 WHERE id = ? AND balance >= 800' , (callback.from_user.id,)) # вычесть 800 из баланса текущего пользователя
                     con.commit() # сохранить изменения в базе данных
-                    await callback.message.answer(f"🙋🏻‍♂️ ВАШ КЛЮЧ:\n\n<code>{result[0]}</code>\n<i>(нажмите чтобы скопировать)</i> \n\n<b>⌛Срок действия: 365 дней</b>\n\n <b> 📌 1 КЛЮЧ - ОДНО УСТРОЙСТВО</b>\n🧐 Гайд на установку: https://telegra.ph/Instrukciya-po-ustanovke-VPN-01-10", parse_mode='HTML', reply_markup=ikb_back)
+                    t, ent = _format_key_delivery_message(result[0], "365 дней")
+                    await callback.message.answer(t, entities=ent, reply_markup=ikb_back)
                     cur.execute('UPDATE keys SET SOLD = 1 WHERE key = ?', (result[0],)) # обновить статус ключа в базе данных
                     cur.execute('UPDATE keys SET buyer_id = ? WHERE key = ?', (callback.from_user.id, result[0])) # обновить ID покупателя в базе данных
                     
@@ -914,7 +967,8 @@ async def use_key_callback(callback: CallbackQuery):
             human_date = '∞'
         else:
             human_date = expiration_date.strftime('%d.%m.%Y') # преобразуем дату в строку формата дд.мм.гггг
-    await callback.message.answer(f"🔑 Использовать ключ: \n\n<code>{key}</code> \n\n <b>📅 Срок действия до: {human_date}</b>\n\n <b> 📌 1 КЛЮЧ - ОДНО УСТРОЙСТВО</b>\n 🧐 Гайд на установку: https://telegra.ph/Instrukciya-po-ustanovke-VPN-01-10", parse_mode='HTML', reply_markup=ikb_back)
+    t, ent = _format_key_message(key, f"Срок действия до: {human_date}")
+    await callback.message.answer(t, entities=ent, reply_markup=ikb_back)
 
 
 @dp.callback_query(lambda c: c.data == 'deposit')
