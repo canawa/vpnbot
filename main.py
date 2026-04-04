@@ -454,10 +454,17 @@ async def back_callback(callback: CallbackQuery):
         cur.execute("SELECT balance FROM users WHERE id = ?", (callback.from_user.id,))
         result = cur.fetchone()
         balance = result[0] if result else 0
-    await callback.message.answer_photo(WELCOME_PHOTO, caption=f"""👋 Добро пожаловать в Кофеманию
+        text = f"""👋 Добро пожаловать в Кофеманию
     \nНаш сервис предлагает доступ к локациям:
-    \n 🇩🇪 <b>Германия</b>\n 🇫🇮 <b>Финляндия</b>\n 🇦🇹 <b>Австрия</b>\n 🇫🇷 <b>Франция</b>
-    \n 👉🏼 <b> Баланс : {balance} ₽</b>\n Купить ключи можно так же на сайте <a href='https://coffeemaniavpn.ru'>coffeemaniavpn.ru</a>""", entities=[MessageEntity(type="custom_emoji", offset=0, length=1, custom_emoji_id=get_emoji('germany'))], parse_mode='HTML', reply_markup=generate_ikb_main(callback.from_user.id)) # парсинг HTML чтобы работали теги с хтмл и прилепили маркап к сообщению
+    \n 🙂 <b>Германия</b>\n 🙃 <b>Финляндия</b>\n 😉<b>Австрия</b>\n 😊 <b>Франция</b>
+    \n 👉🏼 <b> Баланс : {balance} ₽</b>\n Купить ключи можно так же на сайте <a href='https://coffeemaniavpn.ru'>coffeemaniavpn.ru</a> """
+
+    await callback.message.answer_photo(WELCOME_PHOTO, caption=text,
+     entities=[MessageEntity(type="custom_emoji", offset=text.index('🙂'), length=1, custom_emoji_id=get_emoji('germany')),
+     MessageEntity(type="custom_emoji", offset=text.index('🙃'), length=1, custom_emoji_id=get_emoji('finland')),
+     MessageEntity(type="custom_emoji", offset=text.index('🙃'), length=1, custom_emoji_id=get_emoji('austria')),
+     MessageEntity(type="custom_emoji", offset=text.index('😊'), length=1, custom_emoji_id=get_emoji('france')),
+     ], reply_markup=generate_ikb_main(callback.from_user.id))
 
 @dp.callback_query(lambda c: c.data == 'trial')
 async def plan_trial(callback: CallbackQuery):
