@@ -19,6 +19,7 @@ from datetime import datetime
 from check_subscription import is_subscribed
 import locale 
 from emojis import get_emoji
+import textwrap
 locale.setlocale(locale.LC_TIME, 'ru_RU.UTF-8')
 print('BOT STARTED!!!')
 
@@ -454,17 +455,38 @@ async def back_callback(callback: CallbackQuery):
         cur.execute("SELECT balance FROM users WHERE id = ?", (callback.from_user.id,))
         result = cur.fetchone()
         balance = result[0] if result else 0
-        text = f"""👋 Добро пожаловать в Кофеманию
-    \nНаш сервис предлагает доступ к локациям:
-    \n 🙂 <b>Германия</b>\n 🙃 <b>Финляндия</b>\n 😉<b>Австрия</b>\n 😊 <b>Франция</b>
-    \n 👉🏼 <b> Баланс : {balance} ₽</b>\n Купить ключи можно так же на сайте <a href='https://coffeemaniavpn.ru'>coffeemaniavpn.ru</a> """
+        text = textwrap.dedent(f"""
+    👋 Добро пожаловать в Кофеманию
 
-    await callback.message.answer_photo(WELCOME_PHOTO, caption=text,
-     entities=[MessageEntity(type="custom_emoji", offset=text.index('🙂'), length=1, custom_emoji_id=get_emoji('germany')),
-     MessageEntity(type="custom_emoji", offset=text.index('🙃'), length=1, custom_emoji_id=get_emoji('finland')),
-     MessageEntity(type="custom_emoji", offset=text.index('😉'), length=1, custom_emoji_id=get_emoji('austria')),
-     MessageEntity(type="custom_emoji", offset=text.index('😊'), length=1, custom_emoji_id=get_emoji('france')),
-     ], reply_markup=generate_ikb_main(callback.from_user.id), parse_mode='HTML')
+    Наш сервис предлагает доступ к локациям:
+
+    🙂 Германия
+    🙃 Финляндия
+    😉 Австрия
+    😊 Франция
+
+    👉🏼 Баланс : {balance} ₽
+    Купить ключи можно так же на сайте coffeemaniavpn.ru
+""").strip()
+
+    entities = [
+        MessageEntity(type="custom_emoji", offset=text.index("🙂"), length=1, custom_emoji_id=str(get_emoji('germany'))),
+        MessageEntity(type="custom_emoji", offset=text.index("🙃"), length=1, custom_emoji_id=str(get_emoji('finland'))),
+        MessageEntity(type="custom_emoji", offset=text.index("😉"), length=1, custom_emoji_id=str(get_emoji('austria'))),
+        MessageEntity(type="custom_emoji", offset=text.index("😊"), length=1, custom_emoji_id=str(get_emoji('france'))),
+
+        MessageEntity(type="bold", offset=text.index("Германия"), length=len("Германия")),
+        MessageEntity(type="bold", offset=text.index("Финляндия"), length=len("Финляндия")),
+        MessageEntity(type="bold", offset=text.index("Австрия"), length=len("Австрия")),
+        MessageEntity(type="bold", offset=text.index("Франция"), length=len("Франция")),
+    ]
+
+    await callback.message.answer_photo(
+        WELCOME_PHOTO,
+        caption=text,
+        entities=entities,
+        reply_markup=generate_ikb_main(callback.from_user.id)
+    )
 
 @dp.callback_query(lambda c: c.data == 'trial')
 async def plan_trial(callback: CallbackQuery):
