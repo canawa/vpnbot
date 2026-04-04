@@ -19,7 +19,6 @@ from datetime import datetime
 from check_subscription import is_subscribed
 import locale 
 from emojis import get_emoji
-import textwrap
 locale.setlocale(locale.LC_TIME, 'ru_RU.UTF-8')
 print('BOT STARTED!!!')
 
@@ -446,6 +445,84 @@ async def support_callback(callback: CallbackQuery):
     await callback.message.answer("ℹ️ <b>Поддержка</b>\n\nЕсли у вас возникли вопросы, напишите нам в поддержку!", parse_mode='HTML', reply_markup=ikb_support)
 
 
+def _utf16_offset(s: str, char_index: int) -> int:
+    """Смещение в UTF-16 code units (как в Telegram MessageEntity.offset)."""
+    return len(s[:char_index].encode("utf-16-le")) // 2
+
+
+def _utf16_span_len(s: str, start: int, end: int) -> int:
+    """Длина подстроки s[start:end] в UTF-16 code units (MessageEntity.length)."""
+    return len(s[start:end].encode("utf-16-le")) // 2
+
+
+def _welcome_back_caption(balance: int) -> tuple[str, list[MessageEntity]]:
+    """Текст приветствия без parse_mode + сущности: custom emoji (Premium), bold, ссылка."""
+    text = (
+        "👋 Добро пожаловать в Кофеманию\n"
+        "\n"
+        "Наш сервис предлагает доступ к локациям:\n"
+        "\n"
+        " 🙂 Германия\n"
+        " 🙃 Финляндия\n"
+        " 😉 Австрия\n"
+        " 😊 Франция\n"
+        "\n"
+        f" 👉🏼 Баланс : {balance} ₽\n"
+        "Купить ключи можно так же на сайте coffeemaniavpn.ru"
+    )
+    entities: list[MessageEntity] = []
+
+    for ch, loc in (
+        ("🙂", "germany"),
+        ("🙃", "finland"),
+        ("😉", "austria"),
+        ("😊", "france"),
+    ):
+        i = text.index(ch)
+        entities.append(
+            MessageEntity(
+                type="custom_emoji",
+                offset=_utf16_offset(text, i),
+                length=_utf16_span_len(text, i, i + 1),
+                custom_emoji_id=get_emoji(loc),
+            )
+        )
+
+    for name in ("Германия", "Финляндия", "Австрия", "Франция"):
+        i = text.index(name)
+        entities.append(
+            MessageEntity(
+                type="bold",
+                offset=_utf16_offset(text, i),
+                length=_utf16_span_len(text, i, i + len(name)),
+            )
+        )
+
+    bal = f" Баланс : {balance} ₽"
+    i = text.index(bal)
+    entities.append(
+        MessageEntity(
+            type="bold",
+            offset=_utf16_offset(text, i),
+            length=_utf16_span_len(text, i, i + len(bal)),
+        )
+    )
+
+    site = "coffeemaniavpn.ru"
+    i = text.index(site)
+    entities.append(
+        MessageEntity(
+            type="text_link",
+            offset=_utf16_offset(text, i),
+            length=_utf16_span_len(text, i, i + len(site)),
+            url="https://coffeemaniavpn.ru",
+        )
+    )
+
+    entities.sort(key=lambda e: e.offset)
+    return text, entities
+
+
 @dp.callback_query(lambda c: c.data == 'back')
 async def back_callback(callback: CallbackQuery):
     await callback.answer("Назад") # на пол экрана хуйня высветится
@@ -455,37 +532,12 @@ async def back_callback(callback: CallbackQuery):
         cur.execute("SELECT balance FROM users WHERE id = ?", (callback.from_user.id,))
         result = cur.fetchone()
         balance = result[0] if result else 0
-        text = textwrap.dedent(f"""
-    👋 Добро пожаловать в Кофеманию
-
-    Наш сервис предлагает доступ к локациям:
-
-    🙂 Германия
-    🙃 Финляндия
-    😉 Австрия
-    😊 Франция
-
-    👉🏼 Баланс : {balance} ₽
-    Купить ключи можно так же на сайте coffeemaniavpn.ru
-""").strip()
-
-    entities = [
-        MessageEntity(type="custom_emoji", offset=text.index("🙂"), length=1, custom_emoji_id=str(get_emoji('germany'))),
-        MessageEntity(type="custom_emoji", offset=text.index("🙃"), length=1, custom_emoji_id=str(get_emoji('finland'))),
-        MessageEntity(type="custom_emoji", offset=text.index("😉"), length=1, custom_emoji_id=str(get_emoji('austria'))),
-        MessageEntity(type="custom_emoji", offset=text.index("😊"), length=1, custom_emoji_id=str(get_emoji('france'))),
-
-        MessageEntity(type="bold", offset=text.index("Германия"), length=len("Германия")),
-        MessageEntity(type="bold", offset=text.index("Финляндия"), length=len("Финляндия")),
-        MessageEntity(type="bold", offset=text.index("Австрия"), length=len("Австрия")),
-        MessageEntity(type="bold", offset=text.index("Франция"), length=len("Франция")),
-    ]
-
+    text, caption_entities = _welcome_back_caption(balance)
     await callback.message.answer_photo(
         WELCOME_PHOTO,
         caption=text,
-        entities=entities,
-        reply_markup=generate_ikb_main(callback.from_user.id)
+        caption_entities=caption_entities,
+        reply_markup=generate_ikb_main(callback.from_user.id),
     )
 
 @dp.callback_query(lambda c: c.data == 'trial')
