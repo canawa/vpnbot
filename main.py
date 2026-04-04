@@ -459,7 +459,7 @@ def _utf16_span_len(s: str, start: int, end: int) -> int:
 
 
 def _welcome_back_caption(balance: int) -> tuple[str, list[MessageEntity]]:
-    """Текст приветствия без parse_mode + сущности: custom emoji (Premium), bold, ссылка."""
+    """Текст приветствия без parse_mode: 👋 и 👉🏼 — обычные эмодзи; Premium — только флаги стран; bold и ссылка."""
     text = (
         "👋 Добро пожаловать в Кофеманию\n"
         "\n"
@@ -474,26 +474,6 @@ def _welcome_back_caption(balance: int) -> tuple[str, list[MessageEntity]]:
         "Купить ключи можно так же на сайте coffeemaniavpn.ru"
     )
     entities: list[MessageEntity] = []
-
-    i = text.index("👋")
-    entities.append(
-        MessageEntity(
-            type="custom_emoji",
-            offset=_utf16_offset(text, i),
-            length=_utf16_span_len(text, i, i + len("👋")),
-            custom_emoji_id=get_emoji("hello"),
-        )
-    )
-    finger = "👉🏼"
-    i = text.index(finger)
-    entities.append(
-        MessageEntity(
-            type="custom_emoji",
-            offset=_utf16_offset(text, i),
-            length=_utf16_span_len(text, i, i + len(finger)),
-            custom_emoji_id=get_emoji("balance"),
-        )
-    )
 
     for ch, loc in (
         ("🙂", "germany"),
