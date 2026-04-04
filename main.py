@@ -3,7 +3,7 @@ from aiogram import Bot, Dispatcher, types, F
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.filters import CommandStart
-from aiogram.types import Message, CallbackQuery, invoice, LabeledPrice, FSInputFile
+from aiogram.types import Message, CallbackQuery, invoice, LabeledPrice, FSInputFile, MessageEntity
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ChatMember
 import asyncio # для работы с асинхронными функциями
 import sqlite3 as sq
@@ -435,7 +435,7 @@ async def referral_callback(callback: CallbackQuery):
         cur.execute('SELECT ref_balance FROM users WHERE id = ?', (callback.from_user.id,))
         result = cur.fetchone()
         ref_balance = result[0] if result else 0
-    await callback.message.answer_photo(INVITE_FRIEND_PHOTO, caption=f"🤝 <b>Пригласить друга</b>\n\nВаша реферальная ссылка:\n<code>https://t.me/coffemaniaVPNbot?start={callback.from_user.id}</code>\n\n👁️ Всего заработано на баланс VPN: {ref_amount*50} ₽\n\n🤔 <b>За каждого приглашенного друга вы получите 50 ₽ на баланс!</b>", parse_mode='HTML', reply_markup=ikb_referral)
+    await callback.message.answer_photo(INVITE_FRIEND_PHOTO, caption=f"🤝 <b>Пригласить друга</b>\n\nВаша реферальная ссылка:\n<code>https://t.me/coffemaniaVPNbot?start={callback.from_user.id}</code>\n\n👁️ Всего заработано на баланс VPN: {ref_amount*50} ₽\nВсего приведедено друзей: {ref_amount}\n\n🤔 <b>За каждого приглашенного друга вы получите 50 ₽ на баланс!</b>", parse_mode='HTML', reply_markup=ikb_referral)
 
 
 @dp.callback_query(lambda c: c.data == 'support')
@@ -457,7 +457,7 @@ async def back_callback(callback: CallbackQuery):
     await callback.message.answer_photo(WELCOME_PHOTO, caption=f"""👋 Добро пожаловать в Кофеманию
     \nНаш сервис предлагает доступ к локациям:
     \n 🇩🇪 <b>Германия</b>\n 🇫🇮 <b>Финляндия</b>\n 🇦🇹 <b>Австрия</b>\n 🇫🇷 <b>Франция</b>
-    \n 👉🏼 <b> Баланс : {balance} ₽</b>\n Купить ключи можно так же на сайте <a href='https://coffeemaniavpn.ru'>coffeemaniavpn.ru</a>""", parse_mode='HTML', reply_markup=generate_ikb_main(callback.from_user.id)) # парсинг HTML чтобы работали теги с хтмл и прилепили маркап к сообщению
+    \n 👉🏼 <b> Баланс : {balance} ₽</b>\n Купить ключи можно так же на сайте <a href='https://coffeemaniavpn.ru'>coffeemaniavpn.ru</a>""", entities=[MessageEntity(type="custom_emoji", offset=0, length=1, custom_emoji_id=get_emoji('germany'))], parse_mode='HTML', reply_markup=generate_ikb_main(callback.from_user.id)) # парсинг HTML чтобы работали теги с хтмл и прилепили маркап к сообщению
 
 @dp.callback_query(lambda c: c.data == 'trial')
 async def plan_trial(callback: CallbackQuery):
