@@ -236,7 +236,7 @@ ikb_locations = InlineKeyboardMarkup(inline_keyboard=[
 def get_ikb_plans(country:str):
     ikb_plans = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text='👶🏻 Неделя (50₽)', callback_data=f'plan_week_{country}')],
-        [InlineKeyboardButton(text='👦🏻 Месяц (100₽)', callback_data=f'plan_month_{country}')],
+        [InlineKeyboardButton(text='👦🏻 Месяц (150₽)', callback_data=f'plan_month_{country}')],
         [InlineKeyboardButton(text='🧔 Полгода (500₽)', callback_data=f'plan_halfyear_{country}')],
         [InlineKeyboardButton(text='👨🏻 Год (800₽)', callback_data=f'plan_year_{country}')],
         [InlineKeyboardButton(text='👴🏻 Пожизненно (2900₽)', callback_data=f'plan_lifetime_{country}')],
@@ -263,7 +263,7 @@ ikb_deposit_methods = InlineKeyboardMarkup(inline_keyboard=[
 ])
 
 def deposit_keyboard(method):
-    amount = [50, 100, 200, 500, 2900]
+    amount = [50, 150, 500, 800, 2900]
     ikb_deposit_sums = InlineKeyboardMarkup(inline_keyboard=[])
     for sum in amount:
         ikb_deposit_sums.inline_keyboard.append([InlineKeyboardButton(text=f'🟣 {sum}₽', callback_data=f'deposit_{sum}_{method}')])
@@ -782,7 +782,7 @@ async def plan_month_callback(callback: CallbackQuery):
         result = cur.fetchone() # получить результат из базы данных
         balance = result[0] if result else 0 # если результат не пустой, то вытащить баланс, иначе 0
         # con.commit() # сохранить изменения в базе данных
-        if balance >= 100:
+        if balance >= 150:
             with sq.connect('database.db') as con:
                 try:
                     vpn_key = await generate_vpn_key(callback.from_user.id, 30, country)
@@ -803,7 +803,7 @@ async def plan_month_callback(callback: CallbackQuery):
                 cur.execute('SELECT key FROM keys WHERE duration = 30 AND SOLD = 0 ORDER BY rowid DESC LIMIT 1')
                 result = cur.fetchone() # получить результат из базы данных
                 if result:
-                    cur.execute('UPDATE users SET balance = balance - 100 WHERE id = ? AND balance >= 100' , (callback.from_user.id,)) # вычесть 100 из баланса текущего пользователя
+                    cur.execute('UPDATE users SET balance = balance - 150 WHERE id = ? AND balance >= 150' , (callback.from_user.id,)) # вычесть 150 из баланса текущего пользователя
                     con.commit() # сохранить изменения в базе данных
                     t, ent = _format_key_delivery_message(result[0], "30 дней")
                     await callback.message.answer(t, entities=ent, reply_markup=ikb_back)
