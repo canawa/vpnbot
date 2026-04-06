@@ -233,7 +233,12 @@ async def start_command(message):
                             "INSERT OR IGNORE INTO referal_users (referral_id, ref_master_id, registration_date) VALUES (?, ?, ?)", (message.from_user.id, ref, registration_date)
                         )
                         con.commit()
-                        cur.execute("UPDATE users SET balance = balance + 50 WHERE id = ?", (ref,))
+                        cur.execute('SELECT role FROM users WHERE id = ?', (ref,))
+                        ref_role_row = cur.fetchone()
+                        ref_role = (ref_role_row[0] if ref_role_row else None) or ''
+                        # Для refmaster отключен старый фиксированный бонус +50 за нового друга.
+                        if ref_role.lower() != 'refmaster':
+                            cur.execute("UPDATE users SET balance = balance + 50 WHERE id = ?", (ref,))
                         cur.execute('UPDATE users SET ref_amount = ref_amount + 1 WHERE id = ?', (ref,))
                 con.commit()
 
@@ -526,16 +531,50 @@ async def documents_callback(callback: CallbackQuery):
 
 @dp.callback_query(lambda c: c.data == 'referral')
 async def referral_callback(callback: CallbackQuery):
-    await callback.answer("🤝 Получить 50₽ на баланс") # на пол экрана хуйня высветится
+    await callback.answer("🤝 Реферальная программа") # на пол экрана хуйня высветится
     await callback.message.delete()
     with sq.connect('database.db') as con:
         cur = con.cursor()
-        cur.execute("SELECT ref_amount FROM users WHERE id = ?", (callback.from_user.id,)) # вытащить реферальное количество из базы данных текущего пользователя
+        cur.execute("SELECT ref_amount, role FROM users WHERE id = ?", (callback.from_user.id,)) # вытащить реферальное количество из базы данных текущего пользователя
         result = cur.fetchone() # получить результат из базы данных
         ref_amount = result[0] if result else 0 # если результат не пустой, то вытащить реферальное количество, иначе 0
+        role = (result[1] if result and len(result) > 1 else None) or ''
         cur.execute('SELECT ref_balance FROM users WHERE id = ?', (callback.from_user.id,))
         result = cur.fetchone()
         ref_balance = result[0] if result else 0
+        if role.lower() == 'refmaster':
+            cur.execute('SELECT COUNT(*) FROM referal_users WHERE ref_master_id = ?', (callback.from_user.id,))
+            refs_total = (cur.fetchone() or (0,))[0]
+            cur.execute(
+                """
+                SELECT COUNT(*), COALESCE(SUM(CAST(t.amount AS INTEGER)), 0)
+                FROM transactions t
+                JOIN referal_users r ON r.referral_id = t.user_id
+                WHERE r.ref_master_id = ?
+                  AND t.type IN ('CryptoBot', 'yookassa')
+                """,
+                (callback.from_user.id,),
+            )
+            dep_stats = cur.fetchone() or (0, 0)
+            deposits_count = dep_stats[0] or 0
+            deposits_total = int(dep_stats[1] or 0)
+            ref_share = deposits_total // 2
+            await callback.message.answer_photo(
+                INVITE_FRIEND_PHOTO,
+                caption=(
+                    "🤝 <b>Реферальная программа</b>\n\n"
+                    "Ваша реферальная ссылка:\n"
+                    f"<code>https://t.me/coffemaniaVPNbot?start={callback.from_user.id}</code>\n\n"
+                    f"👥 Количество рефералов: {refs_total}\n"
+                    f"💳 Количество депозитов: {deposits_count}\n"
+                    f"💰 Общая сумма депозитов: {deposits_total} ₽\n"
+                    f"🧮 Ваша доля (50%): {ref_share} ₽\n"
+                    f"🏦 Реферальный баланс: {int(ref_balance)} ₽"
+                ),
+                parse_mode='HTML',
+                reply_markup=ikb_referral,
+            )
+            return
     await callback.message.answer_photo(INVITE_FRIEND_PHOTO, caption=f"🤝 <b>Пригласить друга</b>\n\nВаша реферальная ссылка:\n<code>https://t.me/coffemaniaVPNbot?start={callback.from_user.id}</code>\n\n👁️ Всего заработано на баланс VPN: {ref_amount*50} ₽\nВсего приведедено друзей: {ref_amount}\n\n🤔 <b>За каждого приглашенного друга вы получите 50 ₽ на баланс!</b>", parse_mode='HTML', reply_markup=ikb_referral)
 
 
