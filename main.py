@@ -558,7 +558,9 @@ async def referral_callback(callback: CallbackQuery):
             dep_stats = cur.fetchone() or (0, 0)
             deposits_count = dep_stats[0] or 0
             deposits_total = int(dep_stats[1] or 0)
-            ref_share = deposits_total // 2
+            # "Ваша доля" считаем строго как 50% от депозитов рефералов.
+            # Фиксированные бонусы 50₽ за приглашения сюда не входят.
+            ref_share = int(deposits_total * 0.5)
             await callback.message.answer_photo(
                 INVITE_FRIEND_PHOTO,
                 caption=(
@@ -568,7 +570,7 @@ async def referral_callback(callback: CallbackQuery):
                     f"👥 Количество рефералов: {refs_total}\n"
                     f"💳 Количество депозитов: {deposits_count}\n"
                     f"💰 Общая сумма депозитов: {deposits_total} ₽\n"
-                    f"🧮 Ваша доля (50%): {ref_share} ₽\n"
+                    f"🧮 Ваша доля (50%, без бонусов 50₽): {ref_share} ₽\n"
                     f"🏦 Реферальный баланс: {int(ref_balance)} ₽"
                 ),
                 parse_mode='HTML',
