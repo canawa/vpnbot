@@ -78,7 +78,7 @@ async def generate_vpn_keys(user_id: int, duration_days: int, country: str) -> l
             return None
 
     username = f"user_{user_id}_{secrets.token_hex(8)}"
-
+    print(f"username: {username}")
     expire_ts = 0 if duration_days <= 0 else int(
         (datetime.now() + timedelta(days=duration_days)).timestamp()
     )
