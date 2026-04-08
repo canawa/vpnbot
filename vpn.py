@@ -10,6 +10,11 @@ from marzban.models import UserCreate, ProxySettings
 dotenv.load_dotenv()
 
 COUNTRIES = {
+    'germany_whitelist': {
+        "url": os.getenv("MARZABAN_URL_GERMANY_WHITELIST"),
+        "username": os.getenv("MARZABAN_USERNAME_GERMANY_WHITELIST"),
+        "password": os.getenv("MARZABAN_PASSWORD_GERMANY_WHITELIST"),
+    },
     "germany": {
         "url": os.getenv("MARZABAN_URL_GERMANY"),
         "username": os.getenv("MARZABAN_USERNAME_GERMANY"),
