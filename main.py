@@ -1237,10 +1237,7 @@ async def replace_config_execute_callback(callback: CallbackQuery):
             await callback.message.answer('❌ Не удалось удалить старый ключ. Попробуйте позже или обратитесь в поддержку.', reply_markup=ikb_support)
             return
     else:
-        await callback.message.answer(
-            'Перевыпустили ключ',
-            reply_markup=ikb_back,
-        )
+        pass
 
     try:
         new_username, new_keys = await generate_vpn_user(uid, days_left, new_location)
