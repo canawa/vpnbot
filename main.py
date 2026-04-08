@@ -165,12 +165,17 @@ async def _deliver_month_vpn(user_id: int, country: str, reply) -> None:
             )
         con.commit()
     if country == 'germany' and len(vpn_keys) >= 2:
-        t1, e1 = _format_key_delivery_message(vpn_keys[0], '30 дней')
-        t2, e2 = _format_key_delivery_message(vpn_keys[1], '30 дней')
-        await reply.answer(f'🇩🇪 <b>Обычная Германия (основной ключ)</b>', parse_mode='HTML')
-        await reply.answer(t1, entities=e1, reply_markup=ikb_back)
-        await reply.answer(f'📶 <b>Germany LTE bypass (дополнительный ключ)</b>', parse_mode='HTML')
-        await reply.answer(t2, entities=e2, reply_markup=ikb_back)
+        await reply.answer(
+            "🇩🇪 <b>Ваши ключи на 30 дней</b>\n\n"
+            "1) <b>Обычная Германия (основной)</b>\n"
+            f"<code>{vpn_keys[0]}</code>\n\n"
+            "2) <b>Germany LTE bypass</b>\n"
+            f"<code>{vpn_keys[1]}</code>\n\n"
+            "❗️ 1 КЛЮЧ = 1 УСТРОЙСТВО\n"
+            "📌 Гайд на установку: https://telegra.ph/Instrukciya-po-ustanovke-VPN-01-10",
+            parse_mode='HTML',
+            reply_markup=ikb_back,
+        )
     else:
         t, ent = _format_key_delivery_message(vpn_keys[0], '30 дней')
         await reply.answer(t, entities=ent, reply_markup=ikb_back)
