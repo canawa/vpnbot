@@ -422,8 +422,6 @@ async def check_payment_callback(callback: CallbackQuery):
     try:
         # Убрали лишний print для экономии памяти
         if status == 'paid':
-            await callback.message.answer(f'🤑 Оплачено! \n\n ➕ Начислено {amount} ₽ на баланс', parse_mode='HTML', reply_markup=ikb_back)
-            await callback.message.delete()
             with sq.connect('database.db') as con:
                 cur = con.cursor()
                 cur.execute('UPDATE users SET balance = balance + ? WHERE id = ?', (amount, callback.from_user.id))
@@ -444,7 +442,12 @@ async def check_payment_callback(callback: CallbackQuery):
                                 cur.execute('UPDATE users SET ref_balance = ref_balance + ? WHERE id = ?', (int(amount)/2, ref_master_id))
                 con.commit()
             am_rub = int(float(amount))
-            await _maybe_complete_vpn_after_topup(callback.from_user.id, am_rub, callback.message)
+            handled_vpn = await _maybe_complete_vpn_after_topup(callback.from_user.id, am_rub, callback.message)
+            if handled_vpn:
+                await callback.message.delete()
+                return
+            await callback.message.answer(f'🤑 Оплачено! \n\n ➕ Начислено {amount} ₽ на баланс', parse_mode='HTML', reply_markup=ikb_back)
+            await callback.message.delete()
         else:
             await callback.message.answer('👀 Ожидаем оплату, оплатите и попробуйте снова!', parse_mode='HTML')
     except Exception as e:
@@ -476,9 +479,12 @@ async def check_payment_yookassa_callback(callback: CallbackQuery): # сюды
                         if ref_master_role and ref_master_role[0] == 'refmaster':
                             cur.execute('UPDATE users SET ref_balance = ref_balance + ? WHERE id = ?', (int(amount)/2, ref_master_id)) # начислить 50% реферального бонуса рефоводу
             con.commit()
+        handled_vpn = await _maybe_complete_vpn_after_topup(callback.from_user.id, int(amount), callback.message)
+        if handled_vpn:
+            await callback.message.delete()
+            return
         await callback.message.answer(f'🤑 Оплачено! \n\n ➕ Начислено {amount} ₽ на баланс', parse_mode='HTML', reply_markup=ikb_back)
         await callback.message.delete()
-        await _maybe_complete_vpn_after_topup(callback.from_user.id, int(amount), callback.message)
 
     else:
         await callback.message.answer(f'👀 Ожидаем оплату, оплатите и попробуйте снова!', parse_mode='HTML', reply_markup=ikb_back)
@@ -1195,7 +1201,6 @@ async def handle_successful_payment(message: Message):
                             cur.execute('UPDATE users SET ref_balance = ref_balance + ? WHERE id = ?', (int(amount_rub) / 2, ref_master_id))
             con.commit()
         _vpn_pending_clear(user_id)
-        await message.answer(f'🤑 Оплачено! \n\n ➕ Начислено {amount_rub} ₽ на баланс', parse_mode='HTML', reply_markup=ikb_back)
         await _deliver_month_vpn(user_id, country, message)
         return
     if len(parts) >= 3 and parts[0] == 'deposit':
