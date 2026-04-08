@@ -169,7 +169,7 @@ async def _deliver_month_vpn(user_id: int, country: str, reply) -> None:
             "🇩🇪 <b>Ваши ключи на 30 дней</b>\n\n"
             "1) <b>Обычная Германия (основной)</b>\n"
             f"<code>{vpn_keys[0]}</code>\n\n"
-            "2) <b>Germany LTE bypass</b>\n"
+            "2) <b>📶 LTE Обход</b>\n"
             f"<code>{vpn_keys[1]}</code>\n\n"
             "❗️ 1 КЛЮЧ = 1 УСТРОЙСТВО\n"
             "📌 Гайд на установку: https://telegra.ph/Instrukciya-po-ustanovke-VPN-01-10",
@@ -341,7 +341,7 @@ ikb_support = InlineKeyboardMarkup(inline_keyboard=[
 ])
 
 ikb_locations = InlineKeyboardMarkup(inline_keyboard=[
-    [InlineKeyboardButton(text='Германия', callback_data='germany', icon_custom_emoji_id=get_emoji('germany'))],
+    [InlineKeyboardButton(text='Германия + LTE обход', callback_data='germany', icon_custom_emoji_id=get_emoji('germany'))],
     [InlineKeyboardButton(text='Финляндия', callback_data='finland', icon_custom_emoji_id=get_emoji('finland'))],
     [InlineKeyboardButton(text='Австрия', callback_data='austria', icon_custom_emoji_id=get_emoji('austria'))],
     [InlineKeyboardButton(text='Франция', callback_data='france', icon_custom_emoji_id=get_emoji('france'))],
