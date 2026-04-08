@@ -341,7 +341,7 @@ ikb_support = InlineKeyboardMarkup(inline_keyboard=[
 ])
 
 ikb_locations = InlineKeyboardMarkup(inline_keyboard=[
-    [InlineKeyboardButton(text='Германия + LTE обход', callback_data='germany', icon_custom_emoji_id=get_emoji('germany'))],
+    [InlineKeyboardButton(text='Германия + LTE обход (белые списки)', callback_data='germany', icon_custom_emoji_id=get_emoji('germany'))],
     [InlineKeyboardButton(text='Финляндия', callback_data='finland', icon_custom_emoji_id=get_emoji('finland'))],
     [InlineKeyboardButton(text='Австрия', callback_data='austria', icon_custom_emoji_id=get_emoji('austria'))],
     [InlineKeyboardButton(text='Франция', callback_data='france', icon_custom_emoji_id=get_emoji('france'))],

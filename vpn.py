@@ -63,6 +63,11 @@ def _extract_links(payload) -> list[str]:
     return []
 
 
+def _prefer_vless(links: list[str]) -> list[str]:
+    vless_links = [link for link in links if isinstance(link, str) and link.startswith("vless://")]
+    return vless_links if vless_links else links
+
+
 async def generate_vpn_keys(user_id: int, duration_days: int, country: str) -> list[str]:
     api, cfg = get_api(country)
 
@@ -83,7 +88,6 @@ async def generate_vpn_keys(user_id: int, duration_days: int, country: str) -> l
             username=username,
             proxies={
                 "vless": ProxySettings(flow="xtls-rprx-vision"),
-                "shadowsocks": ProxySettings(),
             },
             expire=expire_ts,
             data_limit=0
@@ -94,7 +98,7 @@ async def generate_vpn_keys(user_id: int, duration_days: int, country: str) -> l
 
         links = _extract_links(getattr(user_info, 'links', None))
         if links:
-            return links
+            return _prefer_vless(links)
 
         try:
             async with aiohttp.ClientSession() as session:
@@ -125,7 +129,7 @@ async def generate_vpn_keys(user_id: int, duration_days: int, country: str) -> l
 
                         links = _extract_links(data)
                         if links:
-                            return links
+                            return _prefer_vless(links)
 
         except Exception as e:
             print(f"links error: {e}")
@@ -143,7 +147,7 @@ async def generate_vpn_keys(user_id: int, duration_days: int, country: str) -> l
 
                 links = _extract_links(getattr(user_info, 'links', None))
                 if links:
-                    return links
+                    return _prefer_vless(links)
 
             except Exception as e2:
                 print(f"retry error: {e2}")
