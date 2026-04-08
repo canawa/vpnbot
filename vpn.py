@@ -1,5 +1,6 @@
 import os
 import secrets
+import asyncio
 from datetime import datetime, timedelta
 
 import aiohttp
@@ -68,6 +69,26 @@ def _prefer_vless(links: list[str]) -> list[str]:
     return vless_links if vless_links else links
 
 
+async def _poll_user_vless_links(api: MarzbanAPI, cfg: dict, token: str, username: str, tries: int = 6, delay_sec: float = 1.0) -> list[str]:
+    """Marzban иногда отдает ссылки не сразу после add_user — ждём несколько попыток."""
+    for attempt in range(tries):
+        try:
+            user_info = await api.get_user(username=username, token=token)
+            links = _prefer_vless(_extract_links(getattr(user_info, 'links', None)))
+            if len(links) >= 2:
+                return links
+            if links:
+                # Даже если пока 1 ключ, дадим шанс серверу досинхрониться.
+                last_links = links
+            else:
+                last_links = []
+        except Exception:
+            last_links = []
+        if attempt < tries - 1:
+            await asyncio.sleep(delay_sec)
+    return last_links
+
+
 async def generate_vpn_keys(user_id: int, duration_days: int, country: str) -> list[str]:
     api, cfg = get_api(country)
 
@@ -94,11 +115,9 @@ async def generate_vpn_keys(user_id: int, duration_days: int, country: str) -> l
         )
 
         await api.add_user(user=new_user, token=token)
-        user_info = await api.get_user(username=username, token=token)
-
-        links = _extract_links(getattr(user_info, 'links', None))
+        links = await _poll_user_vless_links(api, cfg, token, username)
         if links:
-            return _prefer_vless(links)
+            return links
 
         try:
             async with aiohttp.ClientSession() as session:
@@ -143,11 +162,9 @@ async def generate_vpn_keys(user_id: int, duration_days: int, country: str) -> l
             token = await get_marzban_token(country)
             try:
                 await api.add_user(user=new_user, token=token)
-                user_info = await api.get_user(username=username, token=token)
-
-                links = _extract_links(getattr(user_info, 'links', None))
+                links = await _poll_user_vless_links(api, cfg, token, username)
                 if links:
-                    return _prefer_vless(links)
+                    return links
 
             except Exception as e2:
                 print(f"retry error: {e2}")
