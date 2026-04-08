@@ -141,10 +141,18 @@ def get_vpn_pay_keyboard(balance: int) -> InlineKeyboardMarkup:
 async def _deliver_month_vpn(user_id: int, country: str, reply) -> None:
     """Списать _MONTH_PRICE с баланса и выдать месячный ключ (reply = message/callback.message)."""
     try:
-        vpn_keys = await generate_vpn_keys(user_id, 30, country) if country == 'germany_whitelist' else [await generate_vpn_key(user_id, 30, country)]
+        if country == 'germany_whitelist':
+            try:
+                vpn_keys = await generate_vpn_keys(user_id, 30, country)
+            except ValueError:
+                # Фолбэк: если whitelist-сервер не настроен, выдаем обычную Германию.
+                vpn_keys = [await generate_vpn_key(user_id, 30, 'germany')]
+                await reply.answer('ℹ️ LTE-сервер временно недоступен, выдали обычный ключ Германии.', parse_mode='HTML')
+        else:
+            vpn_keys = [await generate_vpn_key(user_id, 30, country)]
     except Exception as e:
         await reply.answer(f'❌ Не удалось сгенерировать ключ: {e}. Напишите в техподдержку, мы обязательно поможем!', reply_markup=ikb_support)
-        raise e
+        return
     vpn_keys = [k for k in (vpn_keys or []) if k]
     if not vpn_keys:
         return

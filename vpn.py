@@ -42,6 +42,11 @@ TOKENS = {}
 
 def get_api(country: str):
     cfg = COUNTRIES[country]
+    if not cfg.get("url"):
+        raise ValueError(
+            f"Не настроен URL для локации '{country}'. "
+            f"Проверьте переменную окружения MARZABAN_URL_{country.upper()}."
+        )
     api = MarzbanAPI(base_url=cfg["url"])
     return api, cfg
 
