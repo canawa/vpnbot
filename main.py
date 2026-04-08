@@ -164,13 +164,18 @@ async def _deliver_month_vpn(user_id: int, country: str, reply) -> None:
                 (key, 30, 1, user_id, buy_date_str, expire_date_str, country),
             )
         con.commit()
-    if country == 'germany' and len(vpn_keys) >= 2:
+    if country == 'germany':
+        second_key_block = (
+            f"<code>{vpn_keys[1]}</code>"
+            if len(vpn_keys) >= 2
+            else "⚠️ Не получен от сервера. Если повторится — напишите в поддержку."
+        )
         await reply.answer(
             "🇩🇪 <b>Ваши ключи на 30 дней</b>\n\n"
             "1) <b>Обычная Германия (основной)</b>\n"
             f"<code>{vpn_keys[0]}</code>\n\n"
             "2) <b>📶🌐🔄 LTE Обход (белые списки)</b>\n"
-            f"<code>{vpn_keys[1]}</code>\n\n"
+            f"{second_key_block}\n\n"
             "❗️ 1 КЛЮЧ = 1 УСТРОЙСТВО\n"
             "📌 Гайд на установку: https://telegra.ph/Instrukciya-po-ustanovke-VPN-01-10",
             parse_mode='HTML',
