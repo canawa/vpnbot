@@ -170,3 +170,85 @@ async def generate_vpn_key(user_id: int, duration_days: int, country: str) -> st
     if not links:
         return None
     return links[0]
+
+
+async def generate_vpn_user(user_id: int, duration_days: int, country: str) -> tuple[str | None, list[str]]:
+    """
+    Создает пользователя в Marzban и возвращает (marzban_username, links).
+    Нужен для операций замены/удаления, где требуется username в панели.
+    """
+    api, cfg = get_api(country)
+
+    token = TOKENS.get(country)
+    if not token:
+        token = await get_marzban_token(country)
+        if not token:
+            return None, []
+
+    username = f"user_{user_id}_{secrets.token_hex(8)}"
+    expire_ts = 0 if duration_days <= 0 else int(
+        (datetime.now() + timedelta(days=duration_days)).timestamp()
+    )
+
+    try:
+        new_user = UserCreate(
+            username=username,
+            proxies={
+                "vless": ProxySettings(flow="xtls-rprx-vision"),
+            },
+            expire=expire_ts,
+            data_limit=0,
+        )
+
+        await api.add_user(user=new_user, token=token)
+        user_info = await api.get_user(username=username, token=token)
+
+        links = _extract_links(getattr(user_info, "links", None))
+        if links:
+            return username, _prefer_vless(links)
+
+        try:
+            async with aiohttp.ClientSession() as session:
+                headers = {"Authorization": f"Bearer {token}"}
+                async with session.get(
+                    f"{cfg['url']}/api/v1/user/{username}/subscription",
+                    headers=headers,
+                    params={"client_type": "v2ray"},
+                    timeout=aiohttp.ClientTimeout(total=10),
+                ) as resp:
+                    if resp.status == 200:
+                        text = await resp.text()
+                        if text.startswith(("vless://", "vmess://", "ss://")):
+                            return username, [text]
+        except Exception as e:
+            print(f"subscription error: {e}")
+
+        try:
+            async with aiohttp.ClientSession() as session:
+                headers = {"Authorization": f"Bearer {token}"}
+                async with session.get(
+                    f"{cfg['url']}/api/v1/user/{username}/links",
+                    headers=headers,
+                    timeout=aiohttp.ClientTimeout(total=10),
+                ) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        links = _extract_links(data)
+                        if links:
+                            return username, _prefer_vless(links)
+        except Exception as e:
+            print(f"links error: {e}")
+
+        return username, []
+    except Exception as e:
+        print(f"create user error: {e}")
+        if "401" in str(e) or "Unauthorized" in str(e):
+            token = await get_marzban_token(country)
+            try:
+                await api.add_user(user=new_user, token=token)
+                user_info = await api.get_user(username=username, token=token)
+                links = _extract_links(getattr(user_info, "links", None))
+                return username, _prefer_vless(links) if links else []
+            except Exception as e2:
+                print(f"retry error: {e2}")
+        return None, []
