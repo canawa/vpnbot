@@ -61,6 +61,15 @@ def _extract_links(payload) -> list[str]:
         return [payload]
     if isinstance(payload, list):
         return [item for item in payload if isinstance(item, str) and item]
+    if isinstance(payload, dict):
+        collected: list[str] = []
+        for key in ("links", "subscriptions", "subscription", "results"):
+            value = payload.get(key)
+            if isinstance(value, str):
+                collected.append(value)
+            elif isinstance(value, list):
+                collected.extend([item for item in value if isinstance(item, str) and item])
+        return collected
     return []
 
 
@@ -69,21 +78,50 @@ def _prefer_vless(links: list[str]) -> list[str]:
     return vless_links if vless_links else links
 
 
+def _unique_keep_order(items: list[str]) -> list[str]:
+    seen = set()
+    result: list[str] = []
+    for item in items:
+        if item not in seen:
+            seen.add(item)
+            result.append(item)
+    return result
+
+
+async def _fetch_links_endpoint(cfg: dict, token: str, username: str) -> list[str]:
+    async with aiohttp.ClientSession() as session:
+        headers = {"Authorization": f"Bearer {token}"}
+        async with session.get(
+            f"{cfg['url']}/api/v1/user/{username}/links",
+            headers=headers,
+            timeout=aiohttp.ClientTimeout(total=10),
+        ) as resp:
+            if resp.status != 200:
+                return []
+            data = await resp.json()
+            return _prefer_vless(_extract_links(data))
+
+
 async def _poll_user_vless_links(api: MarzbanAPI, cfg: dict, token: str, username: str, tries: int = 6, delay_sec: float = 1.0) -> list[str]:
     """Marzban иногда отдает ссылки не сразу после add_user — ждём несколько попыток."""
+    last_links: list[str] = []
     for attempt in range(tries):
+        merged: list[str] = []
         try:
             user_info = await api.get_user(username=username, token=token)
-            links = _prefer_vless(_extract_links(getattr(user_info, 'links', None)))
-            if len(links) >= 2:
-                return links
-            if links:
-                # Даже если пока 1 ключ, дадим шанс серверу досинхрониться.
-                last_links = links
-            else:
-                last_links = []
+            merged.extend(_prefer_vless(_extract_links(getattr(user_info, 'links', None))))
         except Exception:
-            last_links = []
+            pass
+        try:
+            merged.extend(await _fetch_links_endpoint(cfg, token, username))
+        except Exception:
+            pass
+        links = _unique_keep_order(_prefer_vless(merged))
+        if len(links) >= 2:
+            return links
+        if links:
+            # Даже если пока 1 ключ, дадим шанс серверу досинхрониться.
+            last_links = links
         if attempt < tries - 1:
             await asyncio.sleep(delay_sec)
     return last_links
@@ -136,20 +174,9 @@ async def generate_vpn_keys(user_id: int, duration_days: int, country: str) -> l
             print(f"subscription error: {e}")
 
         try:
-            async with aiohttp.ClientSession() as session:
-                headers = {"Authorization": f"Bearer {token}"}
-                async with session.get(
-                    f"{cfg['url']}/api/v1/user/{username}/links",
-                    headers=headers,
-                    timeout=aiohttp.ClientTimeout(total=10)
-                ) as resp:
-                    if resp.status == 200:
-                        data = await resp.json()
-
-                        links = _extract_links(data)
-                        if links:
-                            return _prefer_vless(links)
-
+            links = await _fetch_links_endpoint(cfg, token, username)
+            if links:
+                return links
         except Exception as e:
             print(f"links error: {e}")
 
