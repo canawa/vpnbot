@@ -173,17 +173,8 @@ async def _deliver_month_vpn(user_id: int, country: str, reply) -> None:
             )
         con.commit()
     if country == 'germany_whitelist' and len(vpn_keys) >= 2:
-        await reply.answer(
-            "🇩🇪 <b>Ваши ключи на 30 дней</b>\n\n"
-            "1) <b>Обычная Германия (основной)</b>\n"
-            f"<code>{vpn_keys[0]}</code>\n\n"
-            "2) <b>📶 LTE Обход</b>\n"
-            f"<code>{vpn_keys[1]}</code>\n\n"
-            "❗️ 1 КЛЮЧ = 1 УСТРОЙСТВО\n"
-            "📌 Гайд на установку: https://telegra.ph/Instrukciya-po-ustanovke-VPN-01-10",
-            parse_mode='HTML',
-            reply_markup=ikb_back,
-        )
+        t, ent = _format_whitelist_keys_message(vpn_keys[0], vpn_keys[1], "Срок действия: 30 дней")
+        await reply.answer(t, entities=ent, reply_markup=ikb_back)
     else:
         t, ent = _format_key_delivery_message(vpn_keys[0], '30 дней')
         await reply.answer(t, entities=ent, reply_markup=ikb_back)
@@ -621,7 +612,7 @@ def _utf16_span_len(s: str, start: int, end: int) -> int:
 
 def _format_key_message(key: str, duration_line: str) -> tuple[str, list[MessageEntity]]:
     """Ключ в моноширинном блоке; строка срока — всё после «➡️ » (например «Срок действия: 7 дней» или «Срок действия до: 01.04.2026»). Premium: arrow_right, exclamation_mark, pin."""
-    guide = "https://telegra.ph/Instrukciya-po-ustanovke-VPN-01-10"
+    guide = "https://graph.org/Aktivaciya-klyucha-cherez-Hiddify-04-08"
     text = (
         "ВАШ КЛЮЧ:\n\n"
         f"{key}\n"
@@ -663,6 +654,70 @@ def _format_key_message(key: str, duration_line: str) -> tuple[str, list[Message
 
 def _format_key_delivery_message(key: str, duration_phrase: str) -> tuple[str, list[MessageEntity]]:
     return _format_key_message(key, f"Срок действия: {duration_phrase}")
+
+
+def _format_whitelist_keys_message(main_key: str, lte_key: str, duration_line: str) -> tuple[str, list[MessageEntity]]:
+    guide = "https://graph.org/Aktivaciya-klyucha-cherez-Hiddify-04-08"
+    text = (
+        "ВАШИ КЛЮЧИ:\n\n"
+        "🙂 Обычная Германия (основной):\n"
+        f"{main_key}\n\n"
+        "🙂 LTE обход:\n"
+        f"{lte_key}\n\n"
+        f"➡️ {duration_line}\n\n"
+        "❗️ 1 КЛЮЧ - ОДНО УСТРОЙСТВО\n"
+        f" 📌 Гайд на установку: {guide}"
+    )
+    entities: list[MessageEntity] = []
+
+    first_key_start = text.index(main_key)
+    first_key_end = first_key_start + len(main_key)
+    second_key_start = text.index(lte_key, first_key_end)
+    second_key_end = second_key_start + len(lte_key)
+    entities.append(
+        MessageEntity(
+            type="code",
+            offset=_utf16_offset(text, first_key_start),
+            length=_utf16_span_len(text, first_key_start, first_key_end),
+        )
+    )
+    entities.append(
+        MessageEntity(
+            type="code",
+            offset=_utf16_offset(text, second_key_start),
+            length=_utf16_span_len(text, second_key_start, second_key_end),
+        )
+    )
+
+    first_smile = text.index("🙂")
+    second_smile = text.index("🙂", first_smile + 1)
+    for pos in (first_smile, second_smile):
+        entities.append(
+            MessageEntity(
+                type="custom_emoji",
+                offset=_utf16_offset(text, pos),
+                length=_utf16_span_len(text, pos, pos + 1),
+                custom_emoji_id=get_emoji("germany"),
+            )
+        )
+
+    for marker, emoji_key in (
+        ("➡️", "arrow_right"),
+        ("❗️", "exclamation_mark"),
+        ("📌", "pin"),
+    ):
+        pos = text.index(marker)
+        entities.append(
+            MessageEntity(
+                type="custom_emoji",
+                offset=_utf16_offset(text, pos),
+                length=_utf16_span_len(text, pos, pos + len(marker)),
+                custom_emoji_id=get_emoji(emoji_key),
+            )
+        )
+
+    entities.sort(key=lambda e: e.offset)
+    return text, entities
 
 
 def _welcome_back_caption(balance: int) -> tuple[str, list[MessageEntity]]:
@@ -1026,15 +1081,34 @@ async def use_key_callback(callback: CallbackQuery):
         today = date.today()
         today_str = today.isoformat()  # Преобразуем дату в строку формата YYYY-MM-DD для корректного сравнения
         cur = con.cursor()
-        cur.execute(f'SELECT key, expiration_date FROM keys WHERE buyer_id = ? AND expiration_date >= ? ORDER BY expiration_date LIMIT 1 OFFSET ? ' , (callback.from_user.id, today_str, callback.data.split('_')[2])) # вытащить ключ из базы данных по ID
+        offset = int(callback.data.split('_')[2])
+        cur.execute(
+            'SELECT key, expiration_date, location FROM keys WHERE buyer_id = ? AND expiration_date >= ? ORDER BY expiration_date, rowid LIMIT 1 OFFSET ?',
+            (callback.from_user.id, today_str, offset),
+        )
         result = cur.fetchone() # получить результат из базы данных
+        if not result:
+            await callback.message.answer('❌ Ключ не найден. Обновите раздел «Мои ключи».', reply_markup=ikb_back)
+            return
         key = result[0]
         expiration_date = result[1]
+        location = result[2] if len(result) > 2 else None
         expiration_date = datetime.strptime(expiration_date, '%Y-%m-%d').date() # преобразуем дату в объект datetime
         if expiration_date >= today + timedelta(days=5000): # это ублюдская затычка но ладно (типо если не дотягивает до бесконечности)
             human_date = '∞'
         else:
             human_date = expiration_date.strftime('%d.%m.%Y') # преобразуем дату в строку формата дд.мм.гггг
+        if location == 'germany_whitelist':
+            cur.execute(
+                'SELECT key FROM keys WHERE buyer_id = ? AND expiration_date = ? AND location = ? ORDER BY rowid',
+                (callback.from_user.id, expiration_date.isoformat(), 'germany_whitelist'),
+            )
+            wl_rows = cur.fetchall()
+            wl_keys = [row[0] for row in wl_rows if row and row[0]]
+            if len(wl_keys) >= 2:
+                t, ent = _format_whitelist_keys_message(wl_keys[0], wl_keys[1], f"Срок действия до: {human_date}")
+                await callback.message.answer(t, entities=ent, reply_markup=ikb_back)
+                return
     t, ent = _format_key_message(key, f"Срок действия до: {human_date}")
     await callback.message.answer(t, entities=ent, reply_markup=ikb_back)
 
