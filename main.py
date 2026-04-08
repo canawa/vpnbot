@@ -169,7 +169,7 @@ async def _deliver_month_vpn(user_id: int, country: str, reply) -> None:
             "🇩🇪 <b>Ваши ключи на 30 дней</b>\n\n"
             "1) <b>Обычная Германия (основной)</b>\n"
             f"<code>{vpn_keys[0]}</code>\n\n"
-            "2) <b>📶 LTE Обход</b>\n"
+            "2) <b>📶🌐🔄 LTE Обход (белые списки)</b>\n"
             f"<code>{vpn_keys[1]}</code>\n\n"
             "❗️ 1 КЛЮЧ = 1 УСТРОЙСТВО\n"
             "📌 Гайд на установку: https://telegra.ph/Instrukciya-po-ustanovke-VPN-01-10",
