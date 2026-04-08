@@ -1039,27 +1039,38 @@ async def my_keys_callback(callback: CallbackQuery):
         today = date.today()
         today_str = today.isoformat()  # Преобразуем дату в строку формата YYYY-MM-DD для корректного сравнения
         cur.execute(
-            'SELECT key, expiration_date, location FROM keys WHERE buyer_id = ? AND expiration_date >= ? ORDER BY expiration_date',
+            'SELECT key, expiration_date, location FROM keys WHERE buyer_id = ? AND expiration_date >= ? ORDER BY expiration_date, rowid',
             (callback.from_user.id, today_str),
         )
         result = cur.fetchall()  # кортежи (key, expiration_date, location)
 
         buttons_row = []
-        for key_id, row in enumerate(result):
-            _key_str, exp_raw, loc = row[0], row[1], row[2]
+        i = 0
+        while i < len(result):
+            _key_str, exp_raw, loc = result[i][0], result[i][1], result[i][2]
             try:
                 icon_id = get_emoji(loc) if loc else get_emoji('germany')
             except KeyError:
                 icon_id = get_emoji('germany')
             btn = InlineKeyboardButton(
                 text=f'До {exp_raw}',
-                callback_data=f'use_key_{key_id}',
+                callback_data=f'use_key_{i}',
                 icon_custom_emoji_id=icon_id,
             )
             buttons_row.append(btn)
             if len(buttons_row) == 2:
                 ikb_my_keys.inline_keyboard.append(buttons_row)
                 buttons_row = []
+            # Для germany_whitelist две записи (основной + LTE) показываем одной кнопкой.
+            if (
+                loc == 'germany_whitelist'
+                and i + 1 < len(result)
+                and result[i + 1][2] == 'germany_whitelist'
+                and result[i + 1][1] == exp_raw
+            ):
+                i += 2
+            else:
+                i += 1
         if buttons_row:
             ikb_my_keys.inline_keyboard.append(buttons_row)
 
