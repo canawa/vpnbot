@@ -12,7 +12,7 @@ import dotenv
 import os
 from yookassa import Configuration, Payment # для работы с Юкассой
 import uuid
-from vpn import generate_vpn_key, get_marzban_token
+from vpn import generate_vpn_key, generate_vpn_keys, get_marzban_token
 import pandas as pd
 import openpyxl
 from datetime import datetime
@@ -141,37 +141,39 @@ def get_vpn_pay_keyboard(balance: int) -> InlineKeyboardMarkup:
 async def _deliver_month_vpn(user_id: int, country: str, reply) -> None:
     """Списать _MONTH_PRICE с баланса и выдать месячный ключ (reply = message/callback.message)."""
     try:
-        vpn_key = await generate_vpn_key(user_id, 30, country)
+        vpn_keys = await generate_vpn_keys(user_id, 30, country) if country == 'germany' else [await generate_vpn_key(user_id, 30, country)]
     except Exception as e:
         await reply.answer(f'❌ Не удалось сгенерировать ключ: {e}. Напишите в техподдержку, мы обязательно поможем!', reply_markup=ikb_support)
         raise e
-    if not vpn_key:
+    vpn_keys = [k for k in (vpn_keys or []) if k]
+    if not vpn_keys:
         return
     with sq.connect('database.db') as con:
         cur = con.cursor()
         expire_date = date.today() + timedelta(days=30)
         expire_date_str = expire_date.isoformat()
         buy_date_str = date.today().isoformat()
-        cur.execute(
-            'INSERT INTO keys (key, duration, SOLD, buyer_id, buy_date, expiration_date, location) VALUES (?, ?, ?, ?, ?, ?, ?)',
-            (vpn_key, 30, 0, user_id, buy_date_str, expire_date_str, country),
-        )
-        con.commit()
-        cur.execute('SELECT key FROM keys WHERE duration = 30 AND SOLD = 0 ORDER BY rowid DESC LIMIT 1')
-        result = cur.fetchone()
-        if not result:
-            await reply.answer('‼️ Нет доступных ключей. Свяжитесь с поддержкой.', parse_mode='HTML', reply_markup=ikb_support)
-            return
         cur.execute('UPDATE users SET balance = balance - ? WHERE id = ? AND balance >= ?', (_MONTH_PRICE, user_id, _MONTH_PRICE))
         con.commit()
         if cur.rowcount == 0:
             await reply.answer('💰 Недостаточно средств на балансе.', parse_mode='HTML', reply_markup=ikb_deposit)
             return
-        t, ent = _format_key_delivery_message(result[0], '30 дней')
-        await reply.answer(t, entities=ent, reply_markup=ikb_back)
-        cur.execute('UPDATE keys SET SOLD = 1 WHERE key = ?', (result[0],))
-        cur.execute('UPDATE keys SET buyer_id = ? WHERE key = ?', (user_id, result[0]))
+        for key in vpn_keys:
+            cur.execute(
+                'INSERT INTO keys (key, duration, SOLD, buyer_id, buy_date, expiration_date, location) VALUES (?, ?, ?, ?, ?, ?, ?)',
+                (key, 30, 1, user_id, buy_date_str, expire_date_str, country),
+            )
         con.commit()
+    if country == 'germany' and len(vpn_keys) >= 2:
+        t1, e1 = _format_key_delivery_message(vpn_keys[0], '30 дней')
+        t2, e2 = _format_key_delivery_message(vpn_keys[1], '30 дней')
+        await reply.answer(f'🇩🇪 <b>Обычная Германия (основной ключ)</b>', parse_mode='HTML')
+        await reply.answer(t1, entities=e1, reply_markup=ikb_back)
+        await reply.answer(f'📶 <b>Germany LTE bypass (дополнительный ключ)</b>', parse_mode='HTML')
+        await reply.answer(t2, entities=e2, reply_markup=ikb_back)
+    else:
+        t, ent = _format_key_delivery_message(vpn_keys[0], '30 дней')
+        await reply.answer(t, entities=ent, reply_markup=ikb_back)
 
 
 async def _maybe_complete_vpn_after_topup(user_id: int, amount_credited: int, reply) -> bool:

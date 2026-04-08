@@ -53,7 +53,17 @@ async def get_marzban_token(country: str):
     return TOKENS[country]
 
 
-async def generate_vpn_key(user_id: int, duration_days: int, country: str) -> str:
+def _extract_links(payload) -> list[str]:
+    if not payload:
+        return []
+    if isinstance(payload, str):
+        return [payload]
+    if isinstance(payload, list):
+        return [item for item in payload if isinstance(item, str) and item]
+    return []
+
+
+async def generate_vpn_keys(user_id: int, duration_days: int, country: str) -> list[str]:
     api, cfg = get_api(country)
 
     token = TOKENS.get(country)
@@ -82,18 +92,9 @@ async def generate_vpn_key(user_id: int, duration_days: int, country: str) -> st
         await api.add_user(user=new_user, token=token)
         user_info = await api.get_user(username=username, token=token)
 
-        links = None
-        if hasattr(user_info, 'links') and user_info.links:
-            links = user_info.links
-
+        links = _extract_links(getattr(user_info, 'links', None))
         if links:
-            if isinstance(links, list) and len(links) > 0:
-                for link in links:
-                    if isinstance(link, str) and link.startswith("vless://"):
-                        return link
-                return links[0]
-            elif isinstance(links, str):
-                return links
+            return links
 
         try:
             async with aiohttp.ClientSession() as session:
@@ -107,7 +108,7 @@ async def generate_vpn_key(user_id: int, duration_days: int, country: str) -> st
                     if resp.status == 200:
                         text = await resp.text()
                         if text.startswith(("vless://", "vmess://", "ss://")):
-                            return text
+                            return [text]
         except Exception as e:
             print(f"subscription error: {e}")
 
@@ -122,19 +123,14 @@ async def generate_vpn_key(user_id: int, duration_days: int, country: str) -> st
                     if resp.status == 200:
                         data = await resp.json()
 
-                        if isinstance(data, list) and len(data) > 0:
-                            for link in data:
-                                if isinstance(link, str) and link.startswith("vless://"):
-                                    return link
-                            return data[0]
-
-                        elif isinstance(data, str):
-                            return data
+                        links = _extract_links(data)
+                        if links:
+                            return links
 
         except Exception as e:
             print(f"links error: {e}")
 
-        return None
+        return []
 
     except Exception as e:
         print(f"create user error: {e}")
@@ -145,12 +141,18 @@ async def generate_vpn_key(user_id: int, duration_days: int, country: str) -> st
                 await api.add_user(user=new_user, token=token)
                 user_info = await api.get_user(username=username, token=token)
 
-                if hasattr(user_info, 'links') and user_info.links:
-                    if isinstance(user_info.links, list):
-                        return user_info.links[0]
-                    return user_info.links
+                links = _extract_links(getattr(user_info, 'links', None))
+                if links:
+                    return links
 
             except Exception as e2:
                 print(f"retry error: {e2}")
 
+        return []
+
+
+async def generate_vpn_key(user_id: int, duration_days: int, country: str) -> str:
+    links = await generate_vpn_keys(user_id, duration_days, country)
+    if not links:
         return None
+    return links[0]
