@@ -185,6 +185,46 @@ async def _deliver_month_vpn(user_id: int, country: str, reply) -> None:
         await reply.answer(t, entities=ent, reply_markup=ikb_back)
 
 
+async def _deliver_trial_vpn(user_id: int, reply) -> None:
+    """Выдать триал: обычная Германия + LTE обход (whitelist), при недоступности — фолбэк на обычную Германию."""
+    country = 'germany_whitelist'
+    try:
+        try:
+            marzban_username, vpn_keys = await generate_vpn_user(user_id, 3, country)
+        except ValueError:
+            country = 'germany'
+            marzban_username, vpn_keys = await generate_vpn_user(user_id, 3, country)
+            await reply.answer('ℹ️ LTE-сервер временно недоступен, выдали обычный ключ Германии.', parse_mode='HTML')
+    except Exception as e:
+        await reply.answer(f'❌ Не удалось сгенерировать ключ: {e}. Напишите в техподдержку, мы обязательно поможем!', reply_markup=ikb_support)
+        return
+
+    vpn_keys = [k for k in (vpn_keys or []) if k]
+    if not vpn_keys:
+        await reply.answer('❌ Не удалось получить ключ. Напишите в поддержку.', reply_markup=ikb_support)
+        return
+
+    expire_date = date.today() + timedelta(days=3)
+    expire_date_str = expire_date.isoformat()
+    buy_date_str = date.today().isoformat()
+    with sq.connect('database.db') as con:
+        cur = con.cursor()
+        for key in vpn_keys:
+            cur.execute(
+                'INSERT INTO keys (key, duration, SOLD, buyer_id, buy_date, expiration_date, location, marzban_username) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+                (key, 3, 1, user_id, buy_date_str, expire_date_str, country, marzban_username),
+            )
+        cur.execute('UPDATE users SET had_trial = 1 WHERE id = ?', (user_id,))
+        con.commit()
+
+    if country == 'germany_whitelist' and len(vpn_keys) >= 2:
+        t, ent = _format_whitelist_keys_message(vpn_keys[0], vpn_keys[1], "Срок действия: 3 дня")
+        await reply.answer(t, entities=ent, reply_markup=ikb_back)
+    else:
+        t, ent = _format_key_delivery_message(vpn_keys[0], "3 дня")
+        await reply.answer(t, entities=ent, reply_markup=ikb_back)
+
+
 async def _maybe_complete_vpn_after_topup(user_id: int, amount_credited: int, reply) -> bool:
     """Если ждём оплату VPN и начислили ровно месячную сумму — выдать ключ. Возвращает True, если обработали VPN."""
     if amount_credited != _MONTH_PRICE:
@@ -847,26 +887,7 @@ async def back_callback(callback: CallbackQuery):
 async def plan_trial(callback: CallbackQuery):
     await callback.message.delete()
     if await is_subscribed(bot, callback.from_user.id):
-        try:
-            vpn_key = await generate_vpn_key(callback.from_user.id, 3, 'germany')
-            # print(vpn_key)
-        except Exception as e:
-            await callback.message.answer(f'❌ Не удалось сгенерировать ключ: {e}. Напишите в техподдержку, мы обязательно поможем!', reply_markup=ikb_support)
-            raise e
-
-        if vpn_key:
-            with sq.connect('database.db') as con:
-                cur = con.cursor()
-                expire_date = date.today() + timedelta(days=3)
-                expire_date_str = expire_date.isoformat()  # Преобразуем дату в строку формата YYYY-MM-DD
-                buy_date_str = date.today().isoformat()  # Преобразуем дату в строку формата YYYY-MM-DD
-                cur.execute('INSERT INTO keys (key, duration, SOLD, buyer_id, username, buy_date, expiration_date, location) VALUES (?, ?, ?, ?, ?, ?, ?, ?)', (vpn_key, 3, 0, callback.from_user.id, callback.from_user.username, buy_date_str, expire_date_str, 'germany'))
-                cur.execute('SELECT key FROM keys WHERE duration = 3 AND SOLD = 0 ORDER BY rowid DESC LIMIT 1')
-                con.commit()
-                result = cur.fetchone() # получить результат из базы данных
-                cur.execute('UPDATE users SET had_trial = 1 WHERE id = ?', (callback.from_user.id,))
-            t, ent = _format_key_delivery_message(result[0], "3 дня")
-            await callback.message.answer(t, entities=ent, reply_markup=ikb_back)
+        await _deliver_trial_vpn(callback.from_user.id, callback.message)
     else:
         await callback.message.answer('❌ Вы не подписаны на канал! Подпишитесь на канал, чтобы получить бесплатный тестовый период!', parse_mode='HTML', reply_markup=ikb_subscribe)
 
@@ -876,26 +897,7 @@ async def subscribe_confirmed_callback(callback: CallbackQuery):
     await callback.answer("✅ Я подписался") # на пол экрана хуйня высветится
     await callback.message.delete()
     if await is_subscribed(bot, callback.from_user.id):
-        try:
-            vpn_key = await generate_vpn_key(callback.from_user.id, 3, 'germany')
-            # print(vpn_key)
-        except Exception as e:
-            await callback.message.answer(f'❌ Не удалось сгенерировать ключ: {e}. Напишите в техподдержку, мы обязательно поможем!', reply_markup=ikb_support)
-            raise e
-
-        if vpn_key:
-            with sq.connect('database.db') as con:
-                cur = con.cursor()
-                expire_date = date.today() + timedelta(days=3)
-                expire_date_str = expire_date.isoformat()  # Преобразуем дату в строку формата YYYY-MM-DD
-                buy_date_str = date.today().isoformat()  # Преобразуем дату в строку формата YYYY-MM-DD
-                cur.execute('INSERT INTO keys (key, duration, SOLD, buyer_id, username, buy_date, expiration_date, location) VALUES (?, ?, ?, ?, ?, ?, ?, ?)', (vpn_key, 3, 0, callback.from_user.id, callback.from_user.username, buy_date_str, expire_date_str, 'germany'))
-                cur.execute('SELECT key FROM keys WHERE duration = 3 AND SOLD = 0 ORDER BY rowid DESC LIMIT 1')
-                con.commit()
-                result = cur.fetchone() # получить результат из базы данных
-                cur.execute('UPDATE users SET had_trial = 1 WHERE id = ?', (callback.from_user.id,))
-            t, ent = _format_key_delivery_message(result[0], "3 дня")
-            await callback.message.answer(t, entities=ent, reply_markup=ikb_back)
+        await _deliver_trial_vpn(callback.from_user.id, callback.message)
     else:
         await callback.message.answer('❌ Вы не подписаны на канал! Подпишитесь на канал, чтобы получить бесплатный тестовый период!', parse_mode='HTML', reply_markup=ikb_subscribe)
 
