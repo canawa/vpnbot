@@ -12,7 +12,7 @@ import dotenv
 import os
 from yookassa import Configuration, Payment # для работы с Юкассой
 import uuid
-from vpn import generate_vpn_key, generate_vpn_keys, generate_vpn_user, get_marzban_token
+from vpn import generate_vpn_user, get_marzban_token
 import pandas as pd
 import openpyxl
 from datetime import datetime
@@ -56,6 +56,12 @@ dp = Dispatcher() # объект диспетчера
 
 with sq.connect('database.db') as con:
     cur = con.cursor()
+    cur.execute("""CREATE TABLE IF NOT EXISTS "keys" (
+        "key"   TEXT,
+        "duration"      INTEGER,
+        "sold"  INTEGER DEFAULT 0,
+        "buyer_id"      INTEGER
+, expiration_date, expired INTEGER, buy_date, username, location TEXT, marzban_username TEXT)""")
     cur.execute("CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, username TEXT, balance INTEGER, ref_balance INTEGER DEFAULT 0, ref_amount INTEGER DEFAULT 0, keys TEXT, role TEXT DEFAULT NULL, had_trial INTEGER DEFAULT 0, runout_notified INTEGER DEFAULT 0, has_active_keys INTEGER DEFAULT 0)")
     cur.execute('CREATE TABLE IF NOT EXISTS referal_users (id INTEGER PRIMARY KEY, referral_id INTEGER UNIQUE, ref_master_id INTEGER, registration_date TEXT, referral_username TEXT, ref_master_username TEXT)')
     cur.execute('CREATE TABLE IF NOT EXISTS transactions (id INTEGER PRIMARY KEY, user_id INTEGER, amount INTEGER, type TEXT, date TEXT)')
@@ -153,16 +159,7 @@ def get_vpn_pay_keyboard(balance: int) -> InlineKeyboardMarkup:
 async def _deliver_month_vpn(user_id: int, country: str, reply) -> None:
     """Списать _MONTH_PRICE с баланса и выдать месячный ключ (reply = message/callback.message)."""
     try:
-        if country == 'germany_whitelist':
-            try:
-                marzban_username, vpn_keys = await generate_vpn_user(user_id, 30, country)
-            except ValueError:
-                # Фолбэк: если whitelist-сервер не настроен, выдаем обычную Германию.
-                marzban_username, vpn_keys = await generate_vpn_user(user_id, 30, 'germany')
-                await reply.answer('ℹ️ LTE-сервер временно недоступен, выдали обычный ключ Германии.', parse_mode='HTML')
-                country = 'germany'
-        else:
-            marzban_username, vpn_keys = await generate_vpn_user(user_id, 30, country)
+        marzban_username, vpn_keys = await generate_vpn_user(user_id, 30, country)
     except Exception as e:
         await reply.answer(f'❌ Не удалось сгенерировать ключ: {e}. Напишите в техподдержку, мы обязательно поможем!', reply_markup=ikb_support)
         return
@@ -179,30 +176,20 @@ async def _deliver_month_vpn(user_id: int, country: str, reply) -> None:
         if cur.rowcount == 0:
             await reply.answer('💰 Недостаточно средств на балансе.', parse_mode='HTML', reply_markup=ikb_deposit)
             return
-        for key in vpn_keys:
-            cur.execute(
-                'INSERT INTO keys (key, duration, SOLD, buyer_id, buy_date, expiration_date, location, marzban_username) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-                (key, 30, 1, user_id, buy_date_str, expire_date_str, country, marzban_username),
-            )
+        cur.execute(
+            'INSERT INTO keys (key, duration, SOLD, buyer_id, buy_date, expiration_date, location, marzban_username) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+            (vpn_keys[0], 30, 1, user_id, buy_date_str, expire_date_str, country, marzban_username),
+        )
         con.commit()
-    if country == 'germany_whitelist' and len(vpn_keys) >= 2:
-        t, ent = _format_whitelist_keys_message(vpn_keys[0], vpn_keys[1], "Срок действия: 30 дней")
-        await reply.answer(t, entities=ent, reply_markup=ikb_back)
-    else:
-        t, ent = _format_key_delivery_message(vpn_keys[0], '30 дней')
-        await reply.answer(t, entities=ent, reply_markup=ikb_back)
+    t, ent = _format_key_delivery_message(vpn_keys[0], '30 дней')
+    await reply.answer(t, entities=ent, reply_markup=ikb_back)
 
 
 async def _deliver_trial_vpn(user_id: int, reply) -> None:
-    """Выдать триал: обычная Германия + LTE обход (whitelist), при недоступности — фолбэк на обычную Германию."""
-    country = 'germany_whitelist'
+    """Выдать триал на 3 дня (Германия)."""
+    country = 'germany'
     try:
-        try:
-            marzban_username, vpn_keys = await generate_vpn_user(user_id, 3, country)
-        except ValueError:
-            country = 'germany'
-            marzban_username, vpn_keys = await generate_vpn_user(user_id, 3, country)
-            await reply.answer('ℹ️ LTE-сервер временно недоступен, выдали обычный ключ Германии.', parse_mode='HTML')
+        marzban_username, vpn_keys = await generate_vpn_user(user_id, 3, country)
     except Exception as e:
         await reply.answer(f'❌ Не удалось сгенерировать ключ: {e}. Напишите в техподдержку, мы обязательно поможем!', reply_markup=ikb_support)
         return
@@ -217,20 +204,15 @@ async def _deliver_trial_vpn(user_id: int, reply) -> None:
     buy_date_str = date.today().isoformat()
     with sq.connect('database.db') as con:
         cur = con.cursor()
-        for key in vpn_keys:
-            cur.execute(
-                'INSERT INTO keys (key, duration, SOLD, buyer_id, buy_date, expiration_date, location, marzban_username) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-                (key, 3, 1, user_id, buy_date_str, expire_date_str, country, marzban_username),
-            )
+        cur.execute(
+            'INSERT INTO keys (key, duration, SOLD, buyer_id, buy_date, expiration_date, location, marzban_username) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+            (vpn_keys[0], 3, 1, user_id, buy_date_str, expire_date_str, country, marzban_username),
+        )
         cur.execute('UPDATE users SET had_trial = 1 WHERE id = ?', (user_id,))
         con.commit()
 
-    if country == 'germany_whitelist' and len(vpn_keys) >= 2:
-        t, ent = _format_whitelist_keys_message(vpn_keys[0], vpn_keys[1], "Срок действия: 3 дня")
-        await reply.answer(t, entities=ent, reply_markup=ikb_back)
-    else:
-        t, ent = _format_key_delivery_message(vpn_keys[0], "3 дня")
-        await reply.answer(t, entities=ent, reply_markup=ikb_back)
+    t, ent = _format_key_delivery_message(vpn_keys[0], "3 дня")
+    await reply.answer(t, entities=ent, reply_markup=ikb_back)
 
 
 async def _maybe_complete_vpn_after_topup(user_id: int, amount_credited: int, reply) -> bool:
@@ -397,8 +379,9 @@ ikb_support = InlineKeyboardMarkup(inline_keyboard=[
 ])
 
 ikb_locations = InlineKeyboardMarkup(inline_keyboard=[
-    [InlineKeyboardButton(text='Германия', callback_data='germany', icon_custom_emoji_id=get_emoji('germany'))],
-    [InlineKeyboardButton(text='Германия + LTE обход (белые списки)', callback_data='germany_whitelist', icon_custom_emoji_id=get_emoji('germany'))],
+    [InlineKeyboardButton(text='Германия 1', callback_data='germany', icon_custom_emoji_id=get_emoji('germany'))],
+    [InlineKeyboardButton(text='Германия 2 ', callback_data='germany2', icon_custom_emoji_id=get_emoji('germany'))],
+    [InlineKeyboardButton(text='Обход LTE', callback_data='whitelist', icon_custom_emoji_id=get_emoji('germany'))],
     [InlineKeyboardButton(text='Финляндия', callback_data='finland', icon_custom_emoji_id=get_emoji('finland'))],
     [InlineKeyboardButton(text='Австрия', callback_data='austria', icon_custom_emoji_id=get_emoji('austria'))],
     [InlineKeyboardButton(text='Франция', callback_data='france', icon_custom_emoji_id=get_emoji('france'))],
@@ -713,75 +696,12 @@ def _format_key_delivery_message(key: str, duration_phrase: str) -> tuple[str, l
     return _format_key_message(key, f"Срок действия: {duration_phrase}")
 
 
-def _format_whitelist_keys_message(main_key: str, lte_key: str, duration_line: str) -> tuple[str, list[MessageEntity]]:
-    guide = "https://graph.org/Aktivaciya-klyucha-cherez-Hiddify-04-08"
-    text = (
-        "ВАШИ КЛЮЧИ:\n\n"
-        "🙂 Обычная Германия (основной):\n"
-        f"{main_key}\n\n"
-        "🙂 LTE обход:\n"
-        f"{lte_key}\n\n"
-        f"➡️ {duration_line}\n\n"
-        "❗️ 1 КЛЮЧ - ОДНО УСТРОЙСТВО\n"
-        f" 📌 Гайд на установку: {guide}"
-    )
-    entities: list[MessageEntity] = []
-
-    first_key_start = text.index(main_key)
-    first_key_end = first_key_start + len(main_key)
-    second_key_start = text.index(lte_key, first_key_end)
-    second_key_end = second_key_start + len(lte_key)
-    entities.append(
-        MessageEntity(
-            type="code",
-            offset=_utf16_offset(text, first_key_start),
-            length=_utf16_span_len(text, first_key_start, first_key_end),
-        )
-    )
-    entities.append(
-        MessageEntity(
-            type="code",
-            offset=_utf16_offset(text, second_key_start),
-            length=_utf16_span_len(text, second_key_start, second_key_end),
-        )
-    )
-
-    first_smile = text.index("🙂")
-    second_smile = text.index("🙂", first_smile + 1)
-    for pos in (first_smile, second_smile):
-        entities.append(
-            MessageEntity(
-                type="custom_emoji",
-                offset=_utf16_offset(text, pos),
-                length=_utf16_span_len(text, pos, pos + 1),
-                custom_emoji_id=get_emoji("germany"),
-            )
-        )
-
-    for marker, emoji_key in (
-        ("➡️", "arrow_right"),
-        ("❗️", "exclamation_mark"),
-        ("📌", "pin"),
-    ):
-        pos = text.index(marker)
-        entities.append(
-            MessageEntity(
-                type="custom_emoji",
-                offset=_utf16_offset(text, pos),
-                length=_utf16_span_len(text, pos, pos + len(marker)),
-                custom_emoji_id=get_emoji(emoji_key),
-            )
-        )
-
-    entities.sort(key=lambda e: e.offset)
-    return text, entities
-
-
 def _replace_config_keyboard(key_offset: int, current_location: str) -> InlineKeyboardMarkup:
     rows = []
     options = [
-        ('germany', 'Германия'),
-        ('germany_whitelist', 'Германия + LTE обход'),
+        ('germany', 'Германия 1'),
+        ('germany2', 'Германия 2 (Германия + LTE)'),
+        ('whitelist', 'Обход LTE'),
         ('finland', 'Финляндия'),
         ('austria', 'Австрия'),
         ('france', 'Франция'),
@@ -817,7 +737,9 @@ def _welcome_back_caption(balance: int) -> tuple[str, list[MessageEntity]]:
         "\n"
         "Наш сервис предлагает доступ к локациям:\n"
         "\n"
-        " 🙂 Германия\n"
+        " 🙂 Германия 1\n"
+        " 🙂 Германия 2\n"
+        " 🙂 Обход LTE\n"
         " 🙃 Финляндия\n"
         " 😉 Австрия\n"
         " 😊 Франция\n"
@@ -827,8 +749,22 @@ def _welcome_back_caption(balance: int) -> tuple[str, list[MessageEntity]]:
     )
     entities: list[MessageEntity] = []
 
+    start = 0
+    while True:
+        i = text.find("🙂", start)
+        if i == -1:
+            break
+        entities.append(
+            MessageEntity(
+                type="custom_emoji",
+                offset=_utf16_offset(text, i),
+                length=_utf16_span_len(text, i, i + 1),
+                custom_emoji_id=get_emoji("germany"),
+            )
+        )
+        start = i + 1
+
     for ch, loc in (
-        ("🙂", "germany"),
         ("🙃", "finland"),
         ("😉", "austria"),
         ("😊", "france"),
@@ -843,7 +779,7 @@ def _welcome_back_caption(balance: int) -> tuple[str, list[MessageEntity]]:
             )
         )
 
-    for name in ("Германия", "Финляндия", "Австрия", "Франция"):
+    for name in ("Германия 1", "Германия 2", "Обход LTE", "Финляндия", "Австрия", "Франция"):
         i = text.index(name)
         entities.append(
             MessageEntity(
@@ -941,14 +877,20 @@ async def austria_location(callback: CallbackQuery):
 
 @dp.callback_query(lambda c: c.data == 'germany')
 async def germany_location(callback: CallbackQuery):
-    await callback.answer("Германия")
+    await callback.answer("Германия 1")
     await _show_vpn_payment_after_country(callback, 'germany')
 
 
-@dp.callback_query(lambda c: c.data == 'germany_whitelist')
-async def germany_whitelist_location(callback: CallbackQuery):
-    await callback.answer("Германия + LTE обход")
-    await _show_vpn_payment_after_country(callback, 'germany_whitelist')
+@dp.callback_query(lambda c: c.data == 'germany2')
+async def germany2_location(callback: CallbackQuery):
+    await callback.answer("Германия 2")
+    await _show_vpn_payment_after_country(callback, 'germany2')
+
+
+@dp.callback_query(lambda c: c.data == 'whitelist')
+async def whitelist_location(callback: CallbackQuery):
+    await callback.answer("Обход LTE")
+    await _show_vpn_payment_after_country(callback, 'whitelist')
 
 
 @dp.callback_query(lambda c: c.data == 'vpn_pay_back')
@@ -1097,32 +1039,21 @@ async def my_keys_callback(callback: CallbackQuery):
         result = cur.fetchall()  # кортежи (key, expiration_date, location)
 
         buttons_row = []
-        i = 0
-        while i < len(result):
-            _key_str, exp_raw, loc = result[i][0], result[i][1], result[i][2]
+        for key_id, row in enumerate(result):
+            _key_str, exp_raw, loc = row[0], row[1], row[2]
             try:
                 icon_id = get_emoji(loc) if loc else get_emoji('germany')
             except KeyError:
                 icon_id = get_emoji('germany')
             btn = InlineKeyboardButton(
                 text=f'До {exp_raw}',
-                callback_data=f'use_key_{i}',
+                callback_data=f'use_key_{key_id}',
                 icon_custom_emoji_id=icon_id,
             )
             buttons_row.append(btn)
             if len(buttons_row) == 2:
                 ikb_my_keys.inline_keyboard.append(buttons_row)
                 buttons_row = []
-            # Для germany_whitelist две записи (основной + LTE) показываем одной кнопкой.
-            if (
-                loc == 'germany_whitelist'
-                and i + 1 < len(result)
-                and result[i + 1][2] == 'germany_whitelist'
-                and result[i + 1][1] == exp_raw
-            ):
-                i += 2
-            else:
-                i += 1
         if buttons_row:
             ikb_my_keys.inline_keyboard.append(buttons_row)
 
@@ -1165,17 +1096,6 @@ async def use_key_callback(callback: CallbackQuery):
             [InlineKeyboardButton(text='Заменить конфиг', callback_data=f'replace_config_{offset}')],
             [InlineKeyboardButton(text='Назад', callback_data='my_keys', icon_custom_emoji_id=get_emoji('exit'))],
         ])
-        if location == 'germany_whitelist':
-            cur.execute(
-                'SELECT key FROM keys WHERE buyer_id = ? AND expiration_date = ? AND location = ? ORDER BY rowid',
-                (callback.from_user.id, expiration_date.isoformat(), 'germany_whitelist'),
-            )
-            wl_rows = cur.fetchall()
-            wl_keys = [row[0] for row in wl_rows if row and row[0]]
-            if len(wl_keys) >= 2:
-                t, ent = _format_whitelist_keys_message(wl_keys[0], wl_keys[1], f"Срок действия до: {human_date}")
-                await callback.message.answer(t, entities=ent, reply_markup=action_kb)
-                return
     t, ent = _format_key_message(key, f"Срок действия до: {human_date}")
     action_kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text='Заменить конфиг', callback_data=f'replace_config_{offset}')],
@@ -1231,19 +1151,7 @@ async def replace_config_execute_callback(callback: CallbackQuery):
         expiration_date = datetime.strptime(expiration_raw, '%Y-%m-%d').date()
         days_left = max((expiration_date - today).days, 1)
 
-        # Если это whitelist-пара, удаляем обе записи текущей подписки.
         group_rowids = [rowid]
-        if old_location == 'germany_whitelist':
-            cur.execute(
-                'SELECT rowid FROM keys WHERE buyer_id = ? AND expiration_date = ? AND location = ? ORDER BY rowid',
-                (uid, expiration_raw, 'germany_whitelist'),
-            )
-            group_rowids = [r[0] for r in cur.fetchall()] or [rowid]
-            cur.execute(
-                'SELECT marzban_username FROM keys WHERE rowid = ?',
-                (group_rowids[0],),
-            )
-            old_mz_username = (cur.fetchone() or (old_mz_username,))[0]
 
     if old_mz_username:
         deleted_ok = await _delete_key_from_marzban(old_mz_username, old_location or 'germany')
@@ -1275,16 +1183,10 @@ async def replace_config_execute_callback(callback: CallbackQuery):
             )
         con.commit()
 
-    if new_location == 'germany_whitelist' and len(new_keys) >= 2:
-        human_date = expiration_date.strftime('%d.%m.%Y')
-        t, ent = _format_whitelist_keys_message(new_keys[0], new_keys[1], f"Срок действия до: {human_date}")
-        await callback.message.answer('✅ Конфиг заменён.', reply_markup=ikb_back)
-        await callback.message.answer(t, entities=ent, reply_markup=ikb_back)
-    else:
-        human_date = expiration_date.strftime('%d.%m.%Y')
-        t, ent = _format_key_message(new_keys[0], f"Срок действия до: {human_date}")
-        await callback.message.answer('✅ Конфиг заменён.', reply_markup=ikb_back)
-        await callback.message.answer(t, entities=ent, reply_markup=ikb_back)
+    human_date = expiration_date.strftime('%d.%m.%Y')
+    t, ent = _format_key_message(new_keys[0], f"Срок действия до: {human_date}")
+    await callback.message.answer('✅ Конфиг заменён.', reply_markup=ikb_back)
+    await callback.message.answer(t, entities=ent, reply_markup=ikb_back)
 
 
 @dp.callback_query(lambda c: c.data == 'vpn_reopen_payment')
