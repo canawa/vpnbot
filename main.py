@@ -819,7 +819,8 @@ def _welcome_back_caption(balance: int) -> tuple[str, list[MessageEntity]]:
         " 🙃 Финляндия\n"
         " 😉 Австрия\n"
         " 😊 Франция\n"
-        "\n"
+        "\n\n"
+        "🌎 Локацию ключа можно заменить в разделе \"Мои ключи\"\n\n"
         f" 👉🏼 Баланс : {balance} ₽\n"
         "Купить ключи можно так же на сайте coffeemaniavpn.ru"
     )
@@ -833,7 +834,7 @@ def _welcome_back_caption(balance: int) -> tuple[str, list[MessageEntity]]:
             break
         smile_positions.append(i)
         start = i + 1
-    smile_emoji_keys = ("germany", "germany", "whitelist")
+    smile_emoji_keys = ("germany", "whitelist")
     for pos, emoji_key in zip(smile_positions, smile_emoji_keys):
         entities.append(
             MessageEntity(
@@ -859,7 +860,7 @@ def _welcome_back_caption(balance: int) -> tuple[str, list[MessageEntity]]:
             )
         )
 
-    for name in ("Германия 1", "Германия 2", "Обход LTE", "Финляндия", "Австрия", "Франция"):
+    for name in ("Германия", "Обход LTE", "Финляндия", "Австрия", "Франция"):
         i = text.index(name)
         entities.append(
             MessageEntity(
