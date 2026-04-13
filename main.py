@@ -381,7 +381,7 @@ ikb_support = InlineKeyboardMarkup(inline_keyboard=[
 ikb_locations = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text='Германия 1', callback_data='germany', icon_custom_emoji_id=get_emoji('germany'))],
     [InlineKeyboardButton(text='Германия 2 ', callback_data='germany2', icon_custom_emoji_id=get_emoji('germany'))],
-    [InlineKeyboardButton(text='Обход LTE', callback_data='whitelist', icon_custom_emoji_id=get_emoji('germany'))],
+    [InlineKeyboardButton(text='Обход LTE', callback_data='whitelist', icon_custom_emoji_id=get_emoji('whitelist'))],
     [InlineKeyboardButton(text='Финляндия', callback_data='finland', icon_custom_emoji_id=get_emoji('finland'))],
     [InlineKeyboardButton(text='Австрия', callback_data='austria', icon_custom_emoji_id=get_emoji('austria'))],
     [InlineKeyboardButton(text='Франция', callback_data='france', icon_custom_emoji_id=get_emoji('france'))],
@@ -699,17 +699,25 @@ def _format_key_delivery_message(key: str, duration_phrase: str) -> tuple[str, l
 def _replace_config_keyboard(key_offset: int, current_location: str) -> InlineKeyboardMarkup:
     rows = []
     options = [
-        ('germany', 'Германия 1'),
-        ('germany2', 'Германия 2 (Германия + LTE)'),
-        ('whitelist', 'Обход LTE'),
-        ('finland', 'Финляндия'),
-        ('austria', 'Австрия'),
-        ('france', 'Франция'),
+        ('germany', 'Германия 1', 'germany'),
+        ('germany2', 'Германия 2 (Германия + LTE)', 'germany'),
+        ('whitelist', 'Обход LTE', 'whitelist'),
+        ('finland', 'Финляндия', 'finland'),
+        ('austria', 'Австрия', 'austria'),
+        ('france', 'Франция', 'france'),
     ]
-    for loc, title in options:
+    for loc, title, icon_key in options:
         if loc == current_location:
             continue
-        rows.append([InlineKeyboardButton(text=title, callback_data=f'replace_to_{loc}_{key_offset}')])
+        rows.append(
+            [
+                InlineKeyboardButton(
+                    text=title,
+                    callback_data=f'replace_to_{loc}_{key_offset}',
+                    icon_custom_emoji_id=get_emoji(icon_key),
+                ),
+            ]
+        )
     rows.append([InlineKeyboardButton(text='Назад', callback_data='my_keys', icon_custom_emoji_id=get_emoji('exit'))])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
@@ -749,20 +757,24 @@ def _welcome_back_caption(balance: int) -> tuple[str, list[MessageEntity]]:
     )
     entities: list[MessageEntity] = []
 
+    smile_positions: list[int] = []
     start = 0
     while True:
         i = text.find("🙂", start)
         if i == -1:
             break
+        smile_positions.append(i)
+        start = i + 1
+    smile_emoji_keys = ("germany", "germany", "whitelist")
+    for pos, emoji_key in zip(smile_positions, smile_emoji_keys):
         entities.append(
             MessageEntity(
                 type="custom_emoji",
-                offset=_utf16_offset(text, i),
-                length=_utf16_span_len(text, i, i + 1),
-                custom_emoji_id=get_emoji("germany"),
+                offset=_utf16_offset(text, pos),
+                length=_utf16_span_len(text, pos, pos + 1),
+                custom_emoji_id=get_emoji(emoji_key),
             )
         )
-        start = i + 1
 
     for ch, loc in (
         ("🙃", "finland"),

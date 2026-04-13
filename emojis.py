@@ -24,6 +24,7 @@ ids = {
     'arrow_right': '5416117059207572332',
     'exclamation_mark': '5274099962655816924',
     'pin': '5397782960512444700',
+    'whitelist': '5217591619108233553',
 }
 
 def get_emoji(emoji: str):
