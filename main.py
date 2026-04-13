@@ -819,7 +819,7 @@ def _welcome_back_caption(balance: int) -> tuple[str, list[MessageEntity]]:
         " 🙃 Финляндия\n"
         " 😉 Австрия\n"
         " 😊 Франция\n"
-        "\n\n"
+        "\n"
         "🌎 Локацию ключа можно заменить в разделе \"Мои ключи\"\n\n"
         f" 👉🏼 Баланс : {balance} ₽\n"
         "Купить ключи можно так же на сайте coffeemaniavpn.ru"
