@@ -10,6 +10,7 @@ import sqlite3 as sq
 import requests
 import dotenv
 import os
+import random
 from yookassa import Configuration, Payment # для работы с Юкассой
 import uuid
 from vpn import generate_vpn_user, get_marzban_token
@@ -186,16 +187,26 @@ async def _deliver_month_vpn(user_id: int, country: str, reply) -> None:
 
 
 async def _deliver_trial_vpn(user_id: int, reply) -> None:
-    """Выдать триал на 3 дня (Германия)."""
-    country = 'germany'
+    """Выдать триал на 3 дня: случайная локация + обязательный Обход LTE."""
+    trial_locations = ['germany', 'germany2', 'finland', 'austria', 'france']
+    random_country = random.choice(trial_locations)
+    random_country_title = {
+        'germany': 'Германия 1',
+        'germany2': 'Германия 2',
+        'finland': 'Финляндия',
+        'austria': 'Австрия',
+        'france': 'Франция',
+    }.get(random_country, random_country)
     try:
-        marzban_username, vpn_keys = await generate_vpn_user(user_id, 3, country)
+        random_mz_username, random_keys = await generate_vpn_user(user_id, 3, random_country)
+        whitelist_mz_username, whitelist_keys = await generate_vpn_user(user_id, 3, 'whitelist')
     except Exception as e:
         await reply.answer(f'❌ Не удалось сгенерировать ключ: {e}. Напишите в техподдержку, мы обязательно поможем!', reply_markup=ikb_support)
         return
 
-    vpn_keys = [k for k in (vpn_keys or []) if k]
-    if not vpn_keys:
+    random_keys = [k for k in (random_keys or []) if k]
+    whitelist_keys = [k for k in (whitelist_keys or []) if k]
+    if not random_keys or not whitelist_keys:
         await reply.answer('❌ Не удалось получить ключ. Напишите в поддержку.', reply_markup=ikb_support)
         return
 
@@ -206,13 +217,71 @@ async def _deliver_trial_vpn(user_id: int, reply) -> None:
         cur = con.cursor()
         cur.execute(
             'INSERT INTO keys (key, duration, SOLD, buyer_id, buy_date, expiration_date, location, marzban_username) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-            (vpn_keys[0], 3, 1, user_id, buy_date_str, expire_date_str, country, marzban_username),
+            (random_keys[0], 3, 1, user_id, buy_date_str, expire_date_str, random_country, random_mz_username),
+        )
+        cur.execute(
+            'INSERT INTO keys (key, duration, SOLD, buyer_id, buy_date, expiration_date, location, marzban_username) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+            (whitelist_keys[0], 3, 1, user_id, buy_date_str, expire_date_str, 'whitelist', whitelist_mz_username),
         )
         cur.execute('UPDATE users SET had_trial = 1 WHERE id = ?', (user_id,))
         con.commit()
 
-    t, ent = _format_key_delivery_message(vpn_keys[0], "3 дня")
-    await reply.answer(t, entities=ent, reply_markup=ikb_back)
+    trial_text = (
+        "🎁 Тестовый период на 3 дня активирован\n\n"
+        f"🙂 {random_country_title}\n"
+        f"{random_keys[0]}\n\n"
+        "🙂 Обход LTE\n"
+        f"{whitelist_keys[0]}\n\n"
+        "❗️ 1 КЛЮЧ = 1 УСТРОЙСТВО\n"
+        "📌 Гайд на установку: https://graph.org/Aktivaciya-klyucha-cherez-Hiddify-04-08"
+    )
+    trial_entities: list[MessageEntity] = []
+    rnd_pos = trial_text.index("🙂")
+    lte_pos = trial_text.index("🙂", rnd_pos + 1)
+    trial_entities.append(
+        MessageEntity(
+            type="custom_emoji",
+            offset=_utf16_offset(trial_text, rnd_pos),
+            length=_utf16_span_len(trial_text, rnd_pos, rnd_pos + 1),
+            custom_emoji_id=get_emoji(random_country if random_country in ('germany', 'finland', 'austria', 'france') else 'germany'),
+        )
+    )
+    trial_entities.append(
+        MessageEntity(
+            type="custom_emoji",
+            offset=_utf16_offset(trial_text, lte_pos),
+            length=_utf16_span_len(trial_text, lte_pos, lte_pos + 1),
+            custom_emoji_id=get_emoji('whitelist'),
+        )
+    )
+    random_key_start = trial_text.index(random_keys[0])
+    trial_entities.append(
+        MessageEntity(
+            type="code",
+            offset=_utf16_offset(trial_text, random_key_start),
+            length=_utf16_span_len(trial_text, random_key_start, random_key_start + len(random_keys[0])),
+        )
+    )
+    lte_key_start = trial_text.index(whitelist_keys[0], random_key_start + len(random_keys[0]))
+    trial_entities.append(
+        MessageEntity(
+            type="code",
+            offset=_utf16_offset(trial_text, lte_key_start),
+            length=_utf16_span_len(trial_text, lte_key_start, lte_key_start + len(whitelist_keys[0])),
+        )
+    )
+    for marker, emoji_key in (("❗️", "exclamation_mark"), ("📌", "pin")):
+        pos = trial_text.index(marker)
+        trial_entities.append(
+            MessageEntity(
+                type="custom_emoji",
+                offset=_utf16_offset(trial_text, pos),
+                length=_utf16_span_len(trial_text, pos, pos + len(marker)),
+                custom_emoji_id=get_emoji(emoji_key),
+            )
+        )
+    trial_entities.sort(key=lambda e: e.offset)
+    await reply.answer(trial_text, entities=trial_entities, reply_markup=ikb_back)
 
 
 async def _maybe_complete_vpn_after_topup(user_id: int, amount_credited: int, reply) -> bool:
