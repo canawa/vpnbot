@@ -769,7 +769,7 @@ def _replace_config_keyboard(key_offset: int, current_location: str) -> InlineKe
     rows = []
     options = [
         ('germany', 'Германия 1', 'germany'),
-        ('germany2', 'Германия 2 (Германия + LTE)', 'germany'),
+        ('germany2', 'Германия 2 ', 'germany'),
         ('whitelist', 'Обход LTE', 'whitelist'),
         ('finland', 'Финляндия', 'finland'),
         ('austria', 'Австрия', 'austria'),
