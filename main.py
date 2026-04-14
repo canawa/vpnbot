@@ -188,13 +188,14 @@ async def _deliver_month_vpn(user_id: int, country: str, reply) -> None:
 
 async def _deliver_trial_vpn(user_id: int, reply) -> None:
     """Выдать триал на 3 дня: случайная локация + обязательный Обход LTE."""
-    trial_locations = ['germany', 'germany2', 'finland', 'austria']
+    trial_locations = ['germany', 'germany2', 'finland', 'austria', 'france']
     random_country = random.choice(trial_locations)
     random_country_title = {
         'germany': 'Германия 1',
         'germany2': 'Германия 2',
         'finland': 'Финляндия',
         'austria': 'Австрия',
+        # 'france': 'Франция',
     }.get(random_country, random_country)
     try:
         random_mz_username, random_keys = await generate_vpn_user(user_id, 3, random_country)
@@ -448,11 +449,11 @@ ikb_support = InlineKeyboardMarkup(inline_keyboard=[
 
 ikb_locations = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text='Германия 1', callback_data='germany', icon_custom_emoji_id=get_emoji('germany'))],
+    [InlineKeyboardButton(text='Германия 2 ', callback_data='germany2', icon_custom_emoji_id=get_emoji('germany'))],
     [InlineKeyboardButton(text='Обход LTE', callback_data='whitelist', icon_custom_emoji_id=get_emoji('whitelist'))],
     [InlineKeyboardButton(text='Финляндия', callback_data='finland', icon_custom_emoji_id=get_emoji('finland'))],
     [InlineKeyboardButton(text='Австрия', callback_data='austria', icon_custom_emoji_id=get_emoji('austria'))],
-    [InlineKeyboardButton(text='Германия 2 ', callback_data='germany2', icon_custom_emoji_id=get_emoji('germany'))],
-    # [InlineKeyboardButton(text='Франция', callback_data='france', icon_custom_emoji_id=get_emoji('france'))],
+    [InlineKeyboardButton(text='Франция', callback_data='france', icon_custom_emoji_id=get_emoji('france'))],
     [InlineKeyboardButton(text='Назад', callback_data='back', icon_custom_emoji_id=get_emoji('exit'))],
 ])
 
@@ -817,6 +818,7 @@ def _welcome_back_caption(balance: int) -> tuple[str, list[MessageEntity]]:
         " 🙂 Обход LTE\n"
         " 🙃 Финляндия\n"
         " 😉 Австрия\n"
+        " 😊 Франция\n"
         "\n"
         "🌎 Локацию ключа можно заменить в разделе \"Мои ключи\"\n\n"
         f" 👉🏼 Баланс : {balance} ₽\n"
@@ -846,6 +848,7 @@ def _welcome_back_caption(balance: int) -> tuple[str, list[MessageEntity]]:
     for ch, loc in (
         ("🙃", "finland"),
         ("😉", "austria"),
+        ("😊", "france"),
     ):
         i = text.index(ch)
         entities.append(
@@ -857,7 +860,7 @@ def _welcome_back_caption(balance: int) -> tuple[str, list[MessageEntity]]:
             )
         )
 
-    for name in ("Германия", "Обход LTE", "Финляндия", "Австрия"):
+    for name in ("Германия", "Обход LTE", "Финляндия", "Австрия", "Франция"):
         i = text.index(name)
         entities.append(
             MessageEntity(
@@ -944,7 +947,8 @@ async def finland_location(callback: CallbackQuery):
 
 @dp.callback_query(lambda c: c.data == 'france')
 async def france_location(callback: CallbackQuery):
-    await callback.answer('Локация временно недоступна', show_alert=True)
+    await callback.answer("Франция")
+    await _show_vpn_payment_after_country(callback, 'france')
 
 @dp.callback_query(lambda c: c.data == 'austria')
 async def austria_location(callback: CallbackQuery):
