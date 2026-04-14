@@ -449,10 +449,10 @@ ikb_support = InlineKeyboardMarkup(inline_keyboard=[
 
 ikb_locations = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text='Германия 1', callback_data='germany', icon_custom_emoji_id=get_emoji('germany'))],
+    [InlineKeyboardButton(text='Германия 2 ', callback_data='germany2', icon_custom_emoji_id=get_emoji('germany'))],
     [InlineKeyboardButton(text='Обход LTE', callback_data='whitelist', icon_custom_emoji_id=get_emoji('whitelist'))],
     # [InlineKeyboardButton(text='Финляндия', callback_data='finland', icon_custom_emoji_id=get_emoji('finland'))],
     [InlineKeyboardButton(text='Австрия', callback_data='austria', icon_custom_emoji_id=get_emoji('austria'))],
-    [InlineKeyboardButton(text='Германия 2 ', callback_data='germany2', icon_custom_emoji_id=get_emoji('germany'))],
     # [InlineKeyboardButton(text='Франция', callback_data='france', icon_custom_emoji_id=get_emoji('france'))],
     [InlineKeyboardButton(text='Назад', callback_data='back', icon_custom_emoji_id=get_emoji('exit'))],
 ])
