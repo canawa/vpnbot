@@ -188,14 +188,13 @@ async def _deliver_month_vpn(user_id: int, country: str, reply) -> None:
 
 async def _deliver_trial_vpn(user_id: int, reply) -> None:
     """Выдать триал на 3 дня: случайная локация + обязательный Обход LTE."""
-    trial_locations = ['germany', 'germany2', 'finland', 'austria', 'france']
+    trial_locations = ['germany', 'germany2', 'finland', 'austria']
     random_country = random.choice(trial_locations)
     random_country_title = {
         'germany': 'Германия 1',
         'germany2': 'Германия 2',
         'finland': 'Финляндия',
         'austria': 'Австрия',
-        'france': 'Франция',
     }.get(random_country, random_country)
     try:
         random_mz_username, random_keys = await generate_vpn_user(user_id, 3, random_country)
@@ -453,7 +452,7 @@ ikb_locations = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text='Обход LTE', callback_data='whitelist', icon_custom_emoji_id=get_emoji('whitelist'))],
     [InlineKeyboardButton(text='Финляндия', callback_data='finland', icon_custom_emoji_id=get_emoji('finland'))],
     [InlineKeyboardButton(text='Австрия', callback_data='austria', icon_custom_emoji_id=get_emoji('austria'))],
-    [InlineKeyboardButton(text='Франция', callback_data='france', icon_custom_emoji_id=get_emoji('france'))],
+    # [InlineKeyboardButton(text='Франция', callback_data='france', icon_custom_emoji_id=get_emoji('france'))],
     [InlineKeyboardButton(text='Назад', callback_data='back', icon_custom_emoji_id=get_emoji('exit'))],
 ])
 
