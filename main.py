@@ -543,7 +543,7 @@ async def check_payment_callback(callback: CallbackQuery):
                     registration_date_str = ref_master[1]
                     if registration_date_str:
                         registration_date = date.fromisoformat(registration_date_str)
-                        three_months_later = registration_date + timedelta(days=240)
+                        three_months_later = registration_date + timedelta(days=90)
                         if date.today() <= three_months_later:
                             cur.execute('SELECT role FROM users WHERE id = ?', (ref_master_id,))
                             ref_master_role = cur.fetchone()
@@ -580,7 +580,7 @@ async def check_payment_yookassa_callback(callback: CallbackQuery): # сюды
                 registration_date_str = ref_master[1]
                 if registration_date_str:
                     registration_date = date.fromisoformat(registration_date_str)
-                    three_months_later = registration_date + timedelta(days=240)
+                    three_months_later = registration_date + timedelta(days=90)
                     if date.today() <= three_months_later:
                         # Проверяем роль рефмастера
                         cur.execute('SELECT role FROM users WHERE id = ?', (ref_master_id,))
@@ -770,10 +770,10 @@ def _replace_config_keyboard(key_offset: int, current_location: str) -> InlineKe
     options = [
         ('germany', 'Германия 1', 'germany'),
         ('germany2', 'Германия 2 (Германия + LTE)', 'germany'),
-        ('whitelist', 'Обход LTE', 'globe_emoji'),
+        ('whitelist', 'Обход LTE', 'whitelist'),
         ('finland', 'Финляндия', 'finland'),
         ('austria', 'Австрия', 'austria'),
-        # ('france', 'Франция', 'france'),
+        ('france', 'Франция', 'france'),
     ]
     for loc, title, icon_key in options:
         if loc == current_location:
@@ -818,6 +818,7 @@ def _welcome_back_caption(balance: int) -> tuple[str, list[MessageEntity]]:
         " 🙂 Обход LTE\n"
         " 🙃 Финляндия\n"
         " 😉 Австрия\n"
+        " 😊 Франция\n"
         "\n"
         "🌎 Локацию ключа можно заменить в разделе \"Мои ключи\"\n\n"
         f" 👉🏼 Баланс : {balance} ₽\n"
@@ -858,16 +859,6 @@ def _welcome_back_caption(balance: int) -> tuple[str, list[MessageEntity]]:
                 custom_emoji_id=get_emoji(loc),
             )
         )
-
-    globe_pos = text.index("🌎")
-    entities.append(
-        MessageEntity(
-            type="custom_emoji",
-            offset=_utf16_offset(text, globe_pos),
-            length=_utf16_span_len(text, globe_pos, globe_pos + 1),
-            custom_emoji_id=get_emoji("globe_emoji"),
-        )
-    )
 
     for name in ("Германия", "Обход LTE", "Финляндия", "Австрия", "Франция"):
         i = text.index(name)
@@ -1448,7 +1439,7 @@ async def handle_successful_payment(message: Message):
                 registration_date_str = ref_master[1]
                 if registration_date_str:
                     registration_date = date.fromisoformat(registration_date_str)
-                    three_months_later = registration_date + timedelta(days=240)
+                    three_months_later = registration_date + timedelta(days=90)
                     if date.today() <= three_months_later:
                         cur.execute('SELECT role FROM users WHERE id = ?', (ref_master_id,))
                         ref_master_role = cur.fetchone()
@@ -1476,7 +1467,7 @@ async def handle_successful_payment(message: Message):
                 registration_date_str = ref_master[1]
                 if registration_date_str:
                     registration_date = date.fromisoformat(registration_date_str)
-                    three_months_later = registration_date + timedelta(days=240)
+                    three_months_later = registration_date + timedelta(days=90)
                     if date.today() <= three_months_later:
                         cur.execute('SELECT role FROM users WHERE id = ?', (ref_master_id,))
                         ref_master_role = cur.fetchone()
