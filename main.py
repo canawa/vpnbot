@@ -448,10 +448,10 @@ ikb_support = InlineKeyboardMarkup(inline_keyboard=[
 
 ikb_locations = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text='Германия 1', callback_data='germany', icon_custom_emoji_id=get_emoji('germany'))],
-    [InlineKeyboardButton(text='Германия 2 ', callback_data='germany2', icon_custom_emoji_id=get_emoji('germany'))],
     [InlineKeyboardButton(text='Обход LTE', callback_data='whitelist', icon_custom_emoji_id=get_emoji('whitelist'))],
     [InlineKeyboardButton(text='Финляндия', callback_data='finland', icon_custom_emoji_id=get_emoji('finland'))],
     [InlineKeyboardButton(text='Австрия', callback_data='austria', icon_custom_emoji_id=get_emoji('austria'))],
+    [InlineKeyboardButton(text='Германия 2 ', callback_data='germany2', icon_custom_emoji_id=get_emoji('germany'))],
     # [InlineKeyboardButton(text='Франция', callback_data='france', icon_custom_emoji_id=get_emoji('france'))],
     [InlineKeyboardButton(text='Назад', callback_data='back', icon_custom_emoji_id=get_emoji('exit'))],
 ])
@@ -817,7 +817,7 @@ def _welcome_back_caption(balance: int) -> tuple[str, list[MessageEntity]]:
         " 🙂 Обход LTE\n"
         " 🙃 Финляндия\n"
         " 😉 Австрия\n"
-        " 😊 Франция\n"
+        # " 😊 Франция\n"
         "\n"
         "🌎 Локацию ключа можно заменить в разделе \"Мои ключи\"\n\n"
         f" 👉🏼 Баланс : {balance} ₽\n"
@@ -859,7 +859,7 @@ def _welcome_back_caption(balance: int) -> tuple[str, list[MessageEntity]]:
             )
         )
 
-    for name in ("Германия", "Обход LTE", "Финляндия", "Австрия", "Франция"):
+    for name in ("Германия", "Обход LTE", "Финляндия", "Австрия"):
         i = text.index(name)
         entities.append(
             MessageEntity(
