@@ -817,7 +817,6 @@ def _welcome_back_caption(balance: int) -> tuple[str, list[MessageEntity]]:
         " 🙂 Обход LTE\n"
         " 🙃 Финляндия\n"
         " 😉 Австрия\n"
-        # " 😊 Франция\n"
         "\n"
         "🌎 Локацию ключа можно заменить в разделе \"Мои ключи\"\n\n"
         f" 👉🏼 Баланс : {balance} ₽\n"
@@ -847,7 +846,6 @@ def _welcome_back_caption(balance: int) -> tuple[str, list[MessageEntity]]:
     for ch, loc in (
         ("🙃", "finland"),
         ("😉", "austria"),
-        ("😊", "france"),
     ):
         i = text.index(ch)
         entities.append(
@@ -946,8 +944,8 @@ async def finland_location(callback: CallbackQuery):
 
 @dp.callback_query(lambda c: c.data == 'france')
 async def france_location(callback: CallbackQuery):
-    await callback.answer("Франция")
-    await _show_vpn_payment_after_country(callback, 'france')
+#     await callback.answer("Франция")
+#     await _show_vpn_payment_after_country(callback, 'france')
 
 @dp.callback_query(lambda c: c.data == 'austria')
 async def austria_location(callback: CallbackQuery):
