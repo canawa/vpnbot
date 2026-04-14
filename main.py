@@ -944,8 +944,7 @@ async def finland_location(callback: CallbackQuery):
 
 @dp.callback_query(lambda c: c.data == 'france')
 async def france_location(callback: CallbackQuery):
-#     await callback.answer("Франция")
-#     await _show_vpn_payment_after_country(callback, 'france')
+    await callback.answer('Локация временно недоступна', show_alert=True)
 
 @dp.callback_query(lambda c: c.data == 'austria')
 async def austria_location(callback: CallbackQuery):
