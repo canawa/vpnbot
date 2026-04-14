@@ -773,7 +773,7 @@ def _replace_config_keyboard(key_offset: int, current_location: str) -> InlineKe
         ('whitelist', 'Обход LTE', 'whitelist'),
         ('finland', 'Финляндия', 'finland'),
         ('austria', 'Австрия', 'austria'),
-        ('france', 'Франция', 'france'),
+        # ('france', 'Франция', 'france'),
     ]
     for loc, title, icon_key in options:
         if loc == current_location:
