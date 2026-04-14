@@ -193,7 +193,7 @@ async def _deliver_trial_vpn(user_id: int, reply) -> None:
     random_country_title = {
         'germany': 'Германия 1',
         'germany2': 'Германия 2',
-        'finland': 'Финляндия',
+        # 'finland': 'Финляндия',
         'austria': 'Австрия',
         # 'france': 'Франция',
     }.get(random_country, random_country)
@@ -450,7 +450,7 @@ ikb_support = InlineKeyboardMarkup(inline_keyboard=[
 ikb_locations = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text='Германия 1', callback_data='germany', icon_custom_emoji_id=get_emoji('germany'))],
     [InlineKeyboardButton(text='Обход LTE', callback_data='whitelist', icon_custom_emoji_id=get_emoji('whitelist'))],
-    [InlineKeyboardButton(text='Финляндия', callback_data='finland', icon_custom_emoji_id=get_emoji('finland'))],
+    # [InlineKeyboardButton(text='Финляндия', callback_data='finland', icon_custom_emoji_id=get_emoji('finland'))],
     [InlineKeyboardButton(text='Австрия', callback_data='austria', icon_custom_emoji_id=get_emoji('austria'))],
     [InlineKeyboardButton(text='Германия 2 ', callback_data='germany2', icon_custom_emoji_id=get_emoji('germany'))],
     # [InlineKeyboardButton(text='Франция', callback_data='france', icon_custom_emoji_id=get_emoji('france'))],
@@ -771,7 +771,7 @@ def _replace_config_keyboard(key_offset: int, current_location: str) -> InlineKe
         ('germany', 'Германия 1', 'germany'),
         ('germany2', 'Германия 2 ', 'germany'),
         ('whitelist', 'Обход LTE', 'whitelist'),
-        ('finland', 'Финляндия', 'finland'),
+        # ('finland', 'Финляндия', 'finland'),
         ('austria', 'Австрия', 'austria'),
         # ('france', 'Франция', 'france'),
     ]
