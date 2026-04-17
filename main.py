@@ -205,15 +205,6 @@ ikb_support = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text='Назад', callback_data='back', icon_custom_emoji_id=get_emoji('exit'))],
 ])
 
-ikb_locations = InlineKeyboardMarkup(inline_keyboard=[
-    [InlineKeyboardButton(text='Германия 1', callback_data='germany', icon_custom_emoji_id=get_emoji('germany'))],
-    [InlineKeyboardButton(text='Германия 2 ', callback_data='germany2', icon_custom_emoji_id=get_emoji('germany'))],
-    [InlineKeyboardButton(text='Обход LTE', callback_data='whitelist', icon_custom_emoji_id=get_emoji('whitelist'))],
-    # [InlineKeyboardButton(text='Финляндия', callback_data='finland', icon_custom_emoji_id=get_emoji('finland'))],
-    [InlineKeyboardButton(text='Австрия', callback_data='austria', icon_custom_emoji_id=get_emoji('austria'))],
-    # [InlineKeyboardButton(text='Франция', callback_data='france', icon_custom_emoji_id=get_emoji('france'))],
-    [InlineKeyboardButton(text='Назад', callback_data='back', icon_custom_emoji_id=get_emoji('exit'))],
-])
 
 # def get_ikb_plans(country: str):  # отключено — только месячный тариф, см. _show_vpn_payment_after_country
 #     ...
@@ -373,33 +364,12 @@ def check_payment_yookassa_status(amount, payment_id, user_id): # функция
 async def buy_vpn_callback(callback: CallbackQuery):
     await callback.message.delete()
     await callback.answer("🛒 Раздел покупки VPN") # на пол экрана хуйня высветится
-    _vpn_pending_clear(callback.from_user.id)
     with sq.connect('database.db') as con:
         cur = con.cursor()
         cur.execute('SELECT balance FROM users WHERE id = ?', (callback.from_user.id,))
         result = cur.fetchone()
         balance = result[0] if result else 0
     await callback.message.answer_photo(FSInputFile("photos/buy_vpn.png"), caption=f"<b>Выберите локацию: </b>\n\n👉🏼 <b>Баланс: {balance}₽</b>", parse_mode='HTML', reply_markup=ikb_locations)
-
-# @dp.callback_query(lambda c: c.data == 'profile')
-# async def profile_callback(callback: CallbackQuery):
-#     await callback.answer("Мои ключи")
-#     await callback.message.delete()
-#     with sq.connect('database.db') as con:
-#         cur = con.cursor()
-#         cur.execute("SELECT balance, ref_balance, role FROM users WHERE id = ?", (callback.from_user.id,))
-#         result = cur.fetchone()
-#         balance = result[0] if result else 0
-#         ref_balance = result[1] if result and len(result) > 1 else 0
-#         role = result[2] if result and len(result) > 2 else None
-#     ikb_profile = InlineKeyboardMarkup(inline_keyboard=[
-#         [InlineKeyboardButton(text='🔗 Мои ключи', callback_data='my_keys')],
-#         [InlineKeyboardButton(text='Пополнить', callback_data='deposit', icon_custom_emoji_id=get_emoji('purse'))],
-#     ])
-#     if role == 'refmaster':
-#         pass
-#     ikb_profile.inline_keyboard.append([InlineKeyboardButton(text='Назад', callback_data='back', icon_custom_emoji_id=get_emoji('exit'))])
-#     await callback.message.answer_photo(PROFILE_PHOTO, caption=f"<b>Мои ключи</b>\n\n💰 Баланс: {balance} ₽\n💸 Реферальный баланс: {ref_balance} ₽\n🆔 ID: {callback.from_user.id}", parse_mode='HTML', reply_markup=ikb_profile)
 
 @dp.callback_query(lambda c: c.data == 'documents')
 async def documents_callback(callback: CallbackQuery):
@@ -499,7 +469,7 @@ async def back_callback(callback: CallbackQuery):
 async def plan_trial(callback: CallbackQuery):
     await callback.message.delete()
     if await is_subscribed(bot, callback.from_user.id):
-        await _deliver_trial_vpn(callback.from_user.id, callback.message)
+        await deliver_trial_vpn(callback.from_user.id, callback.message)
     else:
         await callback.message.answer('❌ Вы не подписаны на канал! Подпишитесь на канал, чтобы получить бесплатный тестовый период!', parse_mode='HTML', reply_markup=ikb_subscribe)
 
@@ -509,53 +479,13 @@ async def subscribe_confirmed_callback(callback: CallbackQuery):
     await callback.answer("✅ Я подписался") # на пол экрана хуйня высветится
     await callback.message.delete()
     if await is_subscribed(bot, callback.from_user.id):
-        await _deliver_trial_vpn(callback.from_user.id, callback.message)
+        await deliver_trial_vpn(callback.from_user.id, callback.message)
     else:
         await callback.message.answer('❌ Вы не подписаны на канал! Подпишитесь на канал, чтобы получить бесплатный тестовый период!', parse_mode='HTML', reply_markup=ikb_subscribe)
 
 @dp.callback_query(lambda c: c.data.startswith('plan_lifetime'))
 async def plan_lifetime_callback(callback: CallbackQuery):
     await callback.answer('Сейчас доступна только подписка на месяц. «Подключить VPN» → страна → оплата.', show_alert=True)
-
-
-@dp.callback_query(lambda c: c.data.startswith('lifetime_confirm_'))
-async def lifetime_agreement_confirmed_callback(callback: CallbackQuery):
-    await callback.answer('Сейчас доступна только подписка на месяц. «Подключить VPN» → страна → оплата.', show_alert=True)
-
-
-@dp.callback_query(lambda c: c.data == 'finland')
-async def finland_location(callback: CallbackQuery):
-    await callback.answer("Финляндия")
-    await _show_vpn_payment_after_country(callback, 'finland')
-
-@dp.callback_query(lambda c: c.data == 'france')
-async def france_location(callback: CallbackQuery):
-    await callback.answer("Франция")
-    await _show_vpn_payment_after_country(callback, 'france')
-
-@dp.callback_query(lambda c: c.data == 'austria')
-async def austria_location(callback: CallbackQuery):
-    await callback.answer("Австрия")
-    await _show_vpn_payment_after_country(callback, 'austria')
-
-
-@dp.callback_query(lambda c: c.data == 'germany')
-async def germany_location(callback: CallbackQuery):
-    await callback.answer("Германия 1")
-    await _show_vpn_payment_after_country(callback, 'germany')
-
-
-@dp.callback_query(lambda c: c.data == 'germany2')
-async def germany2_location(callback: CallbackQuery):
-    await callback.answer("Германия 2")
-    await _show_vpn_payment_after_country(callback, 'germany2')
-
-
-@dp.callback_query(lambda c: c.data == 'whitelist')
-async def whitelist_location(callback: CallbackQuery):
-    await callback.answer("Обход LTE")
-    await _show_vpn_payment_after_country(callback, 'whitelist')
-
 
 @dp.callback_query(lambda c: c.data == 'vpn_pay_back')
 async def vpn_pay_back_callback(callback: CallbackQuery):
@@ -588,14 +518,9 @@ async def vpn_pay_balance_callback(callback: CallbackQuery):
     _vpn_pending_clear(callback.from_user.id)
     await _deliver_month_vpn(callback.from_user.id, country, callback.message)
 
-
 @dp.callback_query(lambda c: c.data == 'vpnpay_card')
 async def vpnpay_card_callback(callback: CallbackQuery):
     await callback.answer("СБП / карта")
-    country = _vpn_pending_get(callback.from_user.id)
-    if not country:
-        await callback.message.answer('❌ Сначала выберите страну: «Подключить VPN» → локация.', reply_markup=ikb_back)
-        return
     await callback.message.delete()
     amount = MONTH_PRICE
     try:
