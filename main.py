@@ -333,7 +333,7 @@ async def check_payment_yookassa_callback(callback: CallbackQuery): # сюды
 
 
 @dp.callback_query(lambda c: c.data == 'vpnpay_card')
-async def vpnpay_card_callback(callback: CallbackQuery)
+async def vpnpay_card_callback(callback: CallbackQuery):
     await callback.message.delete()
     amount = MONTH_PRICE
 
