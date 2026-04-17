@@ -51,7 +51,7 @@ MONTH_PRICE = 149
 def get_vpn_pay_keyboard(balance: int) -> InlineKeyboardMarkup:
     rows = []
     rows.extend([
-        [InlineKeyboardButton(text='СБП (или картой)', callback_data=f'deposit_149_card', icon_custom_emoji_id=get_emoji('sbp'))],
+        [InlineKeyboardButton(text='СБП (или картой)', callback_data=f'deposit_troll_card', icon_custom_emoji_id=get_emoji('sbp'))],
         [InlineKeyboardButton(text='Криптобот', callback_data=f'deposit_149_crypto', icon_custom_emoji_id=get_emoji('crypto_bot'))],
         [InlineKeyboardButton(text='Звёзды', callback_data=f'deposit_149_stars', icon_custom_emoji_id=get_emoji('stars'))],
         [InlineKeyboardButton(text='Назад', callback_data='vpn_pay_back', icon_custom_emoji_id=get_emoji('exit'))],
