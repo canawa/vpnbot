@@ -121,7 +121,7 @@ async def start_command(message):
         result = cur.fetchone()
         balance = result[0] if result else 0
 
-    text, caption_entities = welcome_back_caption(balance)
+    text = welcome_back_caption(balance)
     await message.answer_photo(
         WELCOME_PHOTO,
         caption=text,
@@ -489,11 +489,10 @@ async def back_callback(callback: CallbackQuery):
         cur.execute("SELECT balance FROM users WHERE id = ?", (callback.from_user.id,))
         result = cur.fetchone()
         balance = result[0] if result else 0
-    text, caption_entities = welcome_back_caption(balance)
+    text = welcome_back_caption(balance)
     await callback.message.answer_photo(
         WELCOME_PHOTO,
         caption=text,
-        caption_entities=caption_entities,
         reply_markup=generate_ikb_main(callback.from_user.id),
     )
 
