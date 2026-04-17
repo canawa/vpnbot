@@ -114,7 +114,8 @@ async def start_command(message):
     await message.answer_photo(
         WELCOME_PHOTO,
         caption=text,
-        reply_markup=generate_ikb_main(message.from_user.id)
+        reply_markup=generate_ikb_main(message.from_user.id),
+        parse_mode='Markdown'
     )
     with sq.connect('database.db') as con:
         cur = con.cursor()
@@ -246,8 +247,7 @@ def welcome_back_caption(subscription_status):
     text = (
         "👋 Добро пожаловать в Кофеманию\n"
         "\n"
-        f"Подписка: {'🟢 Активна' if subscription_status==True else '🔴 Отсутствует'}\n"
-        "Купить ключи можно так же на сайте coffeemaniavpn.ru"
+        f"**Подписка**: {'🟢 Активна' if subscription_status==True else '🔴 Отсутствует'}\n"
     )
     return text
 
