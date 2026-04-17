@@ -57,7 +57,7 @@ rub_to_usdt = get_rate()
 
 dp = Dispatcher() # объект диспетчера
 
-MONTH_PRICE = 149
+MONTH_PRICE = 150
 
 def get_vpn_pay_keyboard(balance: int) -> InlineKeyboardMarkup:
     rows = []
