@@ -122,7 +122,7 @@ async def start_command(message):
 
     generate_ikb_main(message.from_user.id)
  
-create_yookassa_payment_keyboard()
+
 
 @dp.callback_query(lambda c: c.data.startswith('check_payment_'))
 async def check_payment_callback(callback: CallbackQuery):
@@ -331,12 +331,12 @@ async def check_payment_yookassa_callback(callback: CallbackQuery): # сюды
     else:
         await callback.message.answer(f'👀 Ожидаем оплату, оплатите и попробуйте снова!', parse_mode='HTML', reply_markup=ikb_back)
 
-
-@dp.callback_query(lambda c: c.data == 'vpnpay_card')
-async def vpnpay_card_callback(callback: CallbackQuery):
-    await callback.message.delete()
-    amount = MONTH_PRICE
-
+#
+# @dp.callback_query(lambda c: c.data == 'vpnpay_card')
+# async def vpnpay_card_callback(callback: CallbackQuery):
+#     await callback.message.delete()
+#     amount = MONTH_PRICE
+#     ikb = create_yookassa_payment_keyboard(amount)
 
 
 @dp.callback_query(lambda c: c.data == 'vpnpay_crypto')
@@ -430,7 +430,7 @@ async def process_deposit(callback: CallbackQuery):
             # Убрали pprint для экономии памяти
             payment_id = payment.id
             confirmation_url = payment.confirmation.confirmation_url
-            await callback.message.answer(f'👉 Создали заявку на оплату, переходите по ссылке и оплатите.\n\n <b>❗ После оплаты нажмите на кнопку "Я оплатил"</b>', parse_mode='HTML')
+            await callback.message.answer(f'👉 Создали заявку на оплату, переходите по ссылке и оплатите.\n\n <b>❗ После оплаты нажмите на кнопку "Я оплатил"</b>', parse_mode='HTML', reply_markup=create_yookassa_payment_keyboard(amount, confirmation_url, payment_id))
         except Exception as e:
             await callback.message.answer(f'❌ Не удалось создать заявку: {e}. Напишите в техподдержку, мы обязательно поможем!', reply_markup=ikb_deposit_methods)
             raise e
