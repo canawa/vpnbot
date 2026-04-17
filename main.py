@@ -54,7 +54,7 @@ def get_vpn_pay_keyboard() -> InlineKeyboardMarkup:
         [InlineKeyboardButton(text='СБП (или картой)', callback_data=f'deposit_{MONTH_PRICE}_card', icon_custom_emoji_id=get_emoji('sbp'))],
         [InlineKeyboardButton(text='Криптобот', callback_data=f'deposit_{MONTH_PRICE}_crypto', icon_custom_emoji_id=get_emoji('crypto_bot'))],
         [InlineKeyboardButton(text='Звёзды', callback_data=f'deposit_{MONTH_PRICE}_stars', icon_custom_emoji_id=get_emoji('stars'))],
-        [InlineKeyboardButton(text='Назад', callback_data='vpn_pay_back', icon_custom_emoji_id=get_emoji('exit'))],
+        [InlineKeyboardButton(text='Назад', callback_data='ikb_back', icon_custom_emoji_id=get_emoji('exit'))],
     ])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
@@ -288,16 +288,6 @@ async def subscribe_confirmed_callback(callback: CallbackQuery):
 async def plan_lifetime_callback(callback: CallbackQuery):
     await callback.answer('Сейчас доступна только подписка на месяц. «Подключить VPN» → страна → оплата.', show_alert=True)
 
-@dp.callback_query(lambda c: c.data == 'vpn_pay_back')
-async def vpn_pay_back_callback(callback: CallbackQuery):
-    await callback.answer("Назад")
-    await callback.message.delete()
-    with sq.connect('database.db') as con:
-        cur = con.cursor()
-        cur.execute('SELECT balance FROM users WHERE id = ?', (callback.from_user.id,))
-        result = cur.fetchone()
-        balance = result[0] if result else 0
-    await callback.message.answer_photo(BUY_VPN_PHOTO, caption=f"<b>Выберите локацию: </b>\n\n👉🏼 <b>Баланс: {balance}₽</b>", parse_mode='HTML', reply_markup=ikb_back)
 
 @dp.callback_query(
     lambda c: c.data.startswith('yookassa_')
