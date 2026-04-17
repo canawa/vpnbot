@@ -1,5 +1,6 @@
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 import sqlite3 as sq
+from emojis import get_emoji
 ikb_subscribe = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text='🔗 Подписаться на канал', url='https://t.me/coffemaniavpn')],
     [InlineKeyboardButton(text='✅ Я подписался', callback_data='subscribe_confirmed')],
