@@ -400,6 +400,7 @@ async def vpnpay_stars_callback(callback: CallbackQuery):
 @dp.callback_query(lambda c: c.data.startswith('deposit_'))
 async def process_deposit(callback: CallbackQuery):
     # Убрали лишний print для экономии памяти
+    print(callback.data)
     _ , price , method = callback.data.split('_')
     
     amount = int(price)
