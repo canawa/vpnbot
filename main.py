@@ -125,8 +125,7 @@ async def start_command(message):
     await message.answer_photo(
         WELCOME_PHOTO,
         caption=text,
-        caption_entities=caption_entities,
-        reply_markup=generate_ikb_main(message.from_user.id),
+        reply_markup=generate_ikb_main(message.from_user.id)
     )
     with sq.connect('database.db') as con:
         cur = con.cursor()
