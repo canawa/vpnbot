@@ -267,7 +267,6 @@ async def check_payment_callback(callback: CallbackQuery):
 
 
 
-
 # ОБРАБОТЧИКИ КОЛЛБЭКОВ
 @dp.callback_query(lambda c: c.data == 'buy_vpn')
 async def buy_vpn_callback(callback: CallbackQuery):
@@ -407,6 +406,41 @@ async def vpn_pay_back_callback(callback: CallbackQuery):
         result = cur.fetchone()
         balance = result[0] if result else 0
     await callback.message.answer_photo(BUY_VPN_PHOTO, caption=f"<b>Выберите локацию: </b>\n\n👉🏼 <b>Баланс: {balance}₽</b>", parse_mode='HTML', reply_markup=ikb_locations)
+
+@dp.callback_query(lambda c: c.data.startswith('check_'))
+async def check_payment_yookassa_callback(callback: CallbackQuery): # сюды
+    await callback.answer("🔄 Проверка статуса оплаты") # на пол экрана хуйня высветится
+    _ , amount , payment_id = callback.data.split('_')
+    # Убрали лишний print для экономии памяти
+    if check_payment_yookassa_status(int(amount), payment_id, callback.from_user.id):
+        with sq.connect('database.db') as con:
+            cur = con.cursor()
+            cur.execute('UPDATE users SET balance = balance + ? WHERE id = ?', (amount, callback.from_user.id))
+            cur.execute('SELECT ref_master_id, registration_date FROM referal_users WHERE referral_id = ?', (callback.from_user.id,))
+            ref_master = cur.fetchone()
+            if ref_master: # если есть рефовод то:
+                ref_master_id = ref_master[0]
+                registration_date_str = ref_master[1]
+                if registration_date_str:
+                    registration_date = date.fromisoformat(registration_date_str)
+                    three_months_later = registration_date + timedelta(days=90)
+                    if date.today() <= three_months_later:
+                        # Проверяем роль рефмастера
+                        cur.execute('SELECT role FROM users WHERE id = ?', (ref_master_id,))
+                        ref_master_role = cur.fetchone()
+                        if ref_master_role and ref_master_role[0] == 'refmaster':
+                            cur.execute('UPDATE users SET ref_balance = ref_balance + ? WHERE id = ?', (int(amount)/2, ref_master_id)) # начислить 50% реферального бонуса рефоводу
+            con.commit()
+        handled_vpn = await _maybe_complete_vpn_after_topup(callback.from_user.id, int(amount), callback.message)
+        if handled_vpn:
+            await callback.message.delete()
+            return
+        await callback.message.answer(f'🤑 Оплачено! \n\n ➕ Начислено {amount} ₽ на баланс', parse_mode='HTML', reply_markup=ikb_back)
+        await callback.message.delete()
+
+    else:
+        await callback.message.answer(f'👀 Ожидаем оплату, оплатите и попробуйте снова!', parse_mode='HTML', reply_markup=ikb_back)
+
 
 
 @dp.callback_query(lambda c: c.data == 'vpn_pay_balance')
