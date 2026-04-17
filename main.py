@@ -50,8 +50,6 @@ MONTH_PRICE = 149
 
 def get_vpn_pay_keyboard(balance: int) -> InlineKeyboardMarkup:
     rows = []
-    if balance >= MONTH_PRICE:
-        rows.append([InlineKeyboardButton(text=f'Оплатить с баланса ({MONTH_PRICE} ₽)', callback_data='vpn_pay_balance')])
     rows.extend([
         [InlineKeyboardButton(text='СБП (или картой)', callback_data=f'deposit_{MONTH_PRICE}_card', icon_custom_emoji_id=get_emoji('sbp'))],
         [InlineKeyboardButton(text='Криптобот', callback_data=f'deposit_{MONTH_PRICE}_crypto', icon_custom_emoji_id=get_emoji('crypto_bot'))],
