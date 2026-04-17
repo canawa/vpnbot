@@ -379,33 +379,13 @@ async def vpnpay_stars_callback(callback: CallbackQuery):
     except Exception as e:
         await callback.message.answer(f'❌ Не удалось создать счёт: {e}', reply_markup=get_vpn_pay_keyboard(0))
 
-# @dp.callback_query(lambda c: c.data.startswith('plan_week_'))
-# async def plan_week_callback(callback: CallbackQuery):
-#     await callback.answer('Сейчас доступна только подписка на месяц. «Подключить VPN» → страна → оплата.', show_alert=True)
-#
-#
-# @dp.callback_query(lambda c: c.data.startswith('plan_month_'))
-# async def plan_month_callback(callback: CallbackQuery):
-#     await callback.answer('Сейчас доступна только подписка на месяц. «Подключить VPN» → страна → оплата.', show_alert=True)
-#
-#
-# @dp.callback_query(lambda c: c.data.startswith('plan_halfyear'))
-# async def plan_halfyear_callback(callback: CallbackQuery):
-#     await callback.answer('Сейчас доступна только подписка на месяц. «Подключить VPN» → страна → оплата.', show_alert=True)
-#
-#
-# @dp.callback_query(lambda c: c.data.startswith('plan_year'))
-# async def plan_year_callback(callback: CallbackQuery):
-#     await callback.answer('Сейчас доступна только подписка на месяц. «Подключить VPN» → страна → оплата.', show_alert=True)
-#
-#
 
 @dp.callback_query(lambda c: c.data.startswith('deposit_'))
 async def process_deposit(callback: CallbackQuery):
     # Убрали лишний print для экономии памяти
-    _ , sum , method = callback.data.split('_')
+    _ , price , method = callback.data.split('_')
     
-    amount = int(sum)
+    amount = int(price)
     # await callback.message.answer(f"💰 Пополнение на {amount} ₽\n\n<b>💳 Способ пополнения: {method}</b> \n\n Создаем заявку...", parse_mode='HTML')
     await callback.message.delete()
     if method == 'card':
