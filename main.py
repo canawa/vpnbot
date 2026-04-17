@@ -46,7 +46,7 @@ create_tables()
 
 dp = Dispatcher() # объект диспетчера
 
-MONTH_PRICE = 149
+MONTH_PRICE = 1
 
 def get_vpn_pay_keyboard() -> InlineKeyboardMarkup:
     rows = []
@@ -372,7 +372,7 @@ async def vpnpay_crypto_callback(callback: CallbackQuery):
     if ok:
         await callback.message.answer('👉 Создали заявку на оплату, перейдите по ссылке.\n\n <b>❗ После оплаты нажмите «Я оплатил»</b>', parse_mode='HTML', reply_markup=ikb)
     else:
-        await callback.message.answer('❌ Не удалось создать заявку. Попробуйте позже.', reply_markup=get_vpn_pay_keyboard(0))
+        await callback.message.answer('❌ Не удалось создать заявку. Попробуйте позже.', reply_markup=get_vpn_pay_keyboard())
 
 
 @dp.callback_query(lambda c: c.data == 'vpnpay_stars')
@@ -428,7 +428,7 @@ async def process_deposit(callback: CallbackQuery):
             confirmation_url = payment.confirmation.confirmation_url
             await callback.message.answer(f'👉 Создали заявку на оплату, переходите по ссылке и оплатите.\n\n <b>❗ После оплаты нажмите на кнопку "Я оплатил"</b>', parse_mode='HTML', reply_markup=create_yookassa_payment_keyboard(amount, confirmation_url, payment_id))
         except Exception as e:
-            await callback.message.answer(f'❌ Не удалось создать заявку: {e}. Напишите в техподдержку, мы обязательно поможем!', reply_markup=ikb_deposit_methods)
+            await callback.message.answer(f'❌ Не удалось создать заявку: {e}. Напишите в техподдержку, мы обязательно поможем!', reply_markup=ikb_support)
             raise e
 
     if method == 'stars':
