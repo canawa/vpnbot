@@ -120,7 +120,7 @@ async def start_command(message):
         cur = con.cursor()
         cur.execute("INSERT OR IGNORE INTO users (id, username, balance, had_trial) VALUES (?, ?, ?, ?)", (message.from_user.id, message.from_user.username, 0, 0))
 
-generate_ikb_main()
+    generate_ikb_main(message.from_user.id)
  
 def yookassa_payment_keyboard(amount, confirmation_url, payment_id): # функция для создания клавиатуры для оплаты через Юкассу
     ikb_yookassa = InlineKeyboardMarkup(inline_keyboard=[
