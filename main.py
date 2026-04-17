@@ -46,7 +46,7 @@ create_tables()
 
 dp = Dispatcher() # объект диспетчера
 
-MONTH_PRICE = 150
+MONTH_PRICE = 149
 
 def get_vpn_pay_keyboard(balance: int) -> InlineKeyboardMarkup:
     rows = []
@@ -54,8 +54,8 @@ def get_vpn_pay_keyboard(balance: int) -> InlineKeyboardMarkup:
         rows.append([InlineKeyboardButton(text=f'Оплатить с баланса ({MONTH_PRICE} ₽)', callback_data='vpn_pay_balance')])
     rows.extend([
         [InlineKeyboardButton(text='СБП (или картой)', callback_data=f'deposit_{MONTH_PRICE}_card', icon_custom_emoji_id=get_emoji('sbp'))],
-        [InlineKeyboardButton(text='Криптобот', callback_data='deposit_crypto', icon_custom_emoji_id=get_emoji('crypto_bot'))],
-        [InlineKeyboardButton(text='Звёзды', callback_data='deposit_stars', icon_custom_emoji_id=get_emoji('stars'))],
+        [InlineKeyboardButton(text='Криптобот', callback_data=f'deposit_{MONTH_PRICE}_crypto', icon_custom_emoji_id=get_emoji('crypto_bot'))],
+        [InlineKeyboardButton(text='Звёзды', callback_data=f'deposit_{MONTH_PRICE}_stars', icon_custom_emoji_id=get_emoji('stars'))],
         [InlineKeyboardButton(text='Назад', callback_data='vpn_pay_back', icon_custom_emoji_id=get_emoji('exit'))],
     ])
     return InlineKeyboardMarkup(inline_keyboard=rows)
