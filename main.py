@@ -21,6 +21,8 @@ from check_subscription import is_subscribed
 import locale 
 from emojis import get_emoji
 from databases import create_tables
+from payments import get_pay_link, check_payment_status, check_payment_yookassa_status, check_payment_yookassa_callback
+from expire_functions import check_expired_subscriptions, check_expiring_tomorrow_subscriptions, reset_runout_notified_daily
 locale.setlocale(locale.LC_TIME, 'ru_RU.UTF-8')
 print('BOT STARTED!!!')
 
@@ -131,27 +133,6 @@ async def start_command(message):
         cur = con.cursor()
         cur.execute("INSERT OR IGNORE INTO users (id, username, balance, had_trial) VALUES (?, ?, ?, ?)", (message.from_user.id, message.from_user.username, 0, 0))
     
-# PAY FUNCTIONS
-def get_pay_link(amount):
-    headers = {"Crypto-Pay-API-Token": API_TOKEN}
-    data = {"asset": "USDT", "amount": amount}
-    response = requests.post('https://pay.crypt.bot/api/createInvoice', headers=headers, json=data)
-    response = response.json()
-    return response
-
-def check_payment_status(invoice_id):
-    headers = {"Crypto-Pay-API-Token": API_TOKEN,
-    "Content-Type": "application/json"
-    }
-    # Получаем только нужный инвойс по ID, а не все инвойсы
-    response = requests.post('https://pay.crypt.bot/api/getInvoices', headers=headers, json={"invoice_ids": [invoice_id]})
-    response = response.json()
-    if response.get('ok') and response.get('result', {}).get('items'):
-        inv = response['result']['items'][0]
-        if inv['invoice_id'] == invoice_id:
-            return inv['status'], float(inv['amount'])*rub_to_usdt # возвращаем статус оплаты и сумму в рублях
-    
-    return None, None
 
 ikb_subscribe = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text='🔗 Подписаться на канал', url='https://t.me/coffemaniavpn')],
@@ -170,10 +151,9 @@ def generate_ikb_main(user_id):
             ikb_main.inline_keyboard.append([InlineKeyboardButton(text='🎁 Попробовать бесплатно', callback_data='trial', style = 'success')])
     ikb_main.inline_keyboard.append([InlineKeyboardButton(text='Подключить VPN', callback_data='buy_vpn', icon_custom_emoji_id=get_emoji('plus'))])
     ikb_main.inline_keyboard.append([
-        InlineKeyboardButton(text='Пополнить', callback_data='deposit', icon_custom_emoji_id=get_emoji('purse')),
+        ikb_main.inline_keyboard.append([InlineKeyboardButton(text='Реферальная программа', callback_data='referral', icon_custom_emoji_id=get_emoji('add_user'))])
         InlineKeyboardButton(text='Мои ключи', callback_data='my_keys', icon_custom_emoji_id=get_emoji('keys')),
     ])
-    ikb_main.inline_keyboard.append([InlineKeyboardButton(text='Реферальная программа', callback_data='referral', icon_custom_emoji_id=get_emoji('add_user'))])
     ikb_main.inline_keyboard.append([InlineKeyboardButton(text='Документы', callback_data='documents', icon_custom_emoji_id=get_emoji('documents'))])
     return ikb_main
 
@@ -203,9 +183,6 @@ ikb_support = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text='Назад', callback_data='back', icon_custom_emoji_id=get_emoji('exit'))],
 ])
 
-
-# def get_ikb_plans(country: str):  # отключено — только месячный тариф, см. _show_vpn_payment_after_country
-#     ...
 
 def get_ikb_lifetime_agreement(country: str):
     return InlineKeyboardMarkup(inline_keyboard=[
@@ -250,13 +227,6 @@ ikb_admin_back = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text=' Назад', callback_data='admin_back', icon_custom_emoji_id=get_emoji('exit'))],
 ])
 
-ikb_withdraw = InlineKeyboardMarkup(inline_keyboard=[
-    [InlineKeyboardButton(text='💰 200 ₽', callback_data='withdraw_200')],
-    [InlineKeyboardButton(text='💰 300 ₽', callback_data='withdraw_300')],
-    [InlineKeyboardButton(text='💰 500 ₽', callback_data='withdraw_500')],
-    [InlineKeyboardButton(text='💰 1000 ₽', callback_data='withdraw_1000')],
-    [InlineKeyboardButton(text='Назад', callback_data='back', icon_custom_emoji_id=get_emoji('exit'))],
-])
 
 @dp.callback_query(lambda c: c.data.startswith('check_payment_'))
 async def check_payment_callback(callback: CallbackQuery):
@@ -304,51 +274,7 @@ async def check_payment_callback(callback: CallbackQuery):
         raise e
 
 
-@dp.callback_query(lambda c: c.data.startswith('check_'))
-async def check_payment_yookassa_callback(callback: CallbackQuery): # сюды
-    await callback.answer("🔄 Проверка статуса оплаты") # на пол экрана хуйня высветится
-    _ , amount , payment_id = callback.data.split('_')
-    # Убрали лишний print для экономии памяти
-    if check_payment_yookassa_status(int(amount), payment_id, callback.from_user.id):
-        with sq.connect('database.db') as con:
-            cur = con.cursor()
-            cur.execute('UPDATE users SET balance = balance + ? WHERE id = ?', (amount, callback.from_user.id))
-            cur.execute('SELECT ref_master_id, registration_date FROM referal_users WHERE referral_id = ?', (callback.from_user.id,))
-            ref_master = cur.fetchone() 
-            if ref_master: # если есть рефовод то:
-                ref_master_id = ref_master[0]
-                registration_date_str = ref_master[1]
-                if registration_date_str:
-                    registration_date = date.fromisoformat(registration_date_str)
-                    three_months_later = registration_date + timedelta(days=90)
-                    if date.today() <= three_months_later:
-                        # Проверяем роль рефмастера
-                        cur.execute('SELECT role FROM users WHERE id = ?', (ref_master_id,))
-                        ref_master_role = cur.fetchone()
-                        if ref_master_role and ref_master_role[0] == 'refmaster':
-                            cur.execute('UPDATE users SET ref_balance = ref_balance + ? WHERE id = ?', (int(amount)/2, ref_master_id)) # начислить 50% реферального бонуса рефоводу
-            con.commit()
-        handled_vpn = await _maybe_complete_vpn_after_topup(callback.from_user.id, int(amount), callback.message)
-        if handled_vpn:
-            await callback.message.delete()
-            return
-        await callback.message.answer(f'🤑 Оплачено! \n\n ➕ Начислено {amount} ₽ на баланс', parse_mode='HTML', reply_markup=ikb_back)
-        await callback.message.delete()
 
-    else:
-        await callback.message.answer(f'👀 Ожидаем оплату, оплатите и попробуйте снова!', parse_mode='HTML', reply_markup=ikb_back)
-
-
-def check_payment_yookassa_status(amount, payment_id, user_id): # функция для проверки статуса оплаты через Юкассу
-    payment = Payment.find_one(payment_id)
-    if payment.status == 'succeeded':
-        with sq.connect('database.db') as con:
-            cur = con.cursor()
-            cur.execute('INSERT INTO transactions (user_id, amount, type, date) VALUES (?, ?, ?, ?)', (user_id, amount, 'yookassa', datetime.now().isoformat() ))
-            con.commit()
-        return True
-    else:
-        return False
 
 # ОБРАБОТЧИКИ КОЛЛБЭКОВ
 @dp.callback_query(lambda c: c.data == 'buy_vpn')
@@ -508,30 +434,6 @@ async def vpn_pay_balance_callback(callback: CallbackQuery):
     await callback.message.delete()
     _vpn_pending_clear(callback.from_user.id)
     await _deliver_month_vpn(callback.from_user.id, country, callback.message)
-
-@dp.callback_query(lambda c: c.data == 'vpnpay_card')
-async def vpnpay_card_callback(callback: CallbackQuery):
-    await callback.answer("СБП / карта")
-    await callback.message.delete()
-    amount = MONTH_PRICE
-    try:
-        payment = Payment.create({
-            "amount": {"value": amount, "currency": "RUB"},
-            "description": f"Подписка КОФЕМАНИЯ VPN на месяц)",
-            'capture': True,
-            'confirmation': {'type': 'redirect', 'return_url': 'https://t.me/coffemaniaVPNbot'},
-            "metadata": {"user_id": callback.from_user.id},
-        }, uuid.uuid4())
-        payment_id = payment.id
-        confirmation_url = payment.confirmation.confirmation_url
-        await callback.message.answer(
-            f'👉 Создали заявку на оплату {amount} ₽, переходите по ссылке и оплатите.\n\n <b>❗ После оплаты нажмите «Я оплатил»</b>',
-            parse_mode='HTML',
-            reply_markup=yookassa_payment_keyboard(amount, confirmation_url, payment_id),
-        )
-    except Exception as e:
-        await callback.message.answer(f'❌ Не удалось создать заявку: {e}. Напишите в техподдержку.', reply_markup=get_vpn_pay_keyboard(0))
-
 
 @dp.callback_query(lambda c: c.data == 'vpnpay_crypto')
 async def vpnpay_crypto_callback(callback: CallbackQuery):
@@ -788,15 +690,6 @@ async def vpn_reopen_payment_callback(callback: CallbackQuery):
         reply_markup=get_vpn_pay_keyboard(balance),
     )
 
-
-@dp.callback_query(lambda c: c.data == 'deposit')
-async def deposit_callback(callback: CallbackQuery):
-    await callback.answer("💰 Пополнить") # на пол экрана хуйня высветится
-    _vpn_pending_clear(callback.from_user.id)
-    await callback.message.delete()
-    await callback.message.answer_photo(DEPOSIT_PHOTO, caption="<b>Выберите способ пополнения:</b>", parse_mode='HTML', reply_markup=ikb_deposit_methods)
-
-
 @dp.callback_query(lambda c: c.data.startswith('deposit_'))
 async def process_deposit(callback: CallbackQuery):
     # Убрали лишний print для экономии памяти
@@ -978,8 +871,9 @@ async def shout_message(message: Message):
         for user in result:
             try:
                 await bot.send_message(user[0], message.text[6:], parse_mode='Markdown')
-            except:
-                pass
+            except Exception as e:
+                await bot.send_message.answer(1979477416, f'Ошибка {e}')
+                await bot.send_message.answer(7562967579, f'Ошибка {e}')
     await message.answer("🔊 Сообщение отправлено всем пользователям", parse_mode='Markdown', reply_markup=ikb_back)
 
 
@@ -1173,57 +1067,6 @@ async def admin_notify_referral_callback(callback: CallbackQuery):
         reply_markup=ikb_admin_back
     )
 
-@dp.callback_query(lambda c: c.data == 'admin_apologize')
-async def admin_apologize_callback(callback: CallbackQuery):
-    await callback.answer("🙏 Извините") # на пол экрана хуйня высветится
-    await callback.message.delete()
-    
-    with sq.connect('database.db') as con:
-        cur = con.cursor()
-        # Находим всех пользователей с активными ключами
-        cur.execute('SELECT id FROM users WHERE has_active_keys = 1')
-        users_with_active_keys = cur.fetchall()
-        
-        sent_count = 0
-        failed_count = 0
-        
-        for user_tuple in users_with_active_keys:
-            user_id = user_tuple[0]
-            try:
-                # Получаем текущий баланс пользователя для отображения
-                cur.execute('SELECT balance FROM users WHERE id = ?', (user_id,))
-                balance_result = cur.fetchone()
-                current_balance = balance_result[0] if balance_result else 0
-                
-                # Формируем сообщение с жирным шрифтом для основных тезисов
-                message_text = (
-                    "Сегодня произошла печальная ситуация, которая вас никак не должна волновать.\n"
-                    "<b>Все ключи были сброшены.</b> Нам очень жаль, что VPN был недоступен на протяжении 8 часов.\n\n"
-                    "<b>ПОЭТОМУ:</b>\n\n"
-                    "👉 <b>Мы выдали всем вам 100р компенсации.</b>\n"
-                    "👉 <b>Вернули деньги на баланс, которые вы депозитнули.</b>\n\n"
-                    "<b>Просьба, зайти и купить ключ заново.</b>\n\n"
-                    f"👉🏼 <b>Баланс: {current_balance}₽</b>"
-                )
-                
-                await bot.send_message(
-                    user_id,
-                    message_text,
-                    parse_mode='HTML',
-                    reply_markup=ikb_locations
-                )
-                sent_count += 1
-            except Exception as e:
-                failed_count += 1
-                print(f"Error sending apologize message to user {user_id}: {e}")
-        
-        await callback.message.answer(
-            f"✅ Сообщения отправлены!\n\n"
-            f"📤 Отправлено: {sent_count}\n"
-            f"❌ Ошибок: {failed_count}",
-            parse_mode='HTML',
-            reply_markup=ikb_admin_back
-        )
 
 @dp.callback_query(lambda c: c.data == 'admin_roles')
 async def admin_roles_callback(callback: CallbackQuery):
@@ -1307,132 +1150,11 @@ async def withdraw_callback(callback: CallbackQuery):
 
 
 
-async def check_expired_subscriptions():
-    """Проверяет истекшие подписки и отправляет уведомления пользователям"""
-    while True:
-        try:
-            today = date.today()
-            today_str = today.isoformat()  # Преобразуем дату в строку формата YYYY-MM-DD для корректного сравнения
-            with sq.connect('database.db') as con:
-                cur = con.cursor()
-                # Находим всех пользователей, у которых сегодня истекает подписка и которым еще не отправляли уведомление
-                cur.execute('''
-                    SELECT DISTINCT keys.buyer_id FROM keys 
-                    INNER JOIN users ON keys.buyer_id = users.id
-                    WHERE keys.expiration_date = ? AND keys.buyer_id IS NOT NULL AND (users.runout_notified IS NULL OR users.runout_notified = 0)
-                ''', (today_str,))
-                expired_users = cur.fetchall()
-                
-                for user_tuple in expired_users:
-                    user_id = user_tuple[0]
-                    try:
-                        # Проверяем, есть ли у пользователя другие активные ключи
-                        cur.execute('''
-                            SELECT COUNT(*) 
-                            FROM keys 
-                            WHERE buyer_id = ? AND expiration_date > ?
-                        ''', (user_id, today_str))
-                        active_keys_count = cur.fetchone()[0]
-                        
-                        # Отправляем сообщение только если нет других активных ключей
-                        if active_keys_count == 0:
-                            cur.execute('UPDATE users SET runout_notified = 1 WHERE id = ?', (user_id,))
-                            cur.execute('SELECT balance FROM users WHERE id = ?', (user_id,))
-                            result = cur.fetchone()
-                            balance = result[0] if result else 0
-                            con.commit()
-                            await bot.send_message(
-                                user_id,
-                                f"⏰ <b>У вас закончилась подписка</b>\n\n"
-                                f"Ваша подписка VPN истекла сегодня. Для продолжения использования сервиса, пожалуйста, приобретите новый ключ.\n\n👉🏼 <b>Баланс: {balance}₽</b>",
-                                parse_mode='HTML', reply_markup=ikb_locations)
-                            print(f'{user_id} was notified about his subscription ending!')
-                    except Exception as e:
-                        print(f"Error {user_id}: {e}")
-                        continue
-                        
-        except Exception as e:
-            print(f"Error checking expired subscriptions: {e}")
-        
-        # Проверяем раз в час (3600 секунд = 1 час)
-        await asyncio.sleep(3600)
-
-async def check_expiring_tomorrow_subscriptions():
-    """Проверяет подписки, истекающие завтра, и отправляет уведомления пользователям"""
-    while True:
-        try:
-            today = date.today()
-            tomorrow = today + timedelta(days=1)
-            tomorrow_str = tomorrow.isoformat()  # Преобразуем дату в строку формата YYYY-MM-DD
-            with sq.connect('database.db') as con:
-                cur = con.cursor()
-                # Находим всех пользователей, у которых завтра истекает подписка и которым еще не отправляли уведомление
-                cur.execute('''
-                    SELECT DISTINCT keys.buyer_id FROM keys 
-                    INNER JOIN users ON keys.buyer_id = users.id
-                    WHERE keys.expiration_date = ? AND keys.buyer_id IS NOT NULL 
-                    AND (users.expiring_tomorrow_notified IS NULL OR users.expiring_tomorrow_notified = 0)
-                ''', (tomorrow_str,))
-                expiring_users = cur.fetchall()
-                
-                for user_tuple in expiring_users:
-                    user_id = user_tuple[0]
-                    try:
-                        cur.execute('UPDATE users SET expiring_tomorrow_notified = 1 WHERE id = ?', (user_id,))
-                        cur.execute('SELECT balance FROM users WHERE id = ?', (user_id,))
-                        result = cur.fetchone()
-                        balance = result[0] if result else 0
-                        con.commit()
-                        await bot.send_message(
-                            user_id,
-                            f"⏰ <b>Ваша подписка истекает завтра</b>\n\n"
-                            f"Ваша подписка VPN истечет завтра. Чтобы не прерывать использование сервиса, пожалуйста, приобретите новый ключ заранее.\n\n👉🏼 <b>Баланс: {balance}₽</b>",
-                            parse_mode='HTML', reply_markup=ikb_locations)
-                        print(f'{user_id} was notified about his subscription expiring tomorrow!')
-                    except Exception as e:
-                        print(f"Error {user_id}: {e}")
-                        continue
-                        
-        except Exception as e:
-            print(f"Error checking expiring tomorrow subscriptions: {e}")
-        
-        # Проверяем раз в час (3600 секунд = 1 час)
-        await asyncio.sleep(3600)
-
-async def reset_runout_notified_daily(): # НЕ ЕБУ КАК РАБОТАЕТ!
-    """Сбрасывает флаг runout_notified в 00:01 каждый день"""
-    while True:
-        try:
-            now = datetime.now()
-            # Вычисляем время до следующего 00:01
-            next_reset = now.replace(hour=0, minute=1, second=0, microsecond=0)
-            # Если уже прошло 00:01 сегодня, то следующий сброс будет завтра
-            if now >= next_reset:
-                next_reset += timedelta(days=1)
-            
-            # Вычисляем количество секунд до следующего 00:01
-            seconds_until_reset = (next_reset - now).total_seconds()
-            
-            print(f"Next runout_notified reset will be at {next_reset.strftime('%Y-%m-%d %H:%M:%S')}")
-            await asyncio.sleep(seconds_until_reset)
-            
-            # Сбрасываем флаги для всех пользователей
-            with sq.connect('database.db') as con:
-                cur = con.cursor()
-                cur.execute('UPDATE users SET runout_notified = 0 WHERE runout_notified = 1')
-                cur.execute('UPDATE users SET expiring_tomorrow_notified = 0 WHERE expiring_tomorrow_notified = 1')
-                con.commit()
-                print(f"runout_notified and expiring_tomorrow_notified flags reset for all users at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        except Exception as e:
-            print(f"Error resetting runout_notified: {e}")
-            # В случае ошибки ждем час перед следующей попыткой
-            await asyncio.sleep(3600)
-
 async def main():
     # Запускаем фоновую задачу для проверки подписок
-    asyncio.create_task(check_expired_subscriptions()) # бесокнечная задача параллельно, если не через create_task то не будет работать
+    asyncio.create_task(check_expired_subscriptions(bot)) # бесокнечная задача параллельно, если не через create_task то не будет работать
     # Запускаем фоновую задачу для проверки подписок, истекающих завтра
-    asyncio.create_task(check_expiring_tomorrow_subscriptions())
+    asyncio.create_task(check_expiring_tomorrow_subscriptions(bot))
     # Запускаем фоновую задачу для сброса флага runout_notified в 00:01 каждый день
     asyncio.create_task(reset_runout_notified_daily())
     await dp.start_polling(bot) # отправить соединение к серверам телеграмма
