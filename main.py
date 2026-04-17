@@ -365,11 +365,11 @@ async def vpnpay_stars_callback(callback: CallbackQuery):
     amount = MONTH_PRICE
     stars_rate = 1.50
     amount_stars = int(amount * stars_rate)
-    payload = f"vpnmonth_{amount}_{callback.from_user.id}_{country}"
+    payload = f"vpnmonth_{amount}_{callback.from_user.id}"
     try:
         await bot.send_invoice(
             chat_id=callback.from_user.id,
-            title=f"VPN на месяц ({country})",
+            title=f"VPN на месяц",
             description=f"Оплата {MONTH_PRICE} ₽",
             payload=payload,
             provider_token="",
