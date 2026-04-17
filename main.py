@@ -41,9 +41,6 @@ except FileNotFoundError:
     exit()
 
 
-dotenv.load_dotenv() # загружаем переменные окружения
-Configuration.account_id = os.getenv('YOOKASSA_ACCOUNT_ID')
-Configuration.secret_key = os.getenv('YOOKASSA_SECRET_KEY')
 
 
 bot = Bot(token=os.getenv('BOT_TOKEN')) # объект бота
@@ -51,11 +48,6 @@ API_TOKEN = os.getenv('CRYPTO_BOT_API_TOKEN') # это криптобот
 
 create_tables()
 
-def get_rate():
-    r = requests.get('https://v6.exchangerate-api.com/v6/d8e4beb763d54112c6a63999/latest/USD')
-    return r.json()['conversion_rates']['RUB']
-
-rub_to_usdt = get_rate()
 
 dp = Dispatcher() # объект диспетчера
 
