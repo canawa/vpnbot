@@ -20,10 +20,11 @@ from check_subscription import is_subscribed
 import locale 
 from emojis import get_emoji
 from databases import create_tables
-from payments import get_pay_link, check_payment_status, check_payment_yookassa_status
+from payments import get_pay_link, check_payment_status, check_payment_yookassa_status, rub_to_usdt
 from expire_functions import check_expired_subscriptions, check_expiring_tomorrow_subscriptions, reset_runout_notified_daily
 from vpn import deliver_trial_vpn
 from ikbs import *
+from expire_functions import *
 locale.setlocale(locale.LC_TIME, 'ru_RU.UTF-8')
 print('BOT STARTED!!!')
 
@@ -52,9 +53,9 @@ def get_vpn_pay_keyboard(balance: int) -> InlineKeyboardMarkup:
     if balance >= MONTH_PRICE:
         rows.append([InlineKeyboardButton(text=f'Оплатить с баланса ({MONTH_PRICE} ₽)', callback_data='vpn_pay_balance')])
     rows.extend([
-        [InlineKeyboardButton(text='СБП (или картой)', callback_data='vpnpay_card', icon_custom_emoji_id=get_emoji('sbp'))],
-        [InlineKeyboardButton(text='Криптобот', callback_data='vpnpay_crypto', icon_custom_emoji_id=get_emoji('crypto_bot'))],
-        [InlineKeyboardButton(text='Звёзды', callback_data='vpnpay_stars', icon_custom_emoji_id=get_emoji('stars'))],
+        [InlineKeyboardButton(text='СБП (или картой)', callback_data=f'deposit_{MONTH_PRICE}_card', icon_custom_emoji_id=get_emoji('sbp'))],
+        [InlineKeyboardButton(text='Криптобот', callback_data='deposit_crypto', icon_custom_emoji_id=get_emoji('crypto_bot'))],
+        [InlineKeyboardButton(text='Звёзды', callback_data='deposit_stars', icon_custom_emoji_id=get_emoji('stars'))],
         [InlineKeyboardButton(text='Назад', callback_data='vpn_pay_back', icon_custom_emoji_id=get_emoji('exit'))],
     ])
     return InlineKeyboardMarkup(inline_keyboard=rows)
@@ -121,15 +122,7 @@ async def start_command(message):
 
     generate_ikb_main(message.from_user.id)
  
-def yookassa_payment_keyboard(amount, confirmation_url, payment_id): # функция для создания клавиатуры для оплаты через Юкассу
-    ikb_yookassa = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text=f'👉 Перейти к оплате {amount} ₽', url=confirmation_url)],
-        [InlineKeyboardButton(text='Я оплатил', callback_data=f'check_{amount}_{payment_id}', style = 'success')],
-        [InlineKeyboardButton(text='Отменить платеж!', callback_data='back', style = 'danger')],
-    ])
-    return ikb_yookassa
-
-
+create_yookassa_payment_keyboard()
 
 @dp.callback_query(lambda c: c.data.startswith('check_payment_'))
 async def check_payment_callback(callback: CallbackQuery):
@@ -170,7 +163,6 @@ async def check_payment_callback(callback: CallbackQuery):
     except Exception as e:
         await callback.message.answer(f'❌ Ошибка: {e}', parse_mode='HTML')
         raise e
-
 
 # ОБРАБОТЧИКИ КОЛЛБЭКОВ
 @dp.callback_query(lambda c: c.data == 'buy_vpn')
@@ -340,13 +332,16 @@ async def check_payment_yookassa_callback(callback: CallbackQuery): # сюды
         await callback.message.answer(f'👀 Ожидаем оплату, оплатите и попробуйте снова!', parse_mode='HTML', reply_markup=ikb_back)
 
 
+@dp.callback_query(lambda c: c.data == 'vpnpay_card')
+async def vpnpay_card_callback(callback: CallbackQuery)
+    await callback.message.delete()
+    amount = MONTH_PRICE
+
+
+
 @dp.callback_query(lambda c: c.data == 'vpnpay_crypto')
 async def vpnpay_crypto_callback(callback: CallbackQuery):
     await callback.answer("Криптобот")
-    country = _vpn_pending_get(callback.from_user.id)
-    if not country:
-        await callback.message.answer('❌ Сначала выберите страну: «Подключить VPN» → локация.', reply_markup=ikb_back)
-        return
     await callback.message.delete()
     amount = MONTH_PRICE
     response = get_pay_link(amount / rub_to_usdt)
@@ -368,10 +363,6 @@ async def vpnpay_crypto_callback(callback: CallbackQuery):
 @dp.callback_query(lambda c: c.data == 'vpnpay_stars')
 async def vpnpay_stars_callback(callback: CallbackQuery):
     await callback.answer("Звёзды")
-    country = _vpn_pending_get(callback.from_user.id)
-    if not country:
-        await callback.message.answer('❌ Сначала выберите страну: «Подключить VPN» → локация.', reply_markup=ikb_back)
-        return
     await callback.message.delete()
     amount = MONTH_PRICE
     stars_rate = 1.50
@@ -390,44 +381,26 @@ async def vpnpay_stars_callback(callback: CallbackQuery):
     except Exception as e:
         await callback.message.answer(f'❌ Не удалось создать счёт: {e}', reply_markup=get_vpn_pay_keyboard(0))
 
-@dp.callback_query(lambda c: c.data.startswith('plan_week_'))
-async def plan_week_callback(callback: CallbackQuery):
-    await callback.answer('Сейчас доступна только подписка на месяц. «Подключить VPN» → страна → оплата.', show_alert=True)
-
-
-@dp.callback_query(lambda c: c.data.startswith('plan_month_'))
-async def plan_month_callback(callback: CallbackQuery):
-    await callback.answer('Сейчас доступна только подписка на месяц. «Подключить VPN» → страна → оплата.', show_alert=True)
-
-
-@dp.callback_query(lambda c: c.data.startswith('plan_halfyear'))
-async def plan_halfyear_callback(callback: CallbackQuery):
-    await callback.answer('Сейчас доступна только подписка на месяц. «Подключить VPN» → страна → оплата.', show_alert=True)
-
-
-@dp.callback_query(lambda c: c.data.startswith('plan_year'))
-async def plan_year_callback(callback: CallbackQuery):
-    await callback.answer('Сейчас доступна только подписка на месяц. «Подключить VPN» → страна → оплата.', show_alert=True)
-
-
-@dp.callback_query(lambda c: c.data == 'vpn_reopen_payment')
-async def vpn_reopen_payment_callback(callback: CallbackQuery):
-    await callback.answer()
-    await callback.message.delete()
-    uid = callback.from_user.id
-    if not _vpn_pending_get(uid):
-        await callback.message.answer('Выберите снова: «Подключить VPN» → локация.', reply_markup=ikb_back)
-        return
-    with sq.connect('database.db') as con:
-        cur = con.cursor()
-        cur.execute('SELECT balance FROM users WHERE id = ?', (uid,))
-        balance = (cur.fetchone() or (0,))[0]
-    await callback.message.answer_photo(
-        BUY_VPN_PHOTO,
-        caption=f'<b>VPN на месяц — {MONTH_PRICE} ₽</b>\n\nВыберите способ оплаты:',
-        parse_mode='HTML',
-        reply_markup=get_vpn_pay_keyboard(balance),
-    )
+# @dp.callback_query(lambda c: c.data.startswith('plan_week_'))
+# async def plan_week_callback(callback: CallbackQuery):
+#     await callback.answer('Сейчас доступна только подписка на месяц. «Подключить VPN» → страна → оплата.', show_alert=True)
+#
+#
+# @dp.callback_query(lambda c: c.data.startswith('plan_month_'))
+# async def plan_month_callback(callback: CallbackQuery):
+#     await callback.answer('Сейчас доступна только подписка на месяц. «Подключить VPN» → страна → оплата.', show_alert=True)
+#
+#
+# @dp.callback_query(lambda c: c.data.startswith('plan_halfyear'))
+# async def plan_halfyear_callback(callback: CallbackQuery):
+#     await callback.answer('Сейчас доступна только подписка на месяц. «Подключить VPN» → страна → оплата.', show_alert=True)
+#
+#
+# @dp.callback_query(lambda c: c.data.startswith('plan_year'))
+# async def plan_year_callback(callback: CallbackQuery):
+#     await callback.answer('Сейчас доступна только подписка на месяц. «Подключить VPN» → страна → оплата.', show_alert=True)
+#
+#
 
 @dp.callback_query(lambda c: c.data.startswith('deposit_'))
 async def process_deposit(callback: CallbackQuery):
@@ -457,7 +430,7 @@ async def process_deposit(callback: CallbackQuery):
             # Убрали pprint для экономии памяти
             payment_id = payment.id
             confirmation_url = payment.confirmation.confirmation_url
-            await callback.message.answer(f'👉 Создали заявку на оплату, переходите по ссылке и оплатите.\n\n <b>❗ После оплаты нажмите на кнопку "Я оплатил"</b>', parse_mode='HTML', reply_markup=yookassa_payment_keyboard(amount, confirmation_url, payment_id))
+            await callback.message.answer(f'👉 Создали заявку на оплату, переходите по ссылке и оплатите.\n\n <b>❗ После оплаты нажмите на кнопку "Я оплатил"</b>', parse_mode='HTML')
         except Exception as e:
             await callback.message.answer(f'❌ Не удалось создать заявку: {e}. Напишите в техподдержку, мы обязательно поможем!', reply_markup=ikb_deposit_methods)
             raise e
@@ -558,8 +531,6 @@ async def handle_successful_payment(message: Message):
                         if ref_master_role and ref_master_role[0] == 'refmaster':
                             cur.execute('UPDATE users SET ref_balance = ref_balance + ? WHERE id = ?', (int(amount_rub) / 2, ref_master_id))
             con.commit()
-        _vpn_pending_clear(user_id)
-        await _deliver_month_vpn(user_id, country, message)
         return
     if len(parts) >= 3 and parts[0] == 'deposit':
         amount_rub = int(parts[1])
@@ -587,7 +558,6 @@ async def handle_successful_payment(message: Message):
                             cur.execute('UPDATE users SET ref_balance = ref_balance + ? WHERE id = ?', (int(amount_rub)/2, ref_master_id))
             con.commit()
         await message.answer(f'🤑 Оплачено! \n\n ➕ Начислено {amount_rub} ₽ на баланс', parse_mode='HTML', reply_markup=ikb_back)
-        await _maybe_complete_vpn_after_topup(user_id, amount_rub, message)
 
 @dp.callback_query(lambda c: c.data == 'bug_report')
 async def bug_report_callback(callback: CallbackQuery):
@@ -766,7 +736,7 @@ async def admin_notify_expired_callback(callback: CallbackQuery):
                     user[0], 
                     f"⏰ <b>Ваша пробная подписка закончилась</b>\n\nВаш тестовый период VPN истек. Для продолжения использования сервиса, пожалуйста, приобретите новый ключ.\n\n<b>Баланс: {balance}₽</b>",
                     parse_mode='HTML',
-                    reply_markup=ikb_locations
+                    reply_markup='ПОЧИНИТЬ'
                 )
                 sent_count += 1
             except Exception as e:
