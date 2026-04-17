@@ -51,9 +51,9 @@ MONTH_PRICE = 149
 def get_vpn_pay_keyboard(balance: int) -> InlineKeyboardMarkup:
     rows = []
     rows.extend([
-        [InlineKeyboardButton(text='СБП (или картой)', callback_data=f'deposit_troll_card', icon_custom_emoji_id=get_emoji('sbp'))],
-        [InlineKeyboardButton(text='Криптобот', callback_data=f'deposit_149_crypto', icon_custom_emoji_id=get_emoji('crypto_bot'))],
-        [InlineKeyboardButton(text='Звёзды', callback_data=f'deposit_149_stars', icon_custom_emoji_id=get_emoji('stars'))],
+        [InlineKeyboardButton(text='СБП (или картой)', callback_data=f'deposit_{MONTH_PRICE}_card', icon_custom_emoji_id=get_emoji('sbp'))],
+        [InlineKeyboardButton(text='Криптобот', callback_data=f'deposit_{MONTH_PRICE}_crypto', icon_custom_emoji_id=get_emoji('crypto_bot'))],
+        [InlineKeyboardButton(text='Звёзды', callback_data=f'deposit_{MONTH_PRICE}_stars', icon_custom_emoji_id=get_emoji('stars'))],
         [InlineKeyboardButton(text='Назад', callback_data='vpn_pay_back', icon_custom_emoji_id=get_emoji('exit'))],
     ])
     return InlineKeyboardMarkup(inline_keyboard=rows)
@@ -172,7 +172,7 @@ async def buy_vpn_callback(callback: CallbackQuery):
         cur.execute('SELECT balance FROM users WHERE id = ?', (callback.from_user.id,))
         result = cur.fetchone()
         balance = result[0] if result else 0
-    await callback.message.answer_photo(FSInputFile("photos/buy_vpn.png"), parse_mode='HTML', reply_markup=ikb_deposit_methods)
+    await callback.message.answer_photo(FSInputFile("photos/buy_vpn.png"), parse_mode='HTML', reply_markup=get_vpn_pay_keyboard())
 
 @dp.callback_query(lambda c: c.data == 'documents')
 async def documents_callback(callback: CallbackQuery):
