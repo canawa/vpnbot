@@ -154,7 +154,7 @@ async def check_payment_callback(callback: CallbackQuery):
                             if ref_master_role and ref_master_role[0] == 'refmaster':
                                 cur.execute('UPDATE users SET ref_balance = ref_balance + ? WHERE id = ?', (int(amount)/2, ref_master_id))
                 con.commit()
-            await callback.message.answer(f'🤑 Оплачено! \n\n ➕ Начислено {amount} ₽ на баланс', parse_mode='HTML', reply_markup=ikb_back)
+            await callback.message.answer(f'Спасибо за покупку, ваша подписка: ТУТ ГАЙД', parse_mode='HTML', reply_markup=ikb_back)
             await callback.message.delete()
         else:
             await callback.message.answer('👀 Ожидаем оплату, оплатите и попробуйте снова!', parse_mode='HTML')
@@ -297,7 +297,7 @@ async def vpn_pay_back_callback(callback: CallbackQuery):
         cur.execute('SELECT balance FROM users WHERE id = ?', (callback.from_user.id,))
         result = cur.fetchone()
         balance = result[0] if result else 0
-    await callback.message.answer_photo(BUY_VPN_PHOTO, caption=f"<b>Выберите локацию: </b>\n\n👉🏼 <b>Баланс: {balance}₽</b>", parse_mode='HTML', reply_markup=ikb_locations)
+    await callback.message.answer_photo(BUY_VPN_PHOTO, caption=f"<b>Выберите локацию: </b>\n\n👉🏼 <b>Баланс: {balance}₽</b>", parse_mode='HTML', reply_markup=ikb_back)
 
 @dp.callback_query(
     lambda c: c.data.startswith('yookassa_')
@@ -340,7 +340,7 @@ async def check_payment_yookassa_callback(callback: CallbackQuery): # сюды
                         if ref_master_role and ref_master_role[0] == 'refmaster':
                             cur.execute('UPDATE users SET ref_balance = ref_balance + ? WHERE id = ?', (amount_rub / 2, ref_master_id)) # начислить 50% реферального бонуса рефоводу
             con.commit()
-        await callback.message.answer(f'🤑 Оплачено! \n\n ➕ Начислено {amount_rub} ₽ на баланс', parse_mode='HTML', reply_markup=ikb_back)
+        await callback.message.answer(f'Спасибо за покупку, ваша подписка: ТУТ ГАЙД', parse_mode='HTML', reply_markup=ikb_back)
         await callback.message.delete()
 
     else:
@@ -553,7 +553,7 @@ async def handle_successful_payment(message: Message):
                         if ref_master_role and ref_master_role[0] == 'refmaster':
                             cur.execute('UPDATE users SET ref_balance = ref_balance + ? WHERE id = ?', (int(amount_rub)/2, ref_master_id))
             con.commit()
-        await message.answer(f'🤑 Оплачено! \n\n ➕ Начислено {amount_rub} ₽ на баланс', parse_mode='HTML', reply_markup=ikb_back)
+        await message.answer(f'Спасибо за покупку, ваша подписка: ТУТ ГАЙД', parse_mode='HTML', reply_markup=ikb_back)
 
 @dp.callback_query(lambda c: c.data == 'bug_report')
 async def bug_report_callback(callback: CallbackQuery):
