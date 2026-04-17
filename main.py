@@ -21,7 +21,7 @@ from check_subscription import is_subscribed
 import locale 
 from emojis import get_emoji
 from databases import create_tables
-from payments import get_pay_link, check_payment_status, check_payment_yookassa_status, check_payment_yookassa_callback
+from payments import get_pay_link, check_payment_status, check_payment_yookassa_status
 from expire_functions import check_expired_subscriptions, check_expiring_tomorrow_subscriptions, reset_runout_notified_daily
 locale.setlocale(locale.LC_TIME, 'ru_RU.UTF-8')
 print('BOT STARTED!!!')
