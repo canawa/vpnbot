@@ -185,8 +185,6 @@ ikb_referral_reminder = InlineKeyboardMarkup(inline_keyboard=[ # клава ко
     [InlineKeyboardButton(text='🤝 Получить 50₽ на баланс', callback_data='referral', icon_custom_emoji_id=get_emoji('game'), style = 'success')],
     [InlineKeyboardButton(text='Назад', callback_data='back', icon_custom_emoji_id=get_emoji('exit'))],
 ])
-# ikb_profile будет создаваться динамически в зависимости от роли пользователя
-# (раздел профиль отключён — см. закомментированный profile_callback ниже)
 
 ikb_documents = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text='Пользовательское соглашение', url='https://telegra.ph/Polzovatelskoe-soglashenie-12-22-25', icon_custom_emoji_id=get_emoji('documents'))],
@@ -227,13 +225,6 @@ ikb_deposit_methods = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text='Назад', callback_data='back', icon_custom_emoji_id=get_emoji('exit'))],
 ])
 
-def deposit_keyboard(method):
-    amount = [50, 150, 500, 800, 2900]
-    ikb_deposit_sums = InlineKeyboardMarkup(inline_keyboard=[])
-    for sum in amount:
-        ikb_deposit_sums.inline_keyboard.append([InlineKeyboardButton(text=f'🟣 {sum}₽', callback_data=f'deposit_{sum}_{method}')])
-    ikb_deposit_sums.inline_keyboard.append([InlineKeyboardButton(text='Назад', callback_data='back', icon_custom_emoji_id=get_emoji('exit'))])
-    return ikb_deposit_sums
  
 def yookassa_payment_keyboard(amount, confirmation_url, payment_id): # функция для создания клавиатуры для оплаты через Юкассу
     ikb_yookassa = InlineKeyboardMarkup(inline_keyboard=[
@@ -526,7 +517,7 @@ async def vpnpay_card_callback(callback: CallbackQuery):
     try:
         payment = Payment.create({
             "amount": {"value": amount, "currency": "RUB"},
-            "description": f"VPN на месяц ({country})",
+            "description": f"Подписка КОФЕМАНИЯ VPN на месяц)",
             'capture': True,
             'confirmation': {'type': 'redirect', 'return_url': 'https://t.me/coffemaniaVPNbot'},
             "metadata": {"user_id": callback.from_user.id},
@@ -804,25 +795,6 @@ async def deposit_callback(callback: CallbackQuery):
     _vpn_pending_clear(callback.from_user.id)
     await callback.message.delete()
     await callback.message.answer_photo(DEPOSIT_PHOTO, caption="<b>Выберите способ пополнения:</b>", parse_mode='HTML', reply_markup=ikb_deposit_methods)
-
-@dp.callback_query(lambda c: c.data == 'deposit_crypto')
-async def deposit_crypto_callback(callback: CallbackQuery):
-    await callback.answer("🍀 Криптобот") # на пол экрана хуйня высветится
-    await callback.message.delete()
-    await callback.message.answer("💳 Выберите сумму пополнения:", parse_mode='HTML', reply_markup=deposit_keyboard('CryptoBot'))
-
-@dp.callback_query(lambda c: c.data == ('deposit_card'))
-async def deposit_card_callback(callback: CallbackQuery):
-    await callback.answer("💳 Картой") # на пол экрана хуйня высветится
-    await callback.message.delete()
-    await callback.message.answer("🍀 Выберите сумму пополнения:", parse_mode='HTML', reply_markup=deposit_keyboard('card'))
-
-@dp.callback_query(lambda c: c.data == ('deposit_stars'))
-async def deposit_stars_callback(callback : CallbackQuery):
-    await callback.answer('🌟 Звёзды')
-    await callback.message.delete()
-    await callback.message.answer('🌟 Выберите сумму пополнения:', parse_mode='HTML', reply_markup=deposit_keyboard('stars')) 
-
 
 
 @dp.callback_query(lambda c: c.data.startswith('deposit_'))
