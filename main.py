@@ -23,15 +23,14 @@ from emojis import get_emoji
 from databases import create_tables
 from payments import get_pay_link, check_payment_status, check_payment_yookassa_status
 from expire_functions import check_expired_subscriptions, check_expiring_tomorrow_subscriptions, reset_runout_notified_daily
+from ikbs import generate_ikb_main, ikb_subscribe, ikb_referral, ikb_back, ikb_referral_reminder, ikb_documents, ikb_deposit, ikb_deposit_methods, ikb_support
 locale.setlocale(locale.LC_TIME, 'ru_RU.UTF-8')
 print('BOT STARTED!!!')
-
 
 ### РАБОТА С ФОТКАМИ:
 try:
     WELCOME_PHOTO = FSInputFile("photos/welcome.png")
     BUY_VPN_PHOTO = FSInputFile("photos/buy_vpn.png")
-    # PROFILE_PHOTO = FSInputFile("photos/profile.png")  # раздел профиль скрыт
     DOCUMENTS_PHOTO = FSInputFile("photos/documents.png")
     INVITE_FRIEND_PHOTO = FSInputFile("photos/invite_friend.png")
     MY_KEYS_PHOTO = FSInputFile("photos/my_keys.png")
@@ -40,14 +39,10 @@ except FileNotFoundError:
     print("Photo files not found")
     exit()
 
-
-
-
 bot = Bot(token=os.getenv('BOT_TOKEN')) # объект бота
 API_TOKEN = os.getenv('CRYPTO_BOT_API_TOKEN') # это криптобот
 
 create_tables()
-
 
 dp = Dispatcher() # объект диспетчера
 
@@ -124,76 +119,8 @@ async def start_command(message):
     with sq.connect('database.db') as con:
         cur = con.cursor()
         cur.execute("INSERT OR IGNORE INTO users (id, username, balance, had_trial) VALUES (?, ?, ?, ?)", (message.from_user.id, message.from_user.username, 0, 0))
-    
 
-ikb_subscribe = InlineKeyboardMarkup(inline_keyboard=[
-    [InlineKeyboardButton(text='🔗 Подписаться на канал', url='https://t.me/coffemaniavpn')],
-    [InlineKeyboardButton(text='✅ Я подписался', callback_data='subscribe_confirmed')],
-])
-
-def generate_ikb_main(user_id):
-    # запиши это через append
-    ikb_main = InlineKeyboardMarkup(inline_keyboard=[])
-    with sq.connect('database.db') as con:
-        cur = con.cursor()
-        cur.execute('SELECT had_trial FROM users WHERE id = ?', (user_id,))
-        result = cur.fetchone()
-        had_trial = result[0] if result else 0
-        if had_trial != 1:
-            ikb_main.inline_keyboard.append([InlineKeyboardButton(text='🎁 Попробовать бесплатно', callback_data='trial', style = 'success')])
-    ikb_main.inline_keyboard.append([InlineKeyboardButton(text='Подключить VPN', callback_data='buy_vpn', icon_custom_emoji_id=get_emoji('plus'))])
-    ikb_main.inline_keyboard.append([
-        InlineKeyboardButton(text='Реферальная программа', callback_data='referral', icon_custom_emoji_id=get_emoji('add_user')),
-        InlineKeyboardButton(text='Мои ключи', callback_data='my_keys', icon_custom_emoji_id=get_emoji('keys')),
-    ])
-    ikb_main.inline_keyboard.append([InlineKeyboardButton(text='Документы', callback_data='documents', icon_custom_emoji_id=get_emoji('documents'))])
-    return ikb_main
-
-ikb_back = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text='Назад', callback_data='back', icon_custom_emoji_id=get_emoji('exit'))],
-    ])
-
-ikb_referral_reminder = InlineKeyboardMarkup(inline_keyboard=[ # клава которая вылезит людям
-    [InlineKeyboardButton(text='🤝 Получить 50₽ на баланс', callback_data='referral', icon_custom_emoji_id=get_emoji('game'), style = 'success')],
-    [InlineKeyboardButton(text='Назад', callback_data='back', icon_custom_emoji_id=get_emoji('exit'))],
-])
-
-ikb_documents = InlineKeyboardMarkup(inline_keyboard=[
-    [InlineKeyboardButton(text='Пользовательское соглашение', url='https://telegra.ph/Polzovatelskoe-soglashenie-12-22-25', icon_custom_emoji_id=get_emoji('documents'))],
-    [InlineKeyboardButton(text='Политика конфиденциальности', url='https://telegra.ph/POLITIKA-KONFIDENCIALNOSTI-03-29-41', icon_custom_emoji_id=get_emoji('lock'))],
-    [InlineKeyboardButton(text='Написать в поддержку', url='https://t.me/CoffemaniaSupport', icon_custom_emoji_id=get_emoji('telegram'))],
-    [InlineKeyboardButton(text='Назад', callback_data='back', icon_custom_emoji_id=get_emoji('exit'))],
-])
-
-ikb_referral = InlineKeyboardMarkup(inline_keyboard=[
-    # [InlineKeyboardButton(text='💸 Вывести реферальный баланс', callback_data='ref_withdraw')], ПОКА ЧТО УБРАЛ 
-    [InlineKeyboardButton(text='Назад', callback_data='back', icon_custom_emoji_id=get_emoji('exit'))],
-])
-
-ikb_support = InlineKeyboardMarkup(inline_keyboard=[
-    [InlineKeyboardButton(text='💬 Написать в поддержку', url='https://t.me/CoffemaniaSupport')],
-    [InlineKeyboardButton(text='Назад', callback_data='back', icon_custom_emoji_id=get_emoji('exit'))],
-])
-
-
-def get_ikb_lifetime_agreement(country: str):
-    return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text='✅ Я согласен', callback_data=f'lifetime_confirm_{country}')],
-        [InlineKeyboardButton(text='Назад', callback_data='back', icon_custom_emoji_id=get_emoji('exit'))],
-    ])
-
-ikb_deposit = InlineKeyboardMarkup(inline_keyboard=[
-    [InlineKeyboardButton(text='💰 Пополнить', callback_data='deposit')],
-    [InlineKeyboardButton(text='Назад', callback_data='back', icon_custom_emoji_id=get_emoji('exit'))],
-])
-
-ikb_deposit_methods = InlineKeyboardMarkup(inline_keyboard=[
-    [InlineKeyboardButton(text='СБП (или картой)', callback_data='deposit_card', icon_custom_emoji_id=get_emoji('sbp'))],
-    [InlineKeyboardButton(text='Криптобот', callback_data='deposit_crypto', icon_custom_emoji_id=get_emoji('crypto_bot'))],
-    [InlineKeyboardButton(text='Звёзды', callback_data='deposit_stars', icon_custom_emoji_id=get_emoji('stars'))],
-    [InlineKeyboardButton(text='Назад', callback_data='back', icon_custom_emoji_id=get_emoji('exit'))],
-])
-
+generate_ikb_main()
  
 def yookassa_payment_keyboard(amount, confirmation_url, payment_id): # функция для создания клавиатуры для оплаты через Юкассу
     ikb_yookassa = InlineKeyboardMarkup(inline_keyboard=[
@@ -354,8 +281,6 @@ def welcome_back_caption(balance: int):
         "Купить ключи можно так же на сайте coffeemaniavpn.ru"
     )
     return text
-
-
 
 @dp.callback_query(lambda c: c.data == 'back')
 async def back_callback(callback: CallbackQuery):
@@ -529,172 +454,6 @@ async def plan_halfyear_callback(callback: CallbackQuery):
 @dp.callback_query(lambda c: c.data.startswith('plan_year'))
 async def plan_year_callback(callback: CallbackQuery):
     await callback.answer('Сейчас доступна только подписка на месяц. «Подключить VPN» → страна → оплата.', show_alert=True)
-
-
-@dp.callback_query(lambda c: c.data == 'my_keys')
-async def my_keys_callback(callback: CallbackQuery):
-    await callback.answer("🔗 Мои ключи") # на пол экрана хуйня высветится
-    await callback.message.delete()
-    ikb_my_keys = InlineKeyboardMarkup(inline_keyboard=[])
-    with sq.connect('database.db') as con:
-        cur = con.cursor()
-        today = date.today()
-        today_str = today.isoformat()  # Преобразуем дату в строку формата YYYY-MM-DD для корректного сравнения
-        cur.execute(
-            'SELECT key, expiration_date, location FROM keys WHERE buyer_id = ? AND expiration_date >= ? ORDER BY expiration_date, rowid',
-            (callback.from_user.id, today_str),
-        )
-        result = cur.fetchall()  # кортежи (key, expiration_date, location)
-
-        buttons_row = []
-        for key_id, row in enumerate(result):
-            _key_str, exp_raw, loc = row[0], row[1], row[2]
-            try:
-                icon_id = get_emoji(loc) if loc else get_emoji('germany')
-            except KeyError:
-                icon_id = get_emoji('germany')
-            btn = InlineKeyboardButton(
-                text=f'До {exp_raw}',
-                callback_data=f'use_key_{key_id}',
-                icon_custom_emoji_id=icon_id,
-            )
-            buttons_row.append(btn)
-            if len(buttons_row) == 2:
-                ikb_my_keys.inline_keyboard.append(buttons_row)
-                buttons_row = []
-        if buttons_row:
-            ikb_my_keys.inline_keyboard.append(buttons_row)
-
-        ikb_my_keys.inline_keyboard.append([InlineKeyboardButton(text='Назад', callback_data='back', icon_custom_emoji_id=get_emoji('exit'))])
-        if result:
-            await callback.message.answer_photo(MY_KEYS_PHOTO, reply_markup=ikb_my_keys)
-        else:
-            cur.execute('SELECT balance FROM users WHERE id = ?', (callback.from_user.id,))
-            result = cur.fetchone() # получить результат из базы данных
-            balance = result[0] if result else 0 # если результат не пустой, то вытащить баланс, иначе 0
-            await callback.message.answer_photo(MY_KEYS_PHOTO, caption=f"🔗 У вас нет ключей. Купите ключ и используйте его. \n\n👉🏼 <b>Баланс: {balance}₽</b>", parse_mode='HTML', reply_markup=ikb_locations)
-            con.commit() # сохранить изменения в базе данных
-
-@dp.callback_query(lambda c: c.data.startswith('use_key_')) # ЭТО ПОСМОТРЕТЬ КЛЮЧИ
-async def use_key_callback(callback: CallbackQuery):
-    await callback.answer(f"🔑 Использовать ключ {callback.data.split('_')[2]}") # на пол экрана хуйня высветится
-    await callback.message.delete()
-    with sq.connect('database.db') as con:
-        today = date.today()
-        today_str = today.isoformat()  # Преобразуем дату в строку формата YYYY-MM-DD для корректного сравнения
-        cur = con.cursor()
-        offset = int(callback.data.split('_')[2])
-        cur.execute(
-            'SELECT key, expiration_date, location FROM keys WHERE buyer_id = ? AND expiration_date >= ? ORDER BY expiration_date, rowid LIMIT 1 OFFSET ?',
-            (callback.from_user.id, today_str, offset),
-        )
-        result = cur.fetchone() # получить результат из базы данных
-        if not result:
-            await callback.message.answer('❌ Ключ не найден. Обновите раздел «Мои ключи».', reply_markup=ikb_back)
-            return
-        key = result[0]
-        expiration_date = result[1]
-        location = result[2] if len(result) > 2 else None
-        expiration_date = datetime.strptime(expiration_date, '%Y-%m-%d').date() # преобразуем дату в объект datetime
-        if expiration_date >= today + timedelta(days=5000): # это ублюдская затычка но ладно (типо если не дотягивает до бесконечности)
-            human_date = '∞'
-        else:
-            human_date = expiration_date.strftime('%d.%m.%Y') # преобразуем дату в строку формата дд.мм.гггг
-        action_kb = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text='Заменить конфиг', callback_data=f'replace_config_{offset}')],
-            [InlineKeyboardButton(text='Назад', callback_data='my_keys', icon_custom_emoji_id=get_emoji('exit'))],
-        ])
-    t, ent = _format_key_message(key, f"Срок действия до: {human_date}")
-    action_kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text='Заменить конфиг', callback_data=f'replace_config_{offset}')],
-        [InlineKeyboardButton(text='Назад', callback_data='my_keys', icon_custom_emoji_id=get_emoji('exit'))],
-    ])
-    await callback.message.answer(t, entities=ent, reply_markup=action_kb)
-
-
-@dp.callback_query(lambda c: c.data.startswith('replace_config_'))
-async def replace_config_prompt_callback(callback: CallbackQuery):
-    await callback.answer()
-    await callback.message.delete()
-    offset = int(callback.data.split('_')[2])
-    with sq.connect('database.db') as con:
-        cur = con.cursor()
-        today = date.today().isoformat()
-        cur.execute(
-            'SELECT location FROM keys WHERE buyer_id = ? AND expiration_date >= ? ORDER BY expiration_date, rowid LIMIT 1 OFFSET ?',
-            (callback.from_user.id, today, offset),
-        )
-        row = cur.fetchone()
-        if not row:
-            await callback.message.answer('❌ Ключ не найден.', reply_markup=ikb_back)
-            return
-        current_location = row[0] or 'germany'
-    await callback.message.answer(
-        'Выберите новую локацию. Старый конфиг будет удалён, новый выдан с оставшимся сроком.',
-        reply_markup=_replace_config_keyboard(offset, current_location),
-    )
-
-
-@dp.callback_query(lambda c: c.data.startswith('replace_to_'))
-async def replace_config_execute_callback(callback: CallbackQuery):
-    await callback.answer()
-    await callback.message.delete()
-    payload = callback.data.removeprefix('replace_to_')
-    new_location, offset_str = payload.rsplit('_', 1)
-    offset = int(offset_str)
-    uid = callback.from_user.id
-    today = date.today()
-    today_str = today.isoformat()
-    with sq.connect('database.db') as con:
-        cur = con.cursor()
-        cur.execute(
-            'SELECT rowid, key, expiration_date, location, marzban_username FROM keys WHERE buyer_id = ? AND expiration_date >= ? ORDER BY expiration_date, rowid LIMIT 1 OFFSET ?',
-            (uid, today_str, offset),
-        )
-        row = cur.fetchone()
-        if not row:
-            await callback.message.answer('❌ Ключ не найден.', reply_markup=ikb_back)
-            return
-        rowid, _key, expiration_raw, old_location, old_mz_username = row
-        expiration_date = datetime.strptime(expiration_raw, '%Y-%m-%d').date()
-        days_left = max((expiration_date - today).days, 1)
-
-        group_rowids = [rowid]
-
-    if old_mz_username:
-        deleted_ok = await _delete_key_from_marzban(old_mz_username, old_location or 'germany')
-        if not deleted_ok:
-            await callback.message.answer('❌ Не удалось удалить старый ключ. Попробуйте позже или обратитесь в поддержку.', reply_markup=ikb_support)
-            return
-    else:
-        pass
-
-    try:
-        new_username, new_keys = await generate_vpn_user(uid, days_left, new_location)
-    except Exception as e:
-        await callback.message.answer(f'❌ Не удалось создать новый ключ: {e}', reply_markup=ikb_support)
-        return
-    new_keys = [k for k in (new_keys or []) if k]
-    if not new_keys:
-        await callback.message.answer('❌ Не удалось получить новый ключ. Напишите в поддержку.', reply_markup=ikb_support)
-        return
-
-    new_expiration = expiration_date.isoformat()
-    buy_date_str = date.today().isoformat()
-    with sq.connect('database.db') as con:
-        cur = con.cursor()
-        cur.executemany('DELETE FROM keys WHERE rowid = ? AND buyer_id = ?', [(rid, uid) for rid in group_rowids])
-        for key in new_keys:
-            cur.execute(
-                'INSERT INTO keys (key, duration, SOLD, buyer_id, buy_date, expiration_date, location, marzban_username) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-                (key, 30, 1, uid, buy_date_str, new_expiration, new_location, new_username),
-            )
-        con.commit()
-
-    human_date = expiration_date.strftime('%d.%m.%Y')
-    t, ent = _format_key_message(new_keys[0], f"Срок действия до: {human_date}")
-    await callback.message.answer('✅ Конфиг заменён.', reply_markup=ikb_back)
-    await callback.message.answer(t, entities=ent, reply_markup=ikb_back)
 
 
 @dp.callback_query(lambda c: c.data == 'vpn_reopen_payment')
