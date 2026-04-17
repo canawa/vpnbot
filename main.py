@@ -11,6 +11,8 @@ import requests
 import dotenv
 import os
 import random
+
+from traitlets import Bool
 from yookassa import Configuration, Payment # для работы с Юкассой
 import uuid
 import pandas as pd
@@ -240,12 +242,11 @@ async def support_callback(callback: CallbackQuery):
     await callback.message.answer("ℹ️ <b>Поддержка</b>\n\nЕсли у вас возникли вопросы, напишите нам в поддержку!", parse_mode='HTML', reply_markup=ikb_support)
 
 
-def welcome_back_caption(balance: int):
+def welcome_back_caption(subscription_status):
     text = (
         "👋 Добро пожаловать в Кофеманию\n"
         "\n"
-        f'Подписка: СТАТУС ПОДПИСКИ\n' 
-        f" 👉🏼 Баланс : {balance} ₽\n"
+        f'Подписка: {'Активна' if subscription_status else 'Отсутствует'}\n' 
         "Купить ключи можно так же на сайте coffeemaniavpn.ru"
     )
     return text
@@ -256,10 +257,12 @@ async def back_callback(callback: CallbackQuery):
     await callback.message.delete()
     with sq.connect('database.db') as con:
         cur = con.cursor()
-        cur.execute("SELECT balance FROM users WHERE id = ?", (callback.from_user.id,))
-        result = cur.fetchone()
-        balance = result[0] if result else 0
-    text = welcome_back_caption(balance)
+        cur.execute('SELECT sub_status FROM users WHERE id = ?', (callback.from_user.id,))
+        status = cur.fetchone()
+        if status==1:
+            text = welcome_back_caption(True)
+        else:
+            text = welcome_back_caption(False)
     await callback.message.answer_photo(
         WELCOME_PHOTO,
         caption=text,
