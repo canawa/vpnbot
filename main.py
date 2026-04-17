@@ -299,15 +299,32 @@ async def vpn_pay_back_callback(callback: CallbackQuery):
         balance = result[0] if result else 0
     await callback.message.answer_photo(BUY_VPN_PHOTO, caption=f"<b>Выберите локацию: </b>\n\n👉🏼 <b>Баланс: {balance}₽</b>", parse_mode='HTML', reply_markup=ikb_locations)
 
-@dp.callback_query(lambda c: c.data.startswith('check_'))
+@dp.callback_query(
+    lambda c: c.data.startswith('yookassa_')
+    or (
+        c.data.startswith('check_')
+        and not c.data.startswith('check_payment_')
+    )
+)
 async def check_payment_yookassa_callback(callback: CallbackQuery): # сюды
     await callback.answer("🔄 Проверка статуса оплаты") # на пол экрана хуйня высветится
-    _ , amount , payment_id = callback.data.split('_')
+    raw = callback.data
+    # Два первых разбиения: префикс (check|yookassa), сумма, остаток — id платежа Юкассы (UUID с дефисами)
+    parts = raw.split('_', 2)
+    if len(parts) != 3:
+        await callback.answer('❌ Устарела кнопка оплаты. Создайте платёж заново.', show_alert=True)
+        return
+    _, amount_str, payment_id = parts
+    try:
+        amount_rub = int(amount_str)
+    except ValueError:
+        await callback.answer('❌ Неверная сумма в данных кнопки.', show_alert=True)
+        return
     # Убрали лишний print для экономии памяти
-    if check_payment_yookassa_status(int(amount), payment_id, callback.from_user.id):
+    if check_payment_yookassa_status(amount_rub, payment_id, callback.from_user.id):
         with sq.connect('database.db') as con:
             cur = con.cursor()
-            cur.execute('UPDATE users SET balance = balance + ? WHERE id = ?', (amount, callback.from_user.id))
+            cur.execute('UPDATE users SET balance = balance + ? WHERE id = ?', (amount_rub, callback.from_user.id))
             cur.execute('SELECT ref_master_id, registration_date FROM referal_users WHERE referral_id = ?', (callback.from_user.id,))
             ref_master = cur.fetchone()
             if ref_master: # если есть рефовод то:
@@ -321,9 +338,9 @@ async def check_payment_yookassa_callback(callback: CallbackQuery): # сюды
                         cur.execute('SELECT role FROM users WHERE id = ?', (ref_master_id,))
                         ref_master_role = cur.fetchone()
                         if ref_master_role and ref_master_role[0] == 'refmaster':
-                            cur.execute('UPDATE users SET ref_balance = ref_balance + ? WHERE id = ?', (int(amount)/2, ref_master_id)) # начислить 50% реферального бонуса рефоводу
+                            cur.execute('UPDATE users SET ref_balance = ref_balance + ? WHERE id = ?', (amount_rub / 2, ref_master_id)) # начислить 50% реферального бонуса рефоводу
             con.commit()
-        await callback.message.answer(f'🤑 Оплачено! \n\n ➕ Начислено {amount} ₽ на баланс', parse_mode='HTML', reply_markup=ikb_back)
+        await callback.message.answer(f'🤑 Оплачено! \n\n ➕ Начислено {amount_rub} ₽ на баланс', parse_mode='HTML', reply_markup=ikb_back)
         await callback.message.delete()
 
     else:

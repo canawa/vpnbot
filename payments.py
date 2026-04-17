@@ -41,7 +41,7 @@ def check_payment_status(invoice_id):
     return None, None
 
 def check_payment_yookassa_status(amount, payment_id, user_id): # функция для проверки статуса оплаты через Юкассу
-    payment = Payment.find_one(payment_id)
+    payment = Payment.find_one(str(payment_id).strip())
     if payment.status == 'succeeded':
         with sq.connect('database.db') as con:
             cur = con.cursor()

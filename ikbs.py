@@ -79,9 +79,11 @@ ikb_admin_back = InlineKeyboardMarkup(inline_keyboard=[
 ])
 
 def create_yookassa_payment_keyboard(amount, confirmation_url, payment_id): # функция для создания клавиатуры для оплаты через Юкассу
+    # Префикс yookassa_ и разбор через split('_', 2) в хендлере — иначе коллизия с check_payment_ (крипта) и ошибка unpack «expected 3, got 2»
+    pid = str(payment_id).strip()
     ikb_yookassa = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text=f'👉 Перейти к оплате {amount} ₽', url=confirmation_url)],
-        [InlineKeyboardButton(text='Я оплатил', callback_data=f'check_{amount}_{payment_id}', style = 'success')],
+        [InlineKeyboardButton(text='Я оплатил', callback_data=f'yookassa_{amount}_{pid}', style = 'success')],
         [InlineKeyboardButton(text='Отменить платеж!', callback_data='back', style = 'danger')],
     ])
     return ikb_yookassa
