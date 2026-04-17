@@ -20,6 +20,7 @@ from datetime import datetime
 from check_subscription import is_subscribed
 import locale 
 from emojis import get_emoji
+from databases import create_tables
 locale.setlocale(locale.LC_TIME, 'ru_RU.UTF-8')
 print('BOT STARTED!!!')
 
@@ -46,6 +47,8 @@ Configuration.secret_key = os.getenv('YOOKASSA_SECRET_KEY')
 bot = Bot(token=os.getenv('BOT_TOKEN')) # объект бота
 API_TOKEN = os.getenv('CRYPTO_BOT_API_TOKEN') # это криптобот
 
+create_tables()
+
 def get_rate():
     r = requests.get('https://v6.exchangerate-api.com/v6/d8e4beb763d54112c6a63999/latest/USD')
     return r.json()['conversion_rates']['RUB']
@@ -54,104 +57,12 @@ rub_to_usdt = get_rate()
 
 dp = Dispatcher() # объект диспетчера
 
-
-with sq.connect('database.db') as con:
-    cur = con.cursor()
-    cur.execute("""CREATE TABLE IF NOT EXISTS "keys" (
-        "key"   TEXT,
-        "duration"      INTEGER,
-        "sold"  INTEGER DEFAULT 0,
-        "buyer_id"      INTEGER
-, expiration_date, expired INTEGER, buy_date, username, location TEXT, marzban_username TEXT)""")
-    cur.execute("CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, username TEXT, balance INTEGER, ref_balance INTEGER DEFAULT 0, ref_amount INTEGER DEFAULT 0, keys TEXT, role TEXT DEFAULT NULL, had_trial INTEGER DEFAULT 0, runout_notified INTEGER DEFAULT 0, has_active_keys INTEGER DEFAULT 0)")
-    cur.execute('CREATE TABLE IF NOT EXISTS referal_users (id INTEGER PRIMARY KEY, referral_id INTEGER UNIQUE, ref_master_id INTEGER, registration_date TEXT, referral_username TEXT, ref_master_username TEXT)')
-    cur.execute('CREATE TABLE IF NOT EXISTS transactions (id INTEGER PRIMARY KEY, user_id INTEGER, amount INTEGER, type TEXT, date TEXT)')
-    # Добавляем поле role, если его еще нет
-    try:
-        cur.execute('ALTER TABLE users ADD COLUMN role TEXT DEFAULT NULL')
-    except:
-        pass  # Поле уже существует
-    # Добавляем поле runout_notified, если его еще нет
-    try:
-        cur.execute('ALTER TABLE users ADD COLUMN runout_notified INTEGER DEFAULT 0')
-    except:
-        pass  # Поле уже существует
-    # Добавляем поле had_trial, если его еще нет
-    try:
-        cur.execute('ALTER TABLE users ADD COLUMN had_trial INTEGER DEFAULT 0')
-    except:
-        pass  # Поле уже существует
-    # Добавляем поле has_active_keys, если его еще нет
-    try:
-        cur.execute('ALTER TABLE users ADD COLUMN has_active_keys INTEGER DEFAULT 0')
-    except:
-        pass  # Поле уже существует
-    # Добавляем поле expiring_tomorrow_notified, если его еще нет
-    try:
-        cur.execute('ALTER TABLE users ADD COLUMN expiring_tomorrow_notified INTEGER DEFAULT 0')
-    except:
-        pass  # Поле уже существует
-    # Добавляем поле registration_date в таблицу referal_users, если его еще нет
-    try:
-        cur.execute('ALTER TABLE referal_users ADD COLUMN registration_date TEXT')
-    except:
-        pass  # Поле уже существует
-    try:
-        cur.execute('ALTER TABLE referal_users ADD COLUMN referral_username TEXT')
-    except:
-        pass  # Поле уже существует
-    try:
-        cur.execute('ALTER TABLE referal_users ADD COLUMN ref_master_username TEXT')
-    except:
-        pass  # Поле уже существует
-    try:
-        cur.execute('ALTER TABLE keys ADD COLUMN location TEXT')
-    except:
-        pass  # Поле уже существует
-    try:
-        cur.execute('ALTER TABLE keys ADD COLUMN marzban_username TEXT')
-    except:
-        pass  # Поле уже существует
-    try:
-        cur.execute('ALTER TABLE keys ADD COLUMN bundle_id TEXT')
-    except:
-        pass  # Поле уже существует
-    try:
-        cur.execute("UPDATE keys SET location = 'germany' WHERE location IS NULL OR TRIM(COALESCE(location, '')) = ''")
-        con.commit()
-    except Exception:
-        pass
-    cur.execute('CREATE TABLE IF NOT EXISTS vpn_pay_pending (user_id INTEGER PRIMARY KEY, country TEXT NOT NULL)')
-
-
-# VPN: только месячный тариф; после выбора страны — оплата 150 ₽ (СБП / Криптобот / Звёзды)
-_MONTH_PRICE = 150
-
-
-def _vpn_pending_set(user_id: int, country: str) -> None:
-    with sq.connect('database.db') as con:
-        con.execute('INSERT OR REPLACE INTO vpn_pay_pending (user_id, country) VALUES (?, ?)', (user_id, country))
-        con.commit()
-
-
-def _vpn_pending_get(user_id: int) -> str | None:
-    with sq.connect('database.db') as con:
-        cur = con.cursor()
-        cur.execute('SELECT country FROM vpn_pay_pending WHERE user_id = ?', (user_id,))
-        row = cur.fetchone()
-        return row[0] if row else None
-
-
-def _vpn_pending_clear(user_id: int) -> None:
-    with sq.connect('database.db') as con:
-        con.execute('DELETE FROM vpn_pay_pending WHERE user_id = ?', (user_id,))
-        con.commit()
-
+MONTH_PRICE = 149
 
 def get_vpn_pay_keyboard(balance: int) -> InlineKeyboardMarkup:
     rows = []
-    if balance >= _MONTH_PRICE:
-        rows.append([InlineKeyboardButton(text=f'Оплатить с баланса ({_MONTH_PRICE} ₽)', callback_data='vpn_pay_balance')])
+    if balance >= MONTH_PRICE:
+        rows.append([InlineKeyboardButton(text=f'Оплатить с баланса ({MONTH_PRICE} ₽)', callback_data='vpn_pay_balance')])
     rows.extend([
         [InlineKeyboardButton(text='СБП (или картой)', callback_data='vpnpay_card', icon_custom_emoji_id=get_emoji('sbp'))],
         [InlineKeyboardButton(text='Криптобот', callback_data='vpnpay_crypto', icon_custom_emoji_id=get_emoji('crypto_bot'))],
@@ -159,162 +70,6 @@ def get_vpn_pay_keyboard(balance: int) -> InlineKeyboardMarkup:
         [InlineKeyboardButton(text='Назад', callback_data='vpn_pay_back', icon_custom_emoji_id=get_emoji('exit'))],
     ])
     return InlineKeyboardMarkup(inline_keyboard=rows)
-
-
-async def _deliver_month_vpn(user_id: int, country: str, reply) -> None:
-    """Списать _MONTH_PRICE с баланса и выдать месячный ключ (reply = message/callback.message)."""
-    try:
-        marzban_username, vpn_keys = await generate_vpn_user(user_id, 30, country)
-    except Exception as e:
-        await reply.answer(f'❌ Не удалось сгенерировать ключ: {e}. Напишите в техподдержку, мы обязательно поможем!', reply_markup=ikb_support)
-        return
-    vpn_keys = [k for k in (vpn_keys or []) if k]
-    if not vpn_keys:
-        return
-    with sq.connect('database.db') as con:
-        cur = con.cursor()
-        expire_date = date.today() + timedelta(days=30)
-        expire_date_str = expire_date.isoformat()
-        buy_date_str = date.today().isoformat()
-        cur.execute('UPDATE users SET balance = balance - ? WHERE id = ? AND balance >= ?', (_MONTH_PRICE, user_id, _MONTH_PRICE))
-        con.commit()
-        if cur.rowcount == 0:
-            await reply.answer('💰 Недостаточно средств на балансе.', parse_mode='HTML', reply_markup=ikb_deposit)
-            return
-        cur.execute(
-            'INSERT INTO keys (key, duration, SOLD, buyer_id, buy_date, expiration_date, location, marzban_username) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-            (vpn_keys[0], 30, 1, user_id, buy_date_str, expire_date_str, country, marzban_username),
-        )
-        con.commit()
-    t, ent = _format_key_delivery_message(vpn_keys[0], '30 дней')
-    await reply.answer(t, entities=ent, reply_markup=ikb_back)
-
-
-async def _deliver_trial_vpn(user_id: int, reply) -> None:
-    """Выдать триал на 3 дня: случайная локация + обязательный Обход LTE."""
-    trial_locations = ['germany', 'germany2', 'finland', 'austria', 'france']
-    random_country = random.choice(trial_locations)
-    random_country_title = {
-        'germany': 'Германия 1',
-        'germany2': 'Германия 2',
-        # 'finland': 'Финляндия',
-        'austria': 'Австрия',
-        # 'france': 'Франция',
-    }.get(random_country, random_country)
-    try:
-        random_mz_username, random_keys = await generate_vpn_user(user_id, 3, random_country)
-        whitelist_mz_username, whitelist_keys = await generate_vpn_user(user_id, 3, 'whitelist')
-    except Exception as e:
-        await reply.answer(f'❌ Не удалось сгенерировать ключ: {e}. Напишите в техподдержку, мы обязательно поможем!', reply_markup=ikb_support)
-        return
-
-    random_keys = [k for k in (random_keys or []) if k]
-    whitelist_keys = [k for k in (whitelist_keys or []) if k]
-    if not random_keys or not whitelist_keys:
-        await reply.answer('❌ Не удалось получить ключ. Напишите в поддержку.', reply_markup=ikb_support)
-        return
-
-    expire_date = date.today() + timedelta(days=3)
-    expire_date_str = expire_date.isoformat()
-    buy_date_str = date.today().isoformat()
-    with sq.connect('database.db') as con:
-        cur = con.cursor()
-        cur.execute(
-            'INSERT INTO keys (key, duration, SOLD, buyer_id, buy_date, expiration_date, location, marzban_username) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-            (random_keys[0], 3, 1, user_id, buy_date_str, expire_date_str, random_country, random_mz_username),
-        )
-        cur.execute(
-            'INSERT INTO keys (key, duration, SOLD, buyer_id, buy_date, expiration_date, location, marzban_username) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-            (whitelist_keys[0], 3, 1, user_id, buy_date_str, expire_date_str, 'whitelist', whitelist_mz_username),
-        )
-        cur.execute('UPDATE users SET had_trial = 1 WHERE id = ?', (user_id,))
-        con.commit()
-
-    trial_text = (
-        "🎁 Тестовый период на 3 дня активирован\n\n"
-        f"🙂 {random_country_title}\n"
-        f"{random_keys[0]}\n\n"
-        "🙂 Обход LTE\n"
-        f"{whitelist_keys[0]}\n\n"
-        "❗️ 1 КЛЮЧ = 1 УСТРОЙСТВО\n"
-        "📌 Гайд на установку: https://graph.org/Aktivaciya-klyucha-cherez-Hiddify-04-08"
-    )
-    trial_entities: list[MessageEntity] = []
-    rnd_pos = trial_text.index("🙂")
-    lte_pos = trial_text.index("🙂", rnd_pos + 1)
-    trial_entities.append(
-        MessageEntity(
-            type="custom_emoji",
-            offset=_utf16_offset(trial_text, rnd_pos),
-            length=_utf16_span_len(trial_text, rnd_pos, rnd_pos + 1),
-            custom_emoji_id=get_emoji(random_country if random_country in ('germany', 'finland', 'austria', 'france') else 'germany'),
-        )
-    )
-    trial_entities.append(
-        MessageEntity(
-            type="custom_emoji",
-            offset=_utf16_offset(trial_text, lte_pos),
-            length=_utf16_span_len(trial_text, lte_pos, lte_pos + 1),
-            custom_emoji_id=get_emoji('whitelist'),
-        )
-    )
-    random_key_start = trial_text.index(random_keys[0])
-    trial_entities.append(
-        MessageEntity(
-            type="code",
-            offset=_utf16_offset(trial_text, random_key_start),
-            length=_utf16_span_len(trial_text, random_key_start, random_key_start + len(random_keys[0])),
-        )
-    )
-    lte_key_start = trial_text.index(whitelist_keys[0], random_key_start + len(random_keys[0]))
-    trial_entities.append(
-        MessageEntity(
-            type="code",
-            offset=_utf16_offset(trial_text, lte_key_start),
-            length=_utf16_span_len(trial_text, lte_key_start, lte_key_start + len(whitelist_keys[0])),
-        )
-    )
-    for marker, emoji_key in (("❗️", "exclamation_mark"), ("📌", "pin")):
-        pos = trial_text.index(marker)
-        trial_entities.append(
-            MessageEntity(
-                type="custom_emoji",
-                offset=_utf16_offset(trial_text, pos),
-                length=_utf16_span_len(trial_text, pos, pos + len(marker)),
-                custom_emoji_id=get_emoji(emoji_key),
-            )
-        )
-    trial_entities.sort(key=lambda e: e.offset)
-    await reply.answer(trial_text, entities=trial_entities, reply_markup=ikb_back)
-
-
-async def _maybe_complete_vpn_after_topup(user_id: int, amount_credited: int, reply) -> bool:
-    """Если ждём оплату VPN и начислили ровно месячную сумму — выдать ключ. Возвращает True, если обработали VPN."""
-    if amount_credited != _MONTH_PRICE:
-        return False
-    country = _vpn_pending_get(user_id)
-    if not country:
-        return False
-    _vpn_pending_clear(user_id)
-    await _deliver_month_vpn(user_id, country, reply)
-    return True
-
-
-async def _show_vpn_payment_after_country(callback: CallbackQuery, country: str):
-    await callback.answer()
-    await callback.message.delete()
-    _vpn_pending_set(callback.from_user.id, country)
-    with sq.connect('database.db') as con:
-        cur = con.cursor()
-        cur.execute('SELECT balance FROM users WHERE id = ?', (callback.from_user.id,))
-        result = cur.fetchone()
-        balance = result[0] if result else 0
-    await callback.message.answer_photo(
-        BUY_VPN_PHOTO,
-        caption=f'<b>VPN на месяц — {_MONTH_PRICE} ₽</b>\n\nВыберите способ оплаты:',
-        parse_mode='HTML',
-        reply_markup=get_vpn_pay_keyboard(balance),
-    )
 
 
 @dp.message(CommandStart())
@@ -366,7 +121,7 @@ async def start_command(message):
         result = cur.fetchone()
         balance = result[0] if result else 0
 
-    text, caption_entities = _welcome_back_caption(balance)
+    text, caption_entities = welcome_back_caption(balance)
     await message.answer_photo(
         WELCOME_PHOTO,
         caption=text,
@@ -713,190 +468,16 @@ async def support_callback(callback: CallbackQuery):
     await callback.message.answer("ℹ️ <b>Поддержка</b>\n\nЕсли у вас возникли вопросы, напишите нам в поддержку!", parse_mode='HTML', reply_markup=ikb_support)
 
 
-def _utf16_offset(s: str, char_index: int) -> int:
-    """Смещение в UTF-16 code units (как в Telegram MessageEntity.offset)."""
-    return len(s[:char_index].encode("utf-16-le")) // 2
-
-
-def _utf16_span_len(s: str, start: int, end: int) -> int:
-    """Длина подстроки s[start:end] в UTF-16 code units (MessageEntity.length)."""
-    return len(s[start:end].encode("utf-16-le")) // 2
-
-
-def _format_key_message(key: str, duration_line: str) -> tuple[str, list[MessageEntity]]:
-    """Ключ в моноширинном блоке; строка срока — всё после «➡️ » (например «Срок действия: 7 дней» или «Срок действия до: 01.04.2026»). Premium: arrow_right, exclamation_mark, pin."""
-    guide = "https://graph.org/Aktivaciya-klyucha-cherez-Hiddify-04-08"
-    text = (
-        "ВАШ КЛЮЧ:\n\n"
-        f"{key}\n"
-        "(нажмите чтобы скопировать)\n\n"
-        f"➡️ {duration_line}\n\n"
-        "❗️ 1 КЛЮЧ - ОДНО УСТРОЙСТВО\n"
-        f" 📌 Гайд на установку: {guide}"
-    )
-    entities: list[MessageEntity] = []
-
-    key_start = len("ВАШ КЛЮЧ:\n\n")
-    key_end = key_start + len(key)
-    entities.append(
-        MessageEntity(
-            type="code",
-            offset=_utf16_offset(text, key_start),
-            length=_utf16_span_len(text, key_start, key_end),
-        )
-    )
-
-    for marker, emoji_key in (
-        ("➡️", "arrow_right"),
-        ("❗️", "exclamation_mark"),
-        ("📌", "pin"),
-    ):
-        pos = text.index(marker)
-        entities.append(
-            MessageEntity(
-                type="custom_emoji",
-                offset=_utf16_offset(text, pos),
-                length=_utf16_span_len(text, pos, pos + len(marker)),
-                custom_emoji_id=get_emoji(emoji_key),
-            )
-        )
-
-    entities.sort(key=lambda e: e.offset)
-    return text, entities
-
-
-def _format_key_delivery_message(key: str, duration_phrase: str) -> tuple[str, list[MessageEntity]]:
-    return _format_key_message(key, f"Срок действия: {duration_phrase}")
-
-
-def _replace_config_keyboard(key_offset: int, current_location: str) -> InlineKeyboardMarkup:
-    rows = []
-    options = [
-        ('germany', 'Германия 1', 'germany'),
-        ('germany2', 'Германия 2 ', 'germany'),
-        ('whitelist', 'Обход LTE', 'whitelist'),
-        # ('finland', 'Финляндия', 'finland'),
-        ('austria', 'Австрия', 'austria'),
-        # ('france', 'Франция', 'france'),
-    ]
-    for loc, title, icon_key in options:
-        if loc == current_location:
-            continue
-        rows.append(
-            [
-                InlineKeyboardButton(
-                    text=title,
-                    callback_data=f'replace_to_{loc}_{key_offset}',
-                    icon_custom_emoji_id=get_emoji(icon_key),
-                ),
-            ]
-        )
-    rows.append([InlineKeyboardButton(text='Назад', callback_data='my_keys', icon_custom_emoji_id=get_emoji('exit'))])
-    return InlineKeyboardMarkup(inline_keyboard=rows)
-
-
-async def _delete_key_from_marzban(marzban_username: str, country: str) -> bool:
-    if not marzban_username:
-        return False
-    try:
-        from vpn import get_api, TOKENS
-
-        api, _cfg = get_api(country)
-        token = TOKENS.get(country)
-        if not token:
-            token = await get_marzban_token(country)
-        await api.remove_user(username=marzban_username, token=token)
-        return True
-    except Exception as e:
-        print(f"delete key error: {e}")
-        return False
-
-def _welcome_back_caption(balance: int) -> tuple[str, list[MessageEntity]]:
-    """Текст приветствия без parse_mode: 👋 и 👉🏼 — обычные эмодзи; Premium — только флаги стран; bold и ссылка."""
+def welcome_back_caption(balance: int):
     text = (
         "👋 Добро пожаловать в Кофеманию\n"
         "\n"
-        "Наш сервис предлагает доступ к локациям:\n"
-        "\n"
-        " 🙂 Германия\n"
-        " 🙂 Обход LTE\n"
-        " 🙃 Финляндия\n"
-        " 😉 Австрия\n"
-        " 😊 Франция\n"
-        "\n"
-        "🌎 Локацию ключа можно заменить в разделе \"Мои ключи\"\n\n"
+        f'Подписка: СТАТУС ПОДПИСКИ\n' 
         f" 👉🏼 Баланс : {balance} ₽\n"
         "Купить ключи можно так же на сайте coffeemaniavpn.ru"
     )
-    entities: list[MessageEntity] = []
+    return text
 
-    smile_positions: list[int] = []
-    start = 0
-    while True:
-        i = text.find("🙂", start)
-        if i == -1:
-            break
-        smile_positions.append(i)
-        start = i + 1
-    smile_emoji_keys = ("germany", "whitelist")
-    for pos, emoji_key in zip(smile_positions, smile_emoji_keys):
-        entities.append(
-            MessageEntity(
-                type="custom_emoji",
-                offset=_utf16_offset(text, pos),
-                length=_utf16_span_len(text, pos, pos + 1),
-                custom_emoji_id=get_emoji(emoji_key),
-            )
-        )
-
-    for ch, loc in (
-        ("🙃", "finland"),
-        ("😉", "austria"),
-        ("😊", "france"),
-    ):
-        i = text.index(ch)
-        entities.append(
-            MessageEntity(
-                type="custom_emoji",
-                offset=_utf16_offset(text, i),
-                length=_utf16_span_len(text, i, i + 1),
-                custom_emoji_id=get_emoji(loc),
-            )
-        )
-
-    for name in ("Германия", "Обход LTE", "Финляндия", "Австрия", "Франция"):
-        i = text.index(name)
-        entities.append(
-            MessageEntity(
-                type="bold",
-                offset=_utf16_offset(text, i),
-                length=_utf16_span_len(text, i, i + len(name)),
-            )
-        )
-
-    bal = f" Баланс : {balance} ₽"
-    i = text.index(bal)
-    entities.append(
-        MessageEntity(
-            type="bold",
-            offset=_utf16_offset(text, i),
-            length=_utf16_span_len(text, i, i + len(bal)),
-        )
-    )
-
-    site = "coffeemaniavpn.ru"
-    i = text.index(site)
-    entities.append(
-        MessageEntity(
-            type="text_link",
-            offset=_utf16_offset(text, i),
-            length=_utf16_span_len(text, i, i + len(site)),
-            url="https://coffeemaniavpn.ru",
-        )
-    )
-
-    entities.sort(key=lambda e: e.offset)
-    return text, entities
 
 
 @dp.callback_query(lambda c: c.data == 'back')
@@ -908,7 +489,7 @@ async def back_callback(callback: CallbackQuery):
         cur.execute("SELECT balance FROM users WHERE id = ?", (callback.from_user.id,))
         result = cur.fetchone()
         balance = result[0] if result else 0
-    text, caption_entities = _welcome_back_caption(balance)
+    text, caption_entities = welcome_back_caption(balance)
     await callback.message.answer_photo(
         WELCOME_PHOTO,
         caption=text,
@@ -1002,7 +583,7 @@ async def vpn_pay_balance_callback(callback: CallbackQuery):
         cur = con.cursor()
         cur.execute('SELECT balance FROM users WHERE id = ?', (callback.from_user.id,))
         balance = (cur.fetchone() or (0,))[0]
-    if balance < _MONTH_PRICE:
+    if balance < MONTH_PRICE:
         await callback.answer('Недостаточно средств на балансе', show_alert=True)
         return
     await callback.message.delete()
@@ -1018,7 +599,7 @@ async def vpnpay_card_callback(callback: CallbackQuery):
         await callback.message.answer('❌ Сначала выберите страну: «Подключить VPN» → локация.', reply_markup=ikb_back)
         return
     await callback.message.delete()
-    amount = _MONTH_PRICE
+    amount = MONTH_PRICE
     try:
         payment = Payment.create({
             "amount": {"value": amount, "currency": "RUB"},
@@ -1046,7 +627,7 @@ async def vpnpay_crypto_callback(callback: CallbackQuery):
         await callback.message.answer('❌ Сначала выберите страну: «Подключить VPN» → локация.', reply_markup=ikb_back)
         return
     await callback.message.delete()
-    amount = _MONTH_PRICE
+    amount = MONTH_PRICE
     response = get_pay_link(amount / rub_to_usdt)
     ok = response['ok']
     result = response['result']
@@ -1071,7 +652,7 @@ async def vpnpay_stars_callback(callback: CallbackQuery):
         await callback.message.answer('❌ Сначала выберите страну: «Подключить VPN» → локация.', reply_markup=ikb_back)
         return
     await callback.message.delete()
-    amount = _MONTH_PRICE
+    amount = MONTH_PRICE
     stars_rate = 1.50
     amount_stars = int(amount * stars_rate)
     payload = f"vpnmonth_{amount}_{callback.from_user.id}_{country}"
@@ -1079,11 +660,11 @@ async def vpnpay_stars_callback(callback: CallbackQuery):
         await bot.send_invoice(
             chat_id=callback.from_user.id,
             title=f"VPN на месяц ({country})",
-            description=f"Оплата {_MONTH_PRICE} ₽",
+            description=f"Оплата {MONTH_PRICE} ₽",
             payload=payload,
             provider_token="",
             currency="XTR",
-            prices=[LabeledPrice(label=f"VPN {_MONTH_PRICE} ₽", amount=amount_stars)],
+            prices=[LabeledPrice(label=f"VPN {MONTH_PRICE} ₽", amount=amount_stars)],
         )
     except Exception as e:
         await callback.message.answer(f'❌ Не удалось создать счёт: {e}', reply_markup=get_vpn_pay_keyboard(0))
@@ -1288,7 +869,7 @@ async def vpn_reopen_payment_callback(callback: CallbackQuery):
         balance = (cur.fetchone() or (0,))[0]
     await callback.message.answer_photo(
         BUY_VPN_PHOTO,
-        caption=f'<b>VPN на месяц — {_MONTH_PRICE} ₽</b>\n\nВыберите способ оплаты:',
+        caption=f'<b>VPN на месяц — {MONTH_PRICE} ₽</b>\n\nВыберите способ оплаты:',
         parse_mode='HTML',
         reply_markup=get_vpn_pay_keyboard(balance),
     )
