@@ -48,7 +48,7 @@ dp = Dispatcher() # объект диспетчера
 
 MONTH_PRICE = 149
 
-def get_vpn_pay_keyboard(balance: int) -> InlineKeyboardMarkup:
+def get_vpn_pay_keyboard() -> InlineKeyboardMarkup:
     rows = []
     rows.extend([
         [InlineKeyboardButton(text='СБП (или картой)', callback_data=f'deposit_{MONTH_PRICE}_card', icon_custom_emoji_id=get_emoji('sbp'))],
