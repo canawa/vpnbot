@@ -113,6 +113,10 @@ with sq.connect('database.db') as con:
     except:
         pass  # Поле уже существует
     try:
+        cur.execute('ALTER TABLE keys ADD COLUMN bundle_id TEXT')
+    except:
+        pass  # Поле уже существует
+    try:
         cur.execute("UPDATE keys SET location = 'germany' WHERE location IS NULL OR TRIM(COALESCE(location, '')) = ''")
         con.commit()
     except Exception:
