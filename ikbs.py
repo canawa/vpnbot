@@ -61,3 +61,19 @@ ikb_deposit_methods = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text='Звёзды', callback_data='deposit_stars', icon_custom_emoji_id=get_emoji('stars'))],
     [InlineKeyboardButton(text='Назад', callback_data='back', icon_custom_emoji_id=get_emoji('exit'))],
 ])
+
+ikb_admin = InlineKeyboardMarkup(inline_keyboard=[
+    [InlineKeyboardButton(text='👤 Пользователи', callback_data='admin_users')],
+    [InlineKeyboardButton(text='🔄 Оплаты', callback_data='admin_payments')],
+    [InlineKeyboardButton(text='🔑 Ключи', callback_data='admin_keys')],
+    [InlineKeyboardButton(text='👉🏼 Рефералы', callback_data='admin_referrals')],
+    [InlineKeyboardButton(text='👑 Роли', callback_data='admin_roles')],
+    [InlineKeyboardButton(text='🔊 Напомнить юзерам о бесплатном тестовом периоде', callback_data='admin_notify_trial')],
+    [InlineKeyboardButton(text='⏰ Уведомить о завершении пробной подписки', callback_data='admin_notify_expired')],
+    [InlineKeyboardButton(text='🤝 Напомнить о рефке', callback_data='admin_notify_referral')],
+
+])
+
+ikb_admin_back = InlineKeyboardMarkup(inline_keyboard=[
+    [InlineKeyboardButton(text=' Назад', callback_data='admin_back', icon_custom_emoji_id=get_emoji('exit'))],
+])

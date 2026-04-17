@@ -13,7 +13,6 @@ import os
 import random
 from yookassa import Configuration, Payment # для работы с Юкассой
 import uuid
-from vpn import generate_vpn_user, get_marzban_token
 import pandas as pd
 import openpyxl
 from datetime import datetime
@@ -23,7 +22,8 @@ from emojis import get_emoji
 from databases import create_tables
 from payments import get_pay_link, check_payment_status, check_payment_yookassa_status
 from expire_functions import check_expired_subscriptions, check_expiring_tomorrow_subscriptions, reset_runout_notified_daily
-from ikbs import generate_ikb_main, ikb_subscribe, ikb_referral, ikb_back, ikb_referral_reminder, ikb_documents, ikb_deposit, ikb_deposit_methods, ikb_support
+from vpn import deliver_trial_vpn
+from ikbs import *
 locale.setlocale(locale.LC_TIME, 'ru_RU.UTF-8')
 print('BOT STARTED!!!')
 
@@ -40,7 +40,6 @@ except FileNotFoundError:
     exit()
 
 bot = Bot(token=os.getenv('BOT_TOKEN')) # объект бота
-API_TOKEN = os.getenv('CRYPTO_BOT_API_TOKEN') # это криптобот
 
 create_tables()
 
@@ -130,21 +129,6 @@ def yookassa_payment_keyboard(amount, confirmation_url, payment_id): # функ�
     ])
     return ikb_yookassa
 
-ikb_admin = InlineKeyboardMarkup(inline_keyboard=[
-    [InlineKeyboardButton(text='👤 Пользователи', callback_data='admin_users')],
-    [InlineKeyboardButton(text='🔄 Оплаты', callback_data='admin_payments')],
-    [InlineKeyboardButton(text='🔑 Ключи', callback_data='admin_keys')],
-    [InlineKeyboardButton(text='👉🏼 Рефералы', callback_data='admin_referrals')],
-    [InlineKeyboardButton(text='👑 Роли', callback_data='admin_roles')],
-    [InlineKeyboardButton(text='🔊 Напомнить юзерам о бесплатном тестовом периоде', callback_data='admin_notify_trial')],
-    # [InlineKeyboardButton(text='⏰ Уведомить о завершении пробной подписки', callback_data='admin_notify_expired')],
-    [InlineKeyboardButton(text='🤝 Напомнить о рефке', callback_data='admin_notify_referral')],
-
-])
-
-ikb_admin_back = InlineKeyboardMarkup(inline_keyboard=[
-    [InlineKeyboardButton(text=' Назад', callback_data='admin_back', icon_custom_emoji_id=get_emoji('exit'))],
-])
 
 
 @dp.callback_query(lambda c: c.data.startswith('check_payment_'))
@@ -179,11 +163,6 @@ async def check_payment_callback(callback: CallbackQuery):
                             if ref_master_role and ref_master_role[0] == 'refmaster':
                                 cur.execute('UPDATE users SET ref_balance = ref_balance + ? WHERE id = ?', (int(amount)/2, ref_master_id))
                 con.commit()
-            am_rub = int(float(amount))
-            handled_vpn = await _maybe_complete_vpn_after_topup(callback.from_user.id, am_rub, callback.message)
-            if handled_vpn:
-                await callback.message.delete()
-                return
             await callback.message.answer(f'🤑 Оплачено! \n\n ➕ Начислено {amount} ₽ на баланс', parse_mode='HTML', reply_markup=ikb_back)
             await callback.message.delete()
         else:
@@ -191,7 +170,6 @@ async def check_payment_callback(callback: CallbackQuery):
     except Exception as e:
         await callback.message.answer(f'❌ Ошибка: {e}', parse_mode='HTML')
         raise e
-
 
 
 # ОБРАБОТЧИКИ КОЛЛБЭКОВ
@@ -323,7 +301,6 @@ async def plan_lifetime_callback(callback: CallbackQuery):
 @dp.callback_query(lambda c: c.data == 'vpn_pay_back')
 async def vpn_pay_back_callback(callback: CallbackQuery):
     await callback.answer("Назад")
-    _vpn_pending_clear(callback.from_user.id)
     await callback.message.delete()
     with sq.connect('database.db') as con:
         cur = con.cursor()
@@ -356,35 +333,12 @@ async def check_payment_yookassa_callback(callback: CallbackQuery): # сюды
                         if ref_master_role and ref_master_role[0] == 'refmaster':
                             cur.execute('UPDATE users SET ref_balance = ref_balance + ? WHERE id = ?', (int(amount)/2, ref_master_id)) # начислить 50% реферального бонуса рефоводу
             con.commit()
-        handled_vpn = await _maybe_complete_vpn_after_topup(callback.from_user.id, int(amount), callback.message)
-        if handled_vpn:
-            await callback.message.delete()
-            return
         await callback.message.answer(f'🤑 Оплачено! \n\n ➕ Начислено {amount} ₽ на баланс', parse_mode='HTML', reply_markup=ikb_back)
         await callback.message.delete()
 
     else:
         await callback.message.answer(f'👀 Ожидаем оплату, оплатите и попробуйте снова!', parse_mode='HTML', reply_markup=ikb_back)
 
-
-
-@dp.callback_query(lambda c: c.data == 'vpn_pay_balance')
-async def vpn_pay_balance_callback(callback: CallbackQuery):
-    await callback.answer()
-    country = _vpn_pending_get(callback.from_user.id)
-    if not country:
-        await callback.message.answer('❌ Сначала выберите страну в разделе «Подключить VPN».', reply_markup=ikb_back)
-        return
-    with sq.connect('database.db') as con:
-        cur = con.cursor()
-        cur.execute('SELECT balance FROM users WHERE id = ?', (callback.from_user.id,))
-        balance = (cur.fetchone() or (0,))[0]
-    if balance < MONTH_PRICE:
-        await callback.answer('Недостаточно средств на балансе', show_alert=True)
-        return
-    await callback.message.delete()
-    _vpn_pending_clear(callback.from_user.id)
-    await _deliver_month_vpn(callback.from_user.id, country, callback.message)
 
 @dp.callback_query(lambda c: c.data == 'vpnpay_crypto')
 async def vpnpay_crypto_callback(callback: CallbackQuery):

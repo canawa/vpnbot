@@ -3,7 +3,7 @@ from yookassa import Payment, Configuration
 from datetime import date, datetime
 import dotenv
 import os
-
+import sqlite3 as sq
 dotenv.load_dotenv() # загружаем переменные окружения
 Configuration.account_id = os.getenv('YOOKASSA_ACCOUNT_ID')
 Configuration.secret_key = os.getenv('YOOKASSA_SECRET_KEY')
@@ -14,6 +14,7 @@ def get_rate():
 
 rub_to_usdt = get_rate()
 
+API_TOKEN = os.getenv('CRYPTO_BOT_API_TOKEN')  # это криптобот
 
 # PAY FUNCTIONS
 def get_pay_link(amount):
