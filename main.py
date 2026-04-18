@@ -143,7 +143,7 @@ VPN_SUBSCRIPTION_DAYS_TRIAL = 3
 def get_vpn_pay_keyboard() -> InlineKeyboardMarkup:
     rows = []
     rows.extend([
-        [InlineKeyboardButton(text='Оплатить', callback_data=f'deposit_{MONTH_PRICE}_card', icon_custom_emoji_id=get_emoji('sbp'))],
+        [InlineKeyboardButton(text=f'Оплатить {MONTH_PRICE}', callback_data=f'deposit_{MONTH_PRICE}_card', icon_custom_emoji_id=get_emoji('pay'))],
         # [InlineKeyboardButton(text='Криптобот', callback_data=f'deposit_{MONTH_PRICE}_crypto', icon_custom_emoji_id=get_emoji('crypto_bot'))],
         # [InlineKeyboardButton(text='Звёзды', callback_data=f'deposit_{MONTH_PRICE}_stars', icon_custom_emoji_id=get_emoji('stars'))],
         [InlineKeyboardButton(text='Назад', callback_data='back', icon_custom_emoji_id=get_emoji('exit'))],

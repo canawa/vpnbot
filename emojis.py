@@ -27,6 +27,7 @@ ids = {
     'whitelist': '5217591619108233553',
     'globe_emoji': '5310037891051691834',
     'shield_emoji': '5251203410396458957',
+    'pay': '5258204546391351475'
 }
 
 def get_emoji(emoji: str):
