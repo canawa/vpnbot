@@ -405,7 +405,7 @@ def welcome_back_caption(subscription_status):
     text = (
         "👋 Добро пожаловать в Кофеманию\n"
         "\n"
-        f"Подписка: {'🟢 Активна' if subscription_status==True else '🔴 Отсутствует'}\n"
+        f"Подписка: {'🟢 Активна ()' if subscription_status==True else '🔴 Отсутствует'}\n"
     )
     return text
 
@@ -416,7 +416,7 @@ async def back_callback(callback: CallbackQuery):
     today_str = date.today().isoformat()
     with sq.connect('database.db') as con:
         cur = con.cursor()
-        cur.execute(""" SELECT * FROM subscriptions WHERE user_id = ? AND date(subscription_expires_at) >= date(?)""", (callback.from_user.id, today_str))
+        cur.execute(""" SELECT subscription_expires_at FROM subscriptions WHERE user_id = ? AND date(subscription_expires_at) >= date(?)""", (callback.from_user.id, today_str))
         has_active_subscription = cur.fetchone() is not None
         text = welcome_back_caption(has_active_subscription)
     await callback.message.answer_photo(
