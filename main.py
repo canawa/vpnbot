@@ -40,6 +40,44 @@ print('BOT STARTED!!!')
 
 vpn = Vpn()
 
+
+def _vpn_response_subscription_url(payload):
+    if not isinstance(payload, dict):
+        return None
+    url = payload.get('response', {}).get('subscriptionUrl')
+    return url if url else None
+
+
+def _vpn_response_user_already_exists(payload):
+    if not isinstance(payload, dict):
+        return False
+    msg = str(payload.get('message', '') or '')
+    if msg == 'User username already exists':
+        return True
+    return 'already exists' in msg.lower()
+
+
+def fetch_vpn_subscription_url_after_purchase(tg_id: int):
+    """Создаёт пользователя в API; если username занят — продлевает (PATCH). Возвращает subscriptionUrl или None."""
+    created = vpn.create_new_user(tg_id)
+    url = _vpn_response_subscription_url(created)
+    if url:
+        return url
+    if _vpn_response_user_already_exists(created):
+        renewed = vpn.renew_subscription(tg_id)
+        return _vpn_response_subscription_url(renewed)
+    return None
+
+
+VPN_SUBSCRIPTION_MESSAGE_HTML = (
+    "🔑 <b>Твоя подписка КОФЕМАНИЯ VPN</b>\n"
+    "\n"
+    "☕️ Мы автоматически установим ключ в приложении HAPP\n"
+    "\n"
+    "🚀 Нажми кнопку ниже — и всё настроится за тебя\n"
+)
+
+
 ### РАБОТА С ФОТКАМИ:
 try:
     WELCOME_PHOTO = FSInputFile("photos/welcome.png")
@@ -288,52 +326,20 @@ async def back_callback(callback: CallbackQuery):
 async def plan_trial(callback: CallbackQuery):
     await callback.message.delete()
     if await is_subscribed(bot, callback.from_user.id):
-        result = vpn.create_new_user(callback.message.from_user.id)
+        url = None
         try:
-            url = result.get('response', {}).get('subscriptionUrl')
-
-            if url:
-                text = (
-                    "🔑 <b>Твоя подписка КОФЕМАНИЯ VPN</b>\n"
-                    "\n"
-                    "☕️ Мы автоматически установим ключ в приложении HAPP\n"
-                    "\n"
-                    "🚀 Нажми кнопку ниже — и всё настроится за тебя\n"
-                )
-
+            url = fetch_vpn_subscription_url_after_purchase(callback.from_user.id)
+        except Exception as e:
+            print(f'Ошибка при выдаче подписки (trial): {e}')
+        if url:
+            try:
                 await callback.message.answer(
-                    text,
+                    VPN_SUBSCRIPTION_MESSAGE_HTML,
                     parse_mode='HTML',
-                    reply_markup=create_ikb_sub_after_buy(url)
+                    reply_markup=create_ikb_sub_after_buy(url),
                 )
-        except Exception as e:
-            print(f'Ошибка при выдаче подписки, {e}')
-        try:
-            if result['message'] == 'User username already exists':
-                print('занято и вызывается функция продления')
-                result = vpn.renew_subscription(callback.from_user.id)
-                try:
-                    url = result.get('response', {}).get('subscriptionUrl')
-
-                    if url:
-                        text = (
-                            "🔑 <b>Твоя подписка КОФЕМАНИЯ VPN</b>\n"
-                            "\n"
-                            "☕️ Мы автоматически установим ключ в приложении HAPP\n"
-                            "\n"
-                            "🚀 Нажми кнопку ниже — и всё настроится за тебя\n"
-                        )
-
-                        await callback.message.answer(
-                            text,
-                            parse_mode='HTML',
-                            reply_markup=create_ikb_sub_after_buy(url),
-                        )
-                except:
-                    pass
-        except Exception as e:
-            print(f'Ошибка при выдаче подписки, {e}')
-
+            except Exception as e:
+                print(f'Ошибка отправки сообщения с ключом (trial): {e}')
         await callback.message.delete()
     else:
         await callback.message.answer('❌ Вы не подписаны на канал! Подпишитесь на канал, чтобы получить бесплатный тестовый период!', parse_mode='HTML', reply_markup=ikb_subscribe)
@@ -394,53 +400,20 @@ async def check_payment_yookassa_callback(callback: CallbackQuery): # сюды
                         if ref_master_role and ref_master_role[0] == 'refmaster':
                             cur.execute('UPDATE users SET ref_balance = ref_balance + ? WHERE id = ?', (amount_rub / 2, ref_master_id)) # начислить 50% реферального бонуса рефоводу
             con.commit()
-        result = vpn.create_new_user(callback.message.from_user.id)
+        url = None
         try:
-            url = result.get('response', {}).get('subscriptionUrl')
-
-            if url:
-                text = (
-                    "🔑 <b>Твоя подписка КОФЕМАНИЯ VPN</b>\n"
-                    "\n"
-                    "☕️ Мы автоматически установим ключ в приложении HAPP\n"
-                    "\n"
-                    "🚀 Нажми кнопку ниже — и всё настроится за тебя\n"
-                )
-
-                await callback.message.answer(
-                    text,
-                    parse_mode='HTML',
-                    reply_markup=create_ikb_sub_after_buy(url)
-                )
+            url = fetch_vpn_subscription_url_after_purchase(callback.from_user.id)
         except Exception as e:
-            print(f'Ошибка при выдаче подписки, {e}')
-        try:
-            if result['message'] == 'User username already exists':
-                print('занято и вызывается функция продления')
-                result = vpn.renew_subscription(callback.from_user.id)
-                try:
-                    url = result.get('response', {}).get('subscriptionUrl')
-
-                    if url:
-                        text = (
-                            "🔑 <b>Твоя подписка КОФЕМАНИЯ VPN</b>\n"
-                            "\n"
-                            "☕️ Мы автоматически установим ключ в приложении HAPP\n"
-                            "\n"
-                            "🚀 Нажми кнопку ниже — и всё настроится за тебя\n"
-                        )
-
-                        await callback.message.answer(
-                            text,
-                            parse_mode='HTML',
-                            reply_markup=create_ikb_sub_after_buy(url),
-                        )
-                except:
-                    pass
-
-        except:
-            pass
-
+            print(f'Ошибка при выдаче подписки после оплаты: {e}')
+        if url:
+            try:
+                await callback.message.answer(
+                    VPN_SUBSCRIPTION_MESSAGE_HTML,
+                    parse_mode='HTML',
+                    reply_markup=create_ikb_sub_after_buy(url),
+                )
+            except Exception as e:
+                print(f'Ошибка отправки сообщения с ключом после оплаты: {e}')
         await callback.message.delete()
 
     else:
