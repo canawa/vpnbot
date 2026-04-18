@@ -208,15 +208,18 @@ async def start_command(message):
         cur = con.cursor()
         cur.execute(
             """
-            SELECT 1 FROM subscriptions
+            SELECT subscription_expires_at FROM subscriptions
             WHERE user_id = ?
               AND date(subscription_expires_at) >= date(?)
+            LIMIT 1
             """,
             (message.from_user.id, today_str),
         )
-        has_active_subscription = cur.fetchone() is not None
+        sub_row = cur.fetchone()
+        has_active_subscription = sub_row is not None
+        subscription_expires_at = sub_row[0] if sub_row else None
 
-    text = welcome_back_caption(has_active_subscription)
+    text = welcome_back_caption(has_active_subscription, subscription_expires_at)
     await message.answer_photo(
         WELCOME_PHOTO,
         caption=text,
@@ -401,13 +404,19 @@ async def support_callback(callback: CallbackQuery):
     await callback.message.answer("ℹ️ <b>Поддержка</b>\n\nЕсли у вас возникли вопросы, напишите нам в поддержку!", parse_mode='HTML', reply_markup=ikb_support)
 
 
-def welcome_back_caption(subscription_status):
-    text = (
+def welcome_back_caption(has_active: bool, subscription_expires_at=None) -> str:
+    if has_active and subscription_expires_at:
+        exp_safe = html.escape(str(subscription_expires_at).strip(), quote=True)
+        sub_line = f"🟢 Активна до <b>{exp_safe}</b>"
+    elif has_active:
+        sub_line = '🟢 Активна'
+    else:
+        sub_line = '🔴 Отсутствует'
+    return (
         "👋 Добро пожаловать в Кофеманию\n"
         "\n"
-        f"Подписка: {'🟢 Активна ()' if subscription_status else '🔴 Отсутствует'}\n"
+        f"Подписка: {sub_line}\n"
     )
-    return text
 
 @dp.callback_query(lambda c: c.data == 'back')
 async def back_callback(callback: CallbackQuery):
@@ -416,9 +425,18 @@ async def back_callback(callback: CallbackQuery):
     today_str = date.today().isoformat()
     with sq.connect('database.db') as con:
         cur = con.cursor()
-        cur.execute(""" SELECT subscription_expires_at FROM subscriptions WHERE user_id = ? AND date(subscription_expires_at) >= date(?)""", (callback.from_user.id, today_str))
-        has_active_subscription = cur.fetchone() is not None
-        text = welcome_back_caption(has_active_subscription)
+        cur.execute(
+            """
+            SELECT subscription_expires_at FROM subscriptions
+            WHERE user_id = ? AND date(subscription_expires_at) >= date(?)
+            LIMIT 1
+            """,
+            (callback.from_user.id, today_str),
+        )
+        sub_row = cur.fetchone()
+        has_active_subscription = sub_row is not None
+        subscription_expires_at = sub_row[0] if sub_row else None
+        text = welcome_back_caption(has_active_subscription, subscription_expires_at)
     await callback.message.answer_photo(
         WELCOME_PHOTO,
         caption=text,
