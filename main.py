@@ -276,13 +276,13 @@ async def buy_vpn_callback(callback: CallbackQuery):
         result = cur.fetchone()
         balance = result[0] if result else 0
     await callback.message.answer_photo(FSInputFile("photos/buy_vpn.png"), caption= (
-        '🚀 <b>В подписку входит:</b> \n'
-        '— Неограниченная скорость \n'
-        '— Безлимитный трафик*\n' 
-        '— До 3 устройств \n'
-        '— Безотказная работа \n'
-        '— Отзывчивая техподдержка \n'
-        '— Совместимость с TV/iOS/Android/Windows/MacOS/Linux \n'
+        '🚀 <b>В подписку входит:</b>\n  \n'
+        '<i>— Неограниченная скорость</i> \n'
+        '<i>— Безлимитный трафик*</i>\n' 
+        '<i>— До 3 устройств </i>\n'
+        '<i>— Безотказная работа </i>\n'
+        '<i>— Отзывчивая техподдержка </i>\n'
+        '<i>— Совместимость с TV/iOS/Android/Windows/MacOS/Linux</i> \n\n\n'
         '<tg-emoji emoji-id="5215512004533448175">🇩🇪</tg-emoji>Германия (Игровая)\n'
         '<tg-emoji emoji-id="5215512004533448175">🇩🇪</tg-emoji>Германия(Рабочая)\n'
         '<tg-emoji emoji-id="5310037891051691834">🌎</tg-emoji>Обход Глушилок\n'
