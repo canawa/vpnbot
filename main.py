@@ -143,7 +143,7 @@ VPN_SUBSCRIPTION_DAYS_TRIAL = 3
 def get_vpn_pay_keyboard() -> InlineKeyboardMarkup:
     rows = []
     rows.extend([
-        [InlineKeyboardButton(text='СБП (или картой)', callback_data=f'deposit_{MONTH_PRICE}_card', icon_custom_emoji_id=get_emoji('sbp'))],
+        [InlineKeyboardButton(text='Оплатить', callback_data=f'deposit_{MONTH_PRICE}_card', icon_custom_emoji_id=get_emoji('sbp'))],
         # [InlineKeyboardButton(text='Криптобот', callback_data=f'deposit_{MONTH_PRICE}_crypto', icon_custom_emoji_id=get_emoji('crypto_bot'))],
         # [InlineKeyboardButton(text='Звёзды', callback_data=f'deposit_{MONTH_PRICE}_stars', icon_custom_emoji_id=get_emoji('stars'))],
         [InlineKeyboardButton(text='Назад', callback_data='back', icon_custom_emoji_id=get_emoji('exit'))],
@@ -278,7 +278,7 @@ async def buy_vpn_callback(callback: CallbackQuery):
     await callback.message.answer_photo(FSInputFile("photos/buy_vpn.png"), caption= (
         '🚀 <b>В подписку входит:</b>\n  \n'
         '<i>— Неограниченная скорость</i> \n'
-        '<i>— Обход белых списков</i> \n\n'
+        '<i>— Обход белых списков</i> \n'
         '<i>— Безлимитный трафик (кроме LTE серверов)</i>\n' 
         '<i>— До 3 устройств </i>\n'
         '<i>— Безотказная работа </i>\n'
