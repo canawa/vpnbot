@@ -278,16 +278,11 @@ async def buy_vpn_callback(callback: CallbackQuery):
     await callback.message.answer_photo(FSInputFile("photos/buy_vpn.png"), caption= (
         '🚀 <b>В подписку входит:</b>\n  \n'
         '<i>— Неограниченная скорость</i> \n'
+        '<i>— Обход белых списков</i> \n\n'
         '<i>— Безлимитный трафик (кроме LTE серверов)</i>\n' 
         '<i>— До 3 устройств </i>\n'
         '<i>— Безотказная работа </i>\n'
         '<i>— Отзывчивая техподдержка </i>\n'
-        '<i>— Совместимость с TV/iOS/Android/Windows/MacOS/Linux</i> \n\n'
-        '<b>Наши сервера:</b>\n\n'
-        '<tg-emoji emoji-id="5215512004533448175">🇩🇪</tg-emoji> Германия (Игровая)\n'
-        '<tg-emoji emoji-id="5215512004533448175">🇩🇪</tg-emoji> Германия(Рабочая)\n'
-        '<tg-emoji emoji-id="5310037891051691834">🌎</tg-emoji> Обход Глушилок\n'
-        '<tg-emoji emoji-id="5215546669214492963">🇫🇮</tg-emoji> Финляндия'
 
 
     ), parse_mode='HTML', reply_markup=get_vpn_pay_keyboard())
