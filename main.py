@@ -411,11 +411,13 @@ def welcome_back_caption(has_active: bool, subscription_expires_at=None) -> str:
         sub_line = '🟢 Активна'
     else:
         sub_line = '🔴 Отсутствует'
-    return (
-        "👋 Добро пожаловать в Кофеманию\n"
-        "\n"
-        f"Подписка: {sub_line}\n"
-    )
+    return ("""👋 Добро пожаловать в Кофеманию\n"
+        "\n",
+        "📦 Информация о подписке\n",
+        "├ Действует до\n",
+        "├ 4 региона + обход LTE\n",
+        "└ 300GB трафика"\n,
+        f"Подписка: {sub_line}\n""")
 
 @dp.callback_query(lambda c: c.data == 'back')
 async def back_callback(callback: CallbackQuery):
