@@ -349,8 +349,15 @@ async def check_payment_yookassa_callback(callback: CallbackQuery): # сюды
                         if ref_master_role and ref_master_role[0] == 'refmaster':
                             cur.execute('UPDATE users SET ref_balance = ref_balance + ? WHERE id = ?', (amount_rub / 2, ref_master_id)) # начислить 50% реферального бонуса рефоводу
             con.commit()
-        vpn.create_new_user(callback.message.from_user.id)
-        await callback.message.answer(f'Спасибо за покупку, ваша подписка: ТУТ ГАЙД', parse_mode='HTML', reply_markup=ikb_back)
+        result = vpn.create_new_user(callback.message.from_user.id)
+        if result['response']['subscriptionUrl']:
+            url = result['response']['subscriptionUrl']
+            await callback.message.answer(f'Спасибо за покупку, ваша подписка: {url}', parse_mode='HTML', reply_markup=ikb_back)
+        if result['message'] == 'User username already exists':
+            print('занято и вызывается функция продления')
+        else:
+            print('ERROR creating user ')
+
         await callback.message.delete()
 
     else:
