@@ -87,3 +87,9 @@ def create_yookassa_payment_keyboard(amount, confirmation_url, payment_id): # ф
         [InlineKeyboardButton(text='Отменить платеж!', callback_data='back', style = 'danger')],
     ])
     return ikb_yookassa
+
+def create_ikb_sub_after_buy(url):
+    ikb_subscription_after_buy = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text='Подключиться', url=url, icon_custom_emoji_id=get_emoji('shield_emoji'), style='success')],
+            [InlineKeyboardButton(text='Назад', callback_data='back', icon_custom_emoji_id=get_emoji('exit'))],
+        ])

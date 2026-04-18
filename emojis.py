@@ -25,7 +25,8 @@ ids = {
     'exclamation_mark': '5274099962655816924',
     'pin': '5397782960512444700',
     'whitelist': '5217591619108233553',
-    'globe_emoji': '5310037891051691834'
+    'globe_emoji': '5310037891051691834',
+    'shield_emoji': '5251203410396458957',
 }
 
 def get_emoji(emoji: str):
