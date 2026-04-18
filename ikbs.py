@@ -31,7 +31,7 @@ def generate_ikb_main(user_id):
 
     ikb_main.inline_keyboard.append([
         InlineKeyboardButton(text='Реферальная программа', callback_data='referral', icon_custom_emoji_id=get_emoji('add_user')),
-        InlineKeyboardButton(text='Моя подписка', callback_data='my_subscription', icon_custom_emoji_id=get_emoji('keys'), style='primary'),
+        InlineKeyboardButton(text='Моя подписка', callback_data='my_subscription', icon_custom_emoji_id=get_emoji('keys')),
     ])
     ikb_main.inline_keyboard.append([InlineKeyboardButton(text='Написать в поддержку', url='https://t.me/CoffemaniaSupport', icon_custom_emoji_id=get_emoji('telegram'))]),
     ikb_main.inline_keyboard.append([InlineKeyboardButton(text='Документы', callback_data='documents', icon_custom_emoji_id=get_emoji('documents'))])
