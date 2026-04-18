@@ -33,7 +33,6 @@ from expire_functions import (
     check_expiring_tomorrow_subscriptions_table,
     reset_runout_notified_daily,
 )
-from vpn import deliver_trial_vpn
 from ikbs import *
 from expire_functions import *
 locale.setlocale(locale.LC_TIME, 'ru_RU.UTF-8')
