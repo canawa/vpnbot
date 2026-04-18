@@ -280,10 +280,10 @@ async def buy_vpn_callback(callback: CallbackQuery):
         '\n'
         '✨ В подписку входит:\n'
         '\n'
-        'Германия (Игровая)\n'
-        '🇩🇪 Германия(Рабочая)\n'
-        '<tg-emoji emoji-id="5310037891051691834">🌎</tg-emoji> Обход Глушилок\n'
-        '🇫🇮 Финляндия'
+        '<tg-emoji emoji-id="5215512004533448175">🇩🇪</tg-emoji>Германия (Игровая)\n'
+        '<tg-emoji emoji-id="5215512004533448175">🇩🇪</tg-emoji>Германия(Рабочая)\n'
+        '<tg-emoji emoji-id="5310037891051691834">🌎</tg-emoji>Обход Глушилок\n'
+        '<tg-emoji emoji-id="5215546669214492963">🇫🇮</tg-emoji>Финляндия'
 
 
     ), parse_mode='HTML', reply_markup=get_vpn_pay_keyboard())
