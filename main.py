@@ -77,7 +77,8 @@ def vpn_subscription_message_html(url: str) -> str:
         "🚀 Нажми кнопку ниже — и всё настроится за тебя\n"
         "\n"
         "Если хочешь воспользоваться другим клиентом, то копируй ссылку:\n"
-        f"<code>{url}</code>"
+        "\n"
+        f"<pre>{url}</pre>"
     )
 
 
@@ -411,8 +412,9 @@ async def check_payment_yookassa_callback(callback: CallbackQuery): # сюды
             print(f'Ошибка при выдаче подписки после оплаты: {e}')
         if url:
             try:
-                await callback.message.answer(
-                    vpn_subscription_message_html(url),
+                await callback.message.answer_photo(
+                    MY_KEYS_PHOTO,
+                    caption=vpn_subscription_message_html(url),
                     parse_mode='HTML',
                     reply_markup=create_ikb_sub_after_buy(url),
                 )

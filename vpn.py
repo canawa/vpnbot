@@ -79,7 +79,7 @@ class Vpn:
              }
                  )
         return body.json()
-#
-vpn = Vpn()
-res = vpn.renew_subscription(1979427406)
-print(res)
+# #
+# vpn = Vpn()
+# res = vpn.renew_subscription(1979427406)
+# print(res)
