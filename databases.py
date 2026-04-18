@@ -1,4 +1,27 @@
 import sqlite3 as sq
+from datetime import datetime, timedelta
+
+
+def upsert_subscription_days(user_id: int, duration_days: int) -> str:
+    """Создаёт/обновляет subscriptions: дата окончания = сегодня + duration_days (ISO YYYY-MM-DD). Сбрасывает runout / expiring_tomorrow."""
+    expires = (datetime.now() + timedelta(days=int(duration_days))).date().isoformat()
+    with sq.connect('database.db') as con:
+        cur = con.cursor()
+        cur.execute(
+            """
+            INSERT INTO subscriptions (user_id, subscription_expires_at, runout_notified, expiring_tomorrow_notified)
+            VALUES (?, ?, 0, 0)
+            ON CONFLICT(user_id) DO UPDATE SET
+                subscription_expires_at = excluded.subscription_expires_at,
+                runout_notified = 0,
+                expiring_tomorrow_notified = 0
+            """,
+            (user_id, expires),
+        )
+        con.commit()
+    return expires
+
+
 def create_tables():
     with sq.connect('database.db') as con:
         cur = con.cursor()
