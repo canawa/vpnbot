@@ -302,7 +302,7 @@ async def my_sub_callback(callback: CallbackQuery):
             MY_KEYS_PHOTO,
             caption=vpn_subscription_message_html(url),
             parse_mode='HTML',
-            reply_markup=ikb_back,
+            reply_markup=create_ikb_sub_after_buy(url),
         )
         return
     today_str = date.today().isoformat()
@@ -318,17 +318,25 @@ async def my_sub_callback(callback: CallbackQuery):
         sub_row = cur.fetchone()
     if sub_row:
         exp_safe = html.escape(str(sub_row[0]), quote=True)
+        retry_url = fetch_vpn_subscription_url_after_purchase(uid)
+        sub_markup = create_ikb_sub_after_buy(retry_url) if retry_url else ikb_back
         await callback.message.answer_photo(
             MY_KEYS_PHOTO,
             caption=(
                 '🔑 <b>Подписка активна</b>\n\n'
                 f'По данным бота доступ до: <b>{exp_safe}</b>\n\n'
-                'Ссылку для приложения панель сейчас не вернула в ответе API. '
-                'Если ключ уже выдавался — открой прошлое сообщение с ключом или нажми «Подключить VPN»; '
-                'иначе напиши в поддержку.'
+                + (
+                    'Нажми «Подключиться» ниже — откроется ссылка для приложения.'
+                    if retry_url
+                    else (
+                        'Ссылку для приложения панель сейчас не вернула в ответе API. '
+                        'Если ключ уже выдавался — открой прошлое сообщение с ключом или нажми «Подключить VPN» в главном меню; '
+                        'иначе напиши в поддержку.'
+                    )
+                )
             ),
             parse_mode='HTML',
-            reply_markup=create_ikb_sub_after_buy(url),
+            reply_markup=sub_markup,
         )
         return
     await callback.message.answer_photo(
