@@ -34,6 +34,7 @@ class Vpn:
                           "expireAt": (datetime.now() + timedelta(days=30)).isoformat(),
                           "createdAt": datetime.now().isoformat(),
                           "telegramId": tg_id,
+                          "trafficLimitBytes": 0,
                           "hwidDeviceLimit": 3,
                           "activeInternalSquads": ["6f11955f-6b95-4f96-bba4-3d866de8ce83"],
                       }
@@ -51,6 +52,7 @@ class Vpn:
                           "expireAt": (datetime.now() + timedelta(days=30)).isoformat(),
                           "createdAt": datetime.now().isoformat(),
                           "telegramId": tg_id,
+                           "trafficLimitBytes": 0,
                           "hwidDeviceLimit": 3,
                           "activeInternalSquads": ["6f11955f-6b95-4f96-bba4-3d866de8ce83"],
            }
@@ -74,6 +76,7 @@ class Vpn:
              },
              json={
                  "username": f'user_{tg_id}',
+                 "trafficLimitBytes": 0,
                  "expireAt": (datetime.now() + timedelta(days=3)).isoformat(),
                  "createdAt": datetime.now().isoformat(),
                  "telegramId": tg_id,
