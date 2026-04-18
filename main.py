@@ -386,7 +386,7 @@ async def referral_callback(callback: CallbackQuery):
                     f"👥 Количество рефералов: {refs_total}\n"
                     f"💳 Количество депозитов: {deposits_count}\n"
                     f"💰 Общая сумма депозитов: {deposits_total} ₽\n"
-                    f"🧮 Ваша доля (50%, без бонусов 50₽): {ref_share} ₽\n"
+                    f"🧮 Ваша доля: {ref_share} ₽\n"
                     f"🏦 Реферальный баланс: {int(ref_balance)} ₽"
                 ),
                 parse_mode='HTML',
@@ -417,7 +417,7 @@ def welcome_back_caption(has_active: bool, subscription_expires_at=None) -> str:
         "📦 Информация о подписке\n"
         "├ 4 региона + обход LTE\n" 
         "├ 300GB трафика\n" 
-        "└ Подписка: {sub_line}\n" # sub_line - это строка с информацией о подписке
+        f"└ Подписка: {sub_line}\n" # sub_line - это строка с информацией о подписке
         
     )
 
