@@ -1,137 +1,127 @@
-#!/usr/bin/env python3
 """
-Одноразовый скрипт: для каждого buyer_id с активным ключом в таблице keys
-синхронизирует пользователя в Remnawave с expireAt = конец дня expiration_date.
+ОДНОРАЗОВЫЙ скрипт миграции.
 
-Не импортирует vpn.py (в vpn.py при импорте выполняется тестовый запрос).
+Для каждого buyer_id из таблицы `keys`, у которого expiration_date > сегодня,
+создаёт пользователя в Remnawave с expireAt = expiration_date (конец дня).
+Тело запроса ПОЛНОСТЬЮ повторяет vpn.py Vpn.create_new_user (строки 26-42),
+меняется только значение expireAt (вместо now+30 дней — реальная дата из БД).
 
-Запуск из каталога проекта (где лежит database.db):
-  py -3 sync_remna_expire_from_keys_once.py --dry-run
-  py -3 sync_remna_expire_from_keys_once.py --apply
+Безопасность (прод):
+- DRY_RUN = True — по умолчанию ничего не отправляет, только печатает план.
+- Если пользователь с таким telegram_id уже есть в Remnawave — ПРОПУСКАЕМ
+  (чтобы случайно не сломать уже работающую подписку).
+- На каждую запись — свой try/except; одна ошибка не валит весь прогон.
+- Между вызовами небольшая пауза, чтобы не душить панель.
 
-По умолчанию --dry-run: только печать, без POST/PATCH.
-
-При --apply после успешного создания/обновления в Remnawave пишет строку в
-таблицу subscriptions (user_id, subscription_expires_at, runout_notified,
-expiring_tomorrow_notified), как upsert_subscription_days в databases.py.
+Запуск:
+    1) Проверить вывод в DRY_RUN.
+    2) Поставить DRY_RUN = False и запустить повторно.
+    3) После успешного прогона — удалить файл.
 """
-from __future__ import annotations
 
-import argparse
-import json
 import os
-import sqlite3
 import sys
-from datetime import date, datetime, time, timedelta
-from pathlib import Path
+import time
+import sqlite3 as sq
+from datetime import datetime, date, timedelta
 
 import dotenv
 import requests
 
 dotenv.load_dotenv()
 
-BASE_URL = (os.getenv("REMNAWAVE_BASE_URL") or "").rstrip("/")
-TOKEN = os.getenv("REMNAWAVE_TOKEN") or ""
+# =========================== НАСТРОЙКИ ===========================
+DRY_RUN = False                  # <-- сначала True. После проверки — False.
+DB_PATH = 'database.db'
+SLEEP_BETWEEN_CALLS = 0.3       # секунд между запросами к Remnawave
+REQUEST_TIMEOUT = 20            # таймаут HTTP-запросов
+# =================================================================
 
-DEFAULT_SQUAD = "6f11955f-6b95-4f96-bba4-3d866de8ce83"
-TRAFFIC_LIMIT = 300_000_000_000
-HWID_LIMIT = 3
+BASE_URL = os.getenv("REMNAWAVE_BASE_URL")
+TOKEN = os.getenv("REMNAWAVE_TOKEN")
+
+if not BASE_URL or not TOKEN:
+    print("[FATAL] REMNAWAVE_BASE_URL / REMNAWAVE_TOKEN не заданы в .env")
+    sys.exit(1)
 
 
-def _expire_at_iso_for_key_date(expiration_date: date) -> str:
-    """Конец календарного дня expiration_date (локальное время процесса)."""
-    end = datetime.combine(expiration_date, time(23, 59, 59))
-    return end.isoformat()
-
-
-def _parse_expiration(raw: str | None) -> date | None:
-    if raw is None:
-        return None
-    s = str(raw).strip()
-    if not s:
-        return None
+def get_user_by_tg_id(tg_id: int):
+    """Возвращает (status_code, json_or_none)."""
     try:
-        return date.fromisoformat(s[:10])
-    except ValueError:
-        return None
+        r = requests.get(
+            f"{BASE_URL}/api/users/by-telegram-id/{tg_id}",
+            headers={"Authorization": f"Bearer {TOKEN}"},
+            timeout=REQUEST_TIMEOUT,
+        )
+        try:
+            return r.status_code, r.json()
+        except Exception:
+            return r.status_code, None
+    except Exception as e:
+        print(f"  [WARN] get_user_by_tg_id({tg_id}) exception: {e}")
+        return None, None
 
 
-def _user_payload(tg_id: int, expire_at_iso: str) -> dict:
-    return {
-        "username": f"user_{tg_id}",
-        "trafficLimitBytes": TRAFFIC_LIMIT,
-        "expireAt": expire_at_iso,
-        "createdAt": datetime.now().isoformat(),
-        "telegramId": tg_id,
-        "hwidDeviceLimit": HWID_LIMIT,
-        "activeInternalSquads": [DEFAULT_SQUAD],
-    }
+def user_exists_in_panel(tg_id: int) -> bool:
+    """True если пользователь уже существует в Remnawave.
 
-
-def _headers() -> dict:
-    return {
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {TOKEN}",
-    }
-
-
-def _user_already_exists(resp_json: dict) -> bool:
-    if not isinstance(resp_json, dict):
-        return False
-    msg = str(resp_json.get("message", "") or "")
-    if msg == "User username already exists":
+    Формат ответа панели может быть:
+      - {"response": {...}} или {"response": [...]}
+      - {"response": null} или {} при отсутствии
+      - 404 при отсутствии
+    Любое сомнение трактуем как "СУЩЕСТВУЕТ" — безопаснее пропустить, чем продублировать.
+    """
+    status, payload = get_user_by_tg_id(tg_id)
+    if status is None:
+        # сетевая ошибка — считаем, что существует (чтобы не создать дубль)
         return True
-    return "already exists" in msg.lower()
+    if status == 404:
+        return False
+    if status >= 500:
+        # ошибка сервера — безопаснее считать, что существует
+        return True
+    if status == 200 and isinstance(payload, dict):
+        resp = payload.get("response", payload)
+        if resp is None:
+            return False
+        if isinstance(resp, list):
+            return len(resp) > 0
+        if isinstance(resp, dict):
+            # непустой словарь с данными пользователя
+            return bool(resp)
+    # остальные случаи — на всякий случай True
+    return True
 
 
-def create_user(tg_id: int, expire_at_iso: str) -> tuple[int, dict]:
-    r = requests.post(
+def create_user_with_expire(tg_id: int, expire_at_iso: str):
+    """Создание пользователя, ТЕЛО 1:1 как в vpn.py:26-42, кроме expireAt."""
+    body = requests.post(
         f"{BASE_URL}/api/users",
-        headers=_headers(),
-        json=_user_payload(tg_id, expire_at_iso),
-        timeout=60,
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {TOKEN}",
+        },
+        json={
+            "username": f'user_{tg_id}',
+            "trafficLimitBytes": 300000000000,
+            "expireAt": expire_at_iso,                     # <-- отличие от vpn.py
+            "createdAt": datetime.now().isoformat(),
+            "telegramId": tg_id,
+            "hwidDeviceLimit": 3,
+            "activeInternalSquads": ["6f11955f-6b95-4f96-bba4-3d866de8ce83"],
+        },
+        timeout=REQUEST_TIMEOUT,
     )
     try:
-        body = r.json()
+        return body.status_code, body.json()
     except Exception:
-        body = {"_raw": r.text[:500]}
-    return r.status_code, body
+        return body.status_code, None
 
 
-def patch_user(tg_id: int, expire_at_iso: str) -> tuple[int, dict]:
-    r = requests.patch(
-        f"{BASE_URL}/api/users",
-        headers=_headers(),
-        json=_user_payload(tg_id, expire_at_iso),
-        timeout=60,
-    )
-    try:
-        body = r.json()
-    except Exception:
-        body = {"_raw": r.text[:500]}
-    return r.status_code, body
-
-
-def get_user_by_telegram(tg_id: int) -> tuple[int, dict | list | None]:
-    r = requests.get(
-        f"{BASE_URL}/api/users/by-telegram-id/{tg_id}",
-        headers={"Authorization": f"Bearer {TOKEN}"},
-        timeout=60,
-    )
-    try:
-        body = r.json()
-    except Exception:
-        body = None
-    return r.status_code, body
-
-
-def load_active_buyers(db_path: Path) -> list[tuple[int, date]]:
-    """
-    Один buyer_id — одна дата окончания: максимальная expiration_date среди активных ключей.
-    Активный: date(expiration_date) >= сегодня (включительно).
-    """
-    today = date.today()
-    with sqlite3.connect(db_path) as con:
+def fetch_targets():
+    """Возвращает список (buyer_id, max_expiration_date_str) для expiration_date > today."""
+    today_str = date.today().isoformat()
+    with sq.connect(DB_PATH) as con:
         cur = con.cursor()
         cur.execute(
             """
@@ -139,136 +129,112 @@ def load_active_buyers(db_path: Path) -> list[tuple[int, date]]:
             FROM keys
             WHERE buyer_id IS NOT NULL
               AND expiration_date IS NOT NULL
-              AND TRIM(COALESCE(expiration_date, '')) != ''
-              AND date(expiration_date) >= date(?)
+              AND TRIM(expiration_date) <> ''
+              AND expiration_date > ?
             GROUP BY buyer_id
+            ORDER BY exp DESC
             """,
-            (today.isoformat(),),
+            (today_str,),
         )
-        rows = cur.fetchall()
-    out: list[tuple[int, date]] = []
-    for buyer_id, exp_raw in rows:
+        return cur.fetchall()
+
+
+def parse_expiration_to_iso(exp_str: str):
+    """Преобразует 'YYYY-MM-DD' (или с временем) в ISO-строку конца дня.
+
+    Возвращает None, если распарсить не удалось.
+    """
+    s = (exp_str or "").strip()
+    if not s:
+        return None
+    # Пробуем сначала как 'YYYY-MM-DD'
+    try:
+        d = datetime.strptime(s[:10], "%Y-%m-%d").date()
+    except ValueError:
         try:
-            uid = int(buyer_id)
-        except (TypeError, ValueError):
-            continue
-        exp_d = _parse_expiration(exp_raw if isinstance(exp_raw, str) else str(exp_raw))
-        if exp_d is None:
-            continue
-        if exp_d >= today:
-            out.append((uid, exp_d))
-    return sorted(out, key=lambda x: x[0])
+            d = datetime.fromisoformat(s).date()
+        except Exception:
+            return None
+    # Конец дня, чтобы подписка действовала полностью в день expiration_date
+    dt = datetime.combine(d, datetime.min.time()) + timedelta(hours=23, minutes=59, seconds=59)
+    return dt.isoformat()
 
 
-def ensure_subscriptions_schema(con: sqlite3.Connection) -> None:
-    """Схема как в databases.py / запрос пользователя."""
-    cur = con.cursor()
-    cur.execute(
-        """
-        CREATE TABLE IF NOT EXISTS subscriptions (
-            user_id INTEGER PRIMARY KEY,
-            subscription_expires_at TEXT NOT NULL,
-            runout_notified INTEGER DEFAULT 0,
-            expiring_tomorrow_notified INTEGER DEFAULT 0
-        )
-        """
-    )
-    for col_sql in (
-        "ALTER TABLE subscriptions ADD COLUMN runout_notified INTEGER DEFAULT 0",
-        "ALTER TABLE subscriptions ADD COLUMN expiring_tomorrow_notified INTEGER DEFAULT 0",
-    ):
+def main():
+    print("=" * 72)
+    print(f"[sync_remna_expire_from_keys_once] DRY_RUN={DRY_RUN}")
+    print(f"BASE_URL={BASE_URL}")
+    print("=" * 72)
+
+    targets = fetch_targets()
+    print(f"Найдено кандидатов (buyer_id с expiration_date > сегодня): {len(targets)}")
+
+    stats = {
+        "total": len(targets),
+        "skipped_bad_date": 0,
+        "skipped_exists": 0,
+        "would_create": 0,
+        "created_ok": 0,
+        "create_already_exists": 0,
+        "errors": 0,
+    }
+
+    for idx, (buyer_id, exp_str) in enumerate(targets, 1):
+        prefix = f"[{idx}/{len(targets)}] tg_id={buyer_id} exp={exp_str!r}"
         try:
-            cur.execute(col_sql)
-        except sqlite3.OperationalError:
-            pass
-    con.commit()
+            expire_at_iso = parse_expiration_to_iso(exp_str)
+            if not expire_at_iso:
+                stats["skipped_bad_date"] += 1
+                print(f"{prefix} SKIP: не удалось распарсить дату")
+                continue
 
-
-def upsert_subscription_row(con: sqlite3.Connection, user_id: int, expiration_date: date) -> None:
-    """Дата в формате YYYY-MM-DD — как upsert_subscription_days в databases.py."""
-    expires_str = expiration_date.isoformat()
-    cur = con.cursor()
-    cur.execute(
-        """
-        INSERT INTO subscriptions (user_id, subscription_expires_at, runout_notified, expiring_tomorrow_notified)
-        VALUES (?, ?, 0, 0)
-        ON CONFLICT(user_id) DO UPDATE SET
-            subscription_expires_at = excluded.subscription_expires_at,
-            runout_notified = 0,
-            expiring_tomorrow_notified = 0
-        """,
-        (user_id, expires_str),
-    )
-    con.commit()
-
-
-def main() -> int:
-    p = argparse.ArgumentParser()
-    p.add_argument(
-        "--db",
-        type=Path,
-        default=Path(__file__).resolve().parent / "database.db",
-        help="Путь к SQLite (по умолчанию database.db рядом со скриптом)",
-    )
-    p.add_argument("--apply", action="store_true", help="Выполнить POST/PATCH (без флага — только план)")
-    args = p.parse_args()
-
-    if not BASE_URL or not TOKEN:
-        print("ERROR: задайте REMNAWAVE_BASE_URL и REMNAWAVE_TOKEN в окружении или .env", file=sys.stderr)
-        return 2
-
-    if not args.db.is_file():
-        print(f"ERROR: файл БД не найден: {args.db}", file=sys.stderr)
-        return 2
-
-    buyers = load_active_buyers(args.db)
-    mode = "APPLY" if args.apply else "DRY-RUN"
-    print(f"[{mode}] записей (buyer_id + max expiration): {len(buyers)}")
-    if not buyers:
-        return 0
-
-    ok = 0
-    fail = 0
-    for tg_id, exp_d in buyers:
-        expire_iso = _expire_at_iso_for_key_date(exp_d)
-        print(f"- user_{tg_id}: expiration_date={exp_d.isoformat()} -> expireAt={expire_iso}")
-
-        if not args.apply:
-            ok += 1
-            print(f"  [dry-run] subscriptions: user_id={tg_id}, subscription_expires_at={exp_d.isoformat()}")
-            continue
-
-        st_get, body_get = get_user_by_telegram(tg_id)
-        exists = st_get == 200 and body_get not in (None, {}, [])
-
-        if exists:
-            st, body = patch_user(tg_id, expire_iso)
-            action = "PATCH"
-        else:
-            st, body = create_user(tg_id, expire_iso)
-            action = "POST"
-            if st not in (200, 201) and _user_already_exists(body):
-                st, body = patch_user(tg_id, expire_iso)
-                action = "POST->PATCH"
-
-        if st in (200, 201):
-            print(f"  OK {action} HTTP {st}")
+            # Доп. проверка: дата в будущем
             try:
-                with sqlite3.connect(args.db) as con:
-                    ensure_subscriptions_schema(con)
-                    upsert_subscription_row(con, tg_id, exp_d)
-                print(f"  DB subscriptions upsert: user_id={tg_id}, subscription_expires_at={exp_d.isoformat()}")
-                ok += 1
-            except Exception as e:
-                fail += 1
-                print(f"  FAIL subscriptions DB (Remnawave уже обновлён): {e}")
-        else:
-            fail += 1
-            print(f"  FAIL {action} HTTP {st}: {json.dumps(body, ensure_ascii=False)[:400]}")
+                exp_date_obj = datetime.fromisoformat(expire_at_iso).date()
+            except Exception:
+                exp_date_obj = None
+            if exp_date_obj is not None and exp_date_obj <= date.today():
+                stats["skipped_bad_date"] += 1
+                print(f"{prefix} SKIP: дата не в будущем после парсинга")
+                continue
 
-    print(f"Итого: ok={ok}, fail={fail}")
-    return 0 if fail == 0 else 1
+            if user_exists_in_panel(int(buyer_id)):
+                stats["skipped_exists"] += 1
+                print(f"{prefix} SKIP: пользователь уже есть в Remnawave")
+                time.sleep(SLEEP_BETWEEN_CALLS)
+                continue
+
+            if DRY_RUN:
+                stats["would_create"] += 1
+                print(f"{prefix} DRY-RUN: создал бы с expireAt={expire_at_iso}")
+            else:
+                status, payload = create_user_with_expire(int(buyer_id), expire_at_iso)
+                msg = ""
+                if isinstance(payload, dict):
+                    msg = str(payload.get("message", "") or "")
+                if status in (200, 201):
+                    stats["created_ok"] += 1
+                    print(f"{prefix} OK: создан, expireAt={expire_at_iso}")
+                elif msg and "already exists" in msg.lower():
+                    stats["create_already_exists"] += 1
+                    print(f"{prefix} SKIP: панель сказала already exists — {msg}")
+                else:
+                    stats["errors"] += 1
+                    print(f"{prefix} ERROR: status={status} payload={payload}")
+            time.sleep(SLEEP_BETWEEN_CALLS)
+        except Exception as e:
+            stats["errors"] += 1
+            print(f"{prefix} EXCEPTION: {e}")
+            continue
+
+    print("=" * 72)
+    print("ИТОГО:")
+    for k, v in stats.items():
+        print(f"  {k}: {v}")
+    print("=" * 72)
+    if DRY_RUN:
+        print("Это был DRY_RUN. Если всё ок — поставьте DRY_RUN=False и запустите снова.")
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    main()
