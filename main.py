@@ -42,11 +42,54 @@ print('BOT STARTED!!!')
 vpn = Vpn()
 
 
+_SUBSCRIPTION_URL_KEYS = ( # не уверен
+    'subscriptionUrl',
+    'subscription_url',
+    'subscriptionLink',
+    'subscription_link',
+)
+
+
+def _subscription_url_from_dict(d):
+    if not isinstance(d, dict):
+        return None
+    for k in _SUBSCRIPTION_URL_KEYS:
+        v = d.get(k)
+        if isinstance(v, str) and v.strip():
+            return v.strip()
+    return None
+
+
 def _vpn_response_subscription_url(payload):
+    """Достаёт ссылку подписки из JSON ответа панели (разная вложенность у GET/POST)."""
     if not isinstance(payload, dict):
         return None
-    url = payload.get('response', {}).get('subscriptionUrl')
-    return url if url else None
+    seen_ids = set()
+
+    def walk(obj, depth):
+        if depth > 14:
+            return None
+        oid = id(obj)
+        if oid in seen_ids:
+            return None
+        if isinstance(obj, dict):
+            seen_ids.add(oid)
+            u = _subscription_url_from_dict(obj)
+            if u:
+                return u
+            for v in obj.values():
+                r = walk(v, depth + 1)
+                if r:
+                    return r
+        elif isinstance(obj, list):
+            seen_ids.add(oid)
+            for it in obj[:40]:
+                r = walk(it, depth + 1)
+                if r:
+                    return r
+        return None
+
+    return walk(payload, 0)
 
 
 def _vpn_response_user_already_exists(payload):
@@ -244,12 +287,53 @@ async def buy_vpn_callback(callback: CallbackQuery):
 async def my_sub_callback(callback: CallbackQuery):
     await callback.answer('Моя подписка')
     await callback.message.delete()
-    result = vpn.get_user_by_tg_id(callback.from_user.id)
+    uid = callback.from_user.id
     try:
-        url = result['response']['subscriptionUrl']
-        await callback.message.answer_photo(MY_KEYS_PHOTO, caption=vpn_subscription_message_html(url), parse_mode='HTML', reply_markup=ikb_back)
+        result = vpn.get_user_by_tg_id(uid)
     except Exception as e:
-        await callback.message.answer_photo(MY_KEYS_PHOTO, caption='<b>У тебя еще нет подписки!</b>',parse_mode='HTML', reply_markup=get_vpn_pay_keyboard())
+        print(f'get_user_by_tg_id({uid}): {e}')
+        result = None
+    url = _vpn_response_subscription_url(result) if result else None
+    if url:
+        await callback.message.answer_photo(
+            MY_KEYS_PHOTO,
+            caption=vpn_subscription_message_html(url),
+            parse_mode='HTML',
+            reply_markup=ikb_back,
+        )
+        return
+    today_str = date.today().isoformat()
+    with sq.connect('database.db') as con:
+        cur = con.cursor()
+        cur.execute(
+            """
+            SELECT subscription_expires_at FROM subscriptions
+            WHERE user_id = ? AND date(subscription_expires_at) >= date(?)
+            """,
+            (uid, today_str),
+        )
+        sub_row = cur.fetchone()
+    if sub_row:
+        exp_safe = html.escape(str(sub_row[0]), quote=True)
+        await callback.message.answer_photo(
+            MY_KEYS_PHOTO,
+            caption=(
+                '🔑 <b>Подписка активна</b>\n\n'
+                f'По данным бота доступ до: <b>{exp_safe}</b>\n\n'
+                'Ссылку для приложения панель сейчас не вернула в ответе API. '
+                'Если ключ уже выдавался — открой прошлое сообщение с ключом или нажми «Подключить VPN»; '
+                'иначе напиши в поддержку.'
+            ),
+            parse_mode='HTML',
+            reply_markup=ikb_back,
+        )
+        return
+    await callback.message.answer_photo(
+        MY_KEYS_PHOTO,
+        caption='<b>У тебя еще нет подписки!</b>',
+        parse_mode='HTML',
+        reply_markup=get_vpn_pay_keyboard(),
+    )
 
 @dp.callback_query(lambda c: c.data == 'documents')
 async def documents_callback(callback: CallbackQuery):
