@@ -328,7 +328,7 @@ async def my_sub_callback(callback: CallbackQuery):
                 'иначе напиши в поддержку.'
             ),
             parse_mode='HTML',
-            reply_markup=ikb_back,
+            reply_markup=create_ikb_sub_after_buy(url),
         )
         return
     await callback.message.answer_photo(
