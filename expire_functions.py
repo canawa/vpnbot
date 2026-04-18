@@ -2,6 +2,8 @@ import sqlite3 as sq
 from datetime import datetime, date
 from datetime import timedelta
 import asyncio
+
+from ikbs import generate_ikb_main
 async def check_expired_subscriptions(bot):
     """Проверяет истекшие подписки и отправляет уведомления пользователям"""
     while True:
@@ -40,7 +42,7 @@ async def check_expired_subscriptions(bot):
                                 user_id,
                                 f"⏰ <b>У вас закончилась подписка</b>\n\n"
                                 f"Ваша подписка VPN истекла сегодня. Для продолжения использования сервиса, пожалуйста, приобретите новый ключ.\n\n👉🏼 <b>Баланс: {balance}₽</b>",
-                                parse_mode='HTML', reply_markup=ikb_locations)
+                                parse_mode='HTML', reply_markup=generate_ikb_main(user_id))
                             print(f'{user_id} was notified about his subscription ending!')
                     except Exception as e:
                         print(f"Error {user_id}: {e}")
@@ -82,7 +84,7 @@ async def check_expiring_tomorrow_subscriptions(bot):
                             user_id,
                             f"⏰ <b>Ваша подписка истекает завтра</b>\n\n"
                             f"Ваша подписка VPN истечет завтра. Чтобы не прерывать использование сервиса, пожалуйста, приобретите новый ключ заранее.\n\n👉🏼 <b>Баланс: {balance}₽</b>",
-                            parse_mode='HTML', reply_markup=ikb_locations)
+                            parse_mode='HTML', reply_markup=generate_ikb_main(user_id))
                         print(f'{user_id} was notified about his subscription expiring tomorrow!')
                     except Exception as e:
                         print(f"Error {user_id}: {e}")
@@ -93,6 +95,103 @@ async def check_expiring_tomorrow_subscriptions(bot):
 
         # Проверяем раз в час (3600 секунд = 1 час)
         await asyncio.sleep(3600)
+
+
+async def check_expired_subscriptions_table(bot):
+    """Таблица subscriptions: уведомление в день окончания subscription_expires_at (TEXT, сравнение через date())."""
+    while True:
+        try:
+            today_str = date.today().isoformat()
+            with sq.connect('database.db') as con:
+                cur = con.cursor()
+                cur.execute(
+                    """
+                    SELECT s.user_id FROM subscriptions s
+                    INNER JOIN users u ON u.id = s.user_id
+                    WHERE date(s.subscription_expires_at) = date(?)
+                      AND (s.runout_notified IS NULL OR s.runout_notified = 0)
+                    """,
+                    (today_str,),
+                )
+                rows = cur.fetchall()
+
+                for (user_id,) in rows:
+                    try:
+                        cur.execute('SELECT balance FROM users WHERE id = ?', (user_id,))
+                        result = cur.fetchone()
+                        balance = result[0] if result else 0
+                        await bot.send_message(
+                            user_id,
+                            '⏰ <b>Срок подписки истёк</b>\n\n'
+                            'Дата окончания по вашей записи в системе подписок наступила сегодня. '
+                            'Чтобы продолжить пользоваться сервисом, продлите подписку.\n\n'
+                            f'👉🏼 <b>Баланс: {balance}₽</b>',
+                            parse_mode='HTML',
+                            reply_markup=generate_ikb_main(user_id),
+                        )
+                        cur.execute(
+                            'UPDATE subscriptions SET runout_notified = 1 WHERE user_id = ?',
+                            (user_id,),
+                        )
+                        con.commit()
+                        print(f'{user_id}: subscriptions table — expired today notified')
+                    except Exception as e:
+                        print(f"subscriptions expired notify {user_id}: {e}")
+                        continue
+
+        except Exception as e:
+            print(f'Error check_expired_subscriptions_table: {e}')
+
+        await asyncio.sleep(3600)
+
+
+async def check_expiring_tomorrow_subscriptions_table(bot):
+    """Таблица subscriptions: напоминание накануне дня из subscription_expires_at."""
+    while True:
+        try:
+            tomorrow_str = (date.today() + timedelta(days=1)).isoformat()
+            with sq.connect('database.db') as con:
+                cur = con.cursor()
+                cur.execute(
+                    """
+                    SELECT s.user_id FROM subscriptions s
+                    INNER JOIN users u ON u.id = s.user_id
+                    WHERE date(s.subscription_expires_at) = date(?)
+                      AND (s.expiring_tomorrow_notified IS NULL OR s.expiring_tomorrow_notified = 0)
+                    """,
+                    (tomorrow_str,),
+                )
+                rows = cur.fetchall()
+
+                for (user_id,) in rows:
+                    try:
+                        cur.execute('SELECT balance FROM users WHERE id = ?', (user_id,))
+                        result = cur.fetchone()
+                        balance = result[0] if result else 0
+                        await bot.send_message(
+                            user_id,
+                            '⏰ <b>Подписка заканчивается завтра</b>\n\n'
+                            'По записи в системе подписок срок действия истекает завтра. '
+                            'Продлите заранее, чтобы не прерывать доступ.\n\n'
+                            f'👉🏼 <b>Баланс: {balance}₽</b>',
+                            parse_mode='HTML',
+                            reply_markup=generate_ikb_main(user_id),
+                        )
+                        cur.execute(
+                            'UPDATE subscriptions SET expiring_tomorrow_notified = 1 WHERE user_id = ?',
+                            (user_id,),
+                        )
+                        con.commit()
+                        print(f'{user_id}: subscriptions table — expiring tomorrow notified')
+                    except Exception as e:
+                        print(f"subscriptions tomorrow notify {user_id}: {e}")
+                        continue
+
+        except Exception as e:
+            print(f'Error check_expiring_tomorrow_subscriptions_table: {e}')
+
+        await asyncio.sleep(3600)
+
 
 async def reset_runout_notified_daily(): # НЕ ЕБУ КАК РАБОТАЕТ!
     """Сбрасывает флаг runout_notified в 00:01 каждый день"""
@@ -116,6 +215,8 @@ async def reset_runout_notified_daily(): # НЕ ЕБУ КАК РАБОТАЕТ!
                 cur = con.cursor()
                 cur.execute('UPDATE users SET runout_notified = 0 WHERE runout_notified = 1')
                 cur.execute('UPDATE users SET expiring_tomorrow_notified = 0 WHERE expiring_tomorrow_notified = 1')
+                cur.execute('UPDATE subscriptions SET runout_notified = 0 WHERE runout_notified = 1')
+                cur.execute('UPDATE subscriptions SET expiring_tomorrow_notified = 0 WHERE expiring_tomorrow_notified = 1')
                 con.commit()
                 print \
                     (f"runout_notified and expiring_tomorrow_notified flags reset for all users at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")

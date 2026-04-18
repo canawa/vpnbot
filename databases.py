@@ -65,9 +65,26 @@ def create_tables():
         except:
             pass  # Поле уже существует
         try:
+            cur.execute('ALTER TABLE users ADD COLUMN sub_status INTEGER DEFAULT 0')
+        except:
+            pass
+        try:
+            cur.execute('ALTER TABLE users ADD COLUMN sub_expires_at TEXT')
+        except:
+            pass
+        try:
             cur.execute(
                 "UPDATE keys SET location = 'germany' WHERE location IS NULL OR TRIM(COALESCE(location, '')) = ''")
             con.commit()
         except Exception:
             pass
         cur.execute('CREATE TABLE IF NOT EXISTS vpn_pay_pending (user_id INTEGER PRIMARY KEY, country TEXT NOT NULL)')
+        cur.execute('CREATE TABLE IF NOT EXISTS subscriptions (user_id INTEGER PRIMARY KEY, subscription_expires_at TEXT NOT NULL)')
+        try:
+            cur.execute('ALTER TABLE subscriptions ADD COLUMN runout_notified INTEGER DEFAULT 0')
+        except Exception:
+            pass
+        try:
+            cur.execute('ALTER TABLE subscriptions ADD COLUMN expiring_tomorrow_notified INTEGER DEFAULT 0')
+        except Exception:
+            pass

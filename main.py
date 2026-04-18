@@ -23,7 +23,13 @@ import locale
 from emojis import get_emoji
 from databases import create_tables
 from payments import get_pay_link, check_payment_status, check_payment_yookassa_status, rub_to_usdt
-from expire_functions import check_expired_subscriptions, check_expiring_tomorrow_subscriptions, reset_runout_notified_daily
+from expire_functions import (
+    check_expired_subscriptions,
+    check_expiring_tomorrow_subscriptions,
+    check_expired_subscriptions_table,
+    check_expiring_tomorrow_subscriptions_table,
+    reset_runout_notified_daily,
+)
 from vpn import deliver_trial_vpn
 from ikbs import *
 from expire_functions import *
@@ -54,7 +60,7 @@ def get_vpn_pay_keyboard() -> InlineKeyboardMarkup:
     rows = []
     rows.extend([
         [InlineKeyboardButton(text='СБП (или картой)', callback_data=f'deposit_{MONTH_PRICE}_card', icon_custom_emoji_id=get_emoji('sbp'))],
-        [InlineKeyboardButton(text='Криптобот', callback_data=f'deposit_{MONTH_PRICE}_crypto', icon_custom_emoji_id=get_emoji('crypto_bot'))],
+        # [InlineKeyboardButton(text='Криптобот', callback_data=f'deposit_{MONTH_PRICE}_crypto', icon_custom_emoji_id=get_emoji('crypto_bot'))],
         [InlineKeyboardButton(text='Звёзды', callback_data=f'deposit_{MONTH_PRICE}_stars', icon_custom_emoji_id=get_emoji('stars'))],
         [InlineKeyboardButton(text='Назад', callback_data='ikb_back', icon_custom_emoji_id=get_emoji('exit'))],
     ])
@@ -104,13 +110,20 @@ async def start_command(message):
                         cur.execute('UPDATE users SET ref_amount = ref_amount + 1 WHERE id = ?', (ref,))
                 con.commit()
 
+    today_str = date.today().isoformat()
     with sq.connect('database.db') as con:
         cur = con.cursor()
-        cur.execute("SELECT balance FROM users WHERE id = ?", (message.from_user.id,))
-        result = cur.fetchone()
-        balance = result[0] if result else 0
+        cur.execute(
+            """
+            SELECT 1 FROM subscriptions
+            WHERE user_id = ?
+              AND date(subscription_expires_at) >= date(?)
+            """,
+            (message.from_user.id, today_str),
+        )
+        has_active_subscription = cur.fetchone() is not None
 
-    text = welcome_back_caption(balance)
+    text = welcome_back_caption(has_active_subscription)
     await message.answer_photo(
         WELCOME_PHOTO,
         caption=text,
@@ -255,14 +268,12 @@ def welcome_back_caption(subscription_status):
 async def back_callback(callback: CallbackQuery):
     await callback.answer("Назад") # на пол экрана хуйня высветится
     await callback.message.delete()
+    today_str = date.today().isoformat()
     with sq.connect('database.db') as con:
         cur = con.cursor()
-        cur.execute('SELECT sub_status FROM users WHERE id = ?', (callback.from_user.id,))
-        status = cur.fetchone()
-        if status==1:
-            text = welcome_back_caption(True)
-        else:
-            text = welcome_back_caption(False)
+        cur.execute(""" SELECT 1 FROM subscriptions WHERE user_id = ? AND date(subscription_expires_at) >= date(?)""", (callback.from_user.id, today_str))
+        has_active_subscription = cur.fetchone() is not None
+        text = welcome_back_caption(has_active_subscription)
     await callback.message.answer_photo(
         WELCOME_PHOTO,
         caption=text,
@@ -338,34 +349,6 @@ async def check_payment_yookassa_callback(callback: CallbackQuery): # сюды
 
     else:
         await callback.message.answer(f'👀 Ожидаем оплату, оплатите и попробуйте снова!', parse_mode='HTML', reply_markup=ikb_back)
-
-#
-# @dp.callback_query(lambda c: c.data == 'vpnpay_card')
-# async def vpnpay_card_callback(callback: CallbackQuery):
-#     await callback.message.delete()
-#     amount = MONTH_PRICE
-#     ikb = create_yookassa_payment_keyboard(amount)
-
-
-@dp.callback_query(lambda c: c.data == 'vpnpay_crypto')
-async def vpnpay_crypto_callback(callback: CallbackQuery):
-    await callback.answer("Криптобот")
-    await callback.message.delete()
-    amount = MONTH_PRICE
-    response = get_pay_link(amount / rub_to_usdt)
-    ok = response['ok']
-    result = response['result']
-    pay_url = result['pay_url']
-    invoice_id = result['invoice_id']
-    ikb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text=f'👉 Перейти к оплате {amount} ₽', url=pay_url)],
-        [InlineKeyboardButton(text='✅️ Я оплатил', callback_data=f'check_payment_{invoice_id}')],
-        [InlineKeyboardButton(text='❌ Отменить', callback_data='vpn_reopen_payment', icon_custom_emoji_id=get_emoji('exit'))],
-    ])
-    if ok:
-        await callback.message.answer('👉 Создали заявку на оплату, перейдите по ссылке.\n\n <b>❗ После оплаты нажмите «Я оплатил»</b>', parse_mode='HTML', reply_markup=ikb)
-    else:
-        await callback.message.answer('❌ Не удалось создать заявку. Попробуйте позже.', reply_markup=get_vpn_pay_keyboard())
 
 
 @dp.callback_query(lambda c: c.data == 'vpnpay_stars')
@@ -853,6 +836,8 @@ async def main():
     asyncio.create_task(check_expired_subscriptions(bot)) # бесокнечная задача параллельно, если не через create_task то не будет работать
     # Запускаем фоновую задачу для проверки подписок, истекающих завтра
     asyncio.create_task(check_expiring_tomorrow_subscriptions(bot))
+    asyncio.create_task(check_expired_subscriptions_table(bot))
+    asyncio.create_task(check_expiring_tomorrow_subscriptions_table(bot))
     # Запускаем фоновую задачу для сброса флага runout_notified в 00:01 каждый день
     asyncio.create_task(reset_runout_notified_daily())
     await dp.start_polling(bot) # отправить соединение к серверам телеграмма
