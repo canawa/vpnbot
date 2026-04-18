@@ -405,7 +405,7 @@ def welcome_back_caption(subscription_status):
     text = (
         "👋 Добро пожаловать в Кофеманию\n"
         "\n"
-        f"Подписка: {'🟢 Активна ()' if subscription_status==True else '🔴 Отсутствует'}\n"
+        f"Подписка: {'🟢 Активна ()' if subscription_status else '🔴 Отсутствует'}\n"
     )
     return text
 
