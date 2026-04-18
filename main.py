@@ -23,6 +23,9 @@ import locale
 from emojis import get_emoji
 from databases import create_tables
 from payments import get_pay_link, check_payment_status, check_payment_yookassa_status, rub_to_usdt
+from vpn import Vpn
+
+
 from expire_functions import (
     check_expired_subscriptions,
     check_expiring_tomorrow_subscriptions,
@@ -35,6 +38,8 @@ from ikbs import *
 from expire_functions import *
 locale.setlocale(locale.LC_TIME, 'ru_RU.UTF-8')
 print('BOT STARTED!!!')
+
+vpn = Vpn()
 
 ### РАБОТА С ФОТКАМИ:
 try:
@@ -344,6 +349,7 @@ async def check_payment_yookassa_callback(callback: CallbackQuery): # сюды
                         if ref_master_role and ref_master_role[0] == 'refmaster':
                             cur.execute('UPDATE users SET ref_balance = ref_balance + ? WHERE id = ?', (amount_rub / 2, ref_master_id)) # начислить 50% реферального бонуса рефоводу
             con.commit()
+        vpn.create_new_user(callback.message.from_user.id)
         await callback.message.answer(f'Спасибо за покупку, ваша подписка: ТУТ ГАЙД', parse_mode='HTML', reply_markup=ikb_back)
         await callback.message.delete()
 
