@@ -93,3 +93,4 @@ def create_ikb_sub_after_buy(url):
             [InlineKeyboardButton(text='Подключиться', url=url, icon_custom_emoji_id=get_emoji('shield_emoji'), style='success')],
             [InlineKeyboardButton(text='Назад', callback_data='back', icon_custom_emoji_id=get_emoji('exit'))],
         ])
+    return ikb_subscription_after_buy

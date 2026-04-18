@@ -349,18 +349,30 @@ async def check_payment_yookassa_callback(callback: CallbackQuery): # сюды
                             cur.execute('UPDATE users SET ref_balance = ref_balance + ? WHERE id = ?', (amount_rub / 2, ref_master_id)) # начислить 50% реферального бонуса рефоводу
             con.commit()
         result = vpn.create_new_user(callback.message.from_user.id)
-        if result['response']['subscriptionUrl']:
-            url = result['response']['subscriptionUrl']
-            await callback.message.answer(f"""🔑 Твоя подписка КОФЕМАНИЯ ВПН\n ☕️ Установим ключ в приложении HAPP\n
-            Нажми "🚀 Открыть в Happ" - все настроим за тебя
-            Кликай на кнопку ниже 👇
-            
-            """, parse_mode='HTML', reply_markup=create_ikb_sub_after_buy(url))
+        try:
+            url = result.get('response', {}).get('subscriptionUrl')
 
-        if result['message'] == 'User username already exists':
-            print('занято и вызывается функция продления')
-        else:
-            print('ERROR creating user ')
+            if url:
+                text = (
+                    "🔑 <b>Твоя подписка КОФЕМАНИЯ VPN</b>\n"
+                    "\n"
+                    "☕️ Мы автоматически установим ключ в приложении HAPP\n"
+                    "\n"
+                    "🚀 Нажми кнопку ниже — и всё настроится за тебя\n"
+                )
+
+                await callback.message.answer(
+                    text,
+                    parse_mode='HTML',
+                    reply_markup=create_ikb_sub_after_buy(url)
+                )
+        except Exception as e:
+            print(f'Ошибка при выдаче подписки, {e}')
+        try:
+            if result['message'] == 'User username already exists':
+                print('занято и вызывается функция продления')
+        except:
+            pass
 
         await callback.message.delete()
 
