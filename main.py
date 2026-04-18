@@ -275,7 +275,18 @@ async def buy_vpn_callback(callback: CallbackQuery):
         cur.execute('SELECT balance FROM users WHERE id = ?', (callback.from_user.id,))
         result = cur.fetchone()
         balance = result[0] if result else 0
-    await callback.message.answer_photo(FSInputFile("photos/buy_vpn.png"), parse_mode='HTML', reply_markup=get_vpn_pay_keyboard())
+    await callback.message.answer_photo(FSInputFile("photos/buy_vpn.png"), caption= (
+        '🚀 К оплате: 149 ₽\n'
+        '\n'
+        '✨ В подписку входит:\n'
+        '\n'
+        'Германия (Игровая)\n'
+        '🇩🇪 Германия(Рабочая)\n'
+        '<tg-emoji emoji-id="5310037891051691834">🌎</tg-emoji> Обход Глушилок\n'
+        '🇫🇮 Финляндия'
+
+
+    ), parse_mode='HTML', reply_markup=get_vpn_pay_keyboard())
 
 @dp.callback_query(lambda c: c.data == 'my_subscription')
 async def my_sub_callback(callback: CallbackQuery):
@@ -417,7 +428,6 @@ def welcome_back_caption(has_active: bool, subscription_expires_at=None) -> str:
         "📦 Информация о подписке\n"
         "├ 4 региона + обход LTE\n" 
         "├ До 3-х устройств\n"
-        "├ 300GB трафика\n" 
         f"└ Подписка: {sub_line}\n" # sub_line - это строка с информацией о подписке
         
     )
