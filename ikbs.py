@@ -1,6 +1,7 @@
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 import sqlite3 as sq
 from emojis import get_emoji
+from datetime import datetime
 ikb_subscribe = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text='🔗 Подписаться на канал', url='https://t.me/coffemaniavpn')],
     [InlineKeyboardButton(text='✅ Я подписался', callback_data='subscribe_confirmed')],
@@ -14,9 +15,17 @@ def generate_ikb_main(user_id):
         cur.execute('SELECT had_trial FROM users WHERE id = ?', (user_id,))
         result = cur.fetchone()
         had_trial = result[0] if result else 0
-        if had_trial != 1:
-            ikb_main.inline_keyboard.append([InlineKeyboardButton(text='🎁 Попробовать бесплатно', callback_data='trial', style = 'success')])
-    ikb_main.inline_keyboard.append([InlineKeyboardButton(text='Подключить VPN', callback_data='buy_vpn', icon_custom_emoji_id=get_emoji('plus'))])
+        cur.execute('SELECT subscription_expires_at FROM subscriptions WHERE user_id = ?', (user_id,))
+        result = cur.fetchone()
+        subscription_expires_at = result[0] if result else None
+        if subscription_expires_at:
+            subscription_expires_at = datetime.fromisoformat(subscription_expires_at)
+            if subscription_expires_at < datetime.now():
+                ikb_main.inline_keyboard.append([InlineKeyboardButton(text='Подключить VPN', callback_data='buy_vpn', icon_custom_emoji_id=get_emoji('plus'))])
+                if had_trial != 1:
+                    ikb_main.inline_keyboard.append([InlineKeyboardButton(text='🎁 Попробовать бесплатно', callback_data='trial', style = 'success')])
+            
+
     ikb_main.inline_keyboard.append([
         InlineKeyboardButton(text='Реферальная программа', callback_data='referral', icon_custom_emoji_id=get_emoji('add_user')),
         InlineKeyboardButton(text='Моя подписка', callback_data='my_subscription', icon_custom_emoji_id=get_emoji('keys')),
