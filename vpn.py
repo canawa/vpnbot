@@ -31,7 +31,6 @@ class Vpn:
                       },
                       json={
                           "username": f'user_{tg_id}',
-                          "trafficLimitBytes": 300000000000,
                           "expireAt": (datetime.now() + timedelta(days=30)).isoformat(),
                           "createdAt": datetime.now().isoformat(),
                           "telegramId": tg_id,
@@ -49,7 +48,6 @@ class Vpn:
            },
            json={
                "username": f'user_{tg_id}',
-                          "trafficLimitBytes": 300000000000,
                           "expireAt": (datetime.now() + timedelta(days=30)).isoformat(),
                           "createdAt": datetime.now().isoformat(),
                           "telegramId": tg_id,
@@ -76,7 +74,6 @@ class Vpn:
              },
              json={
                  "username": f'user_{tg_id}',
-                 "trafficLimitBytes": 300000000000,
                  "expireAt": (datetime.now() + timedelta(days=3)).isoformat(),
                  "createdAt": datetime.now().isoformat(),
                  "telegramId": tg_id,
