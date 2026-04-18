@@ -6,6 +6,7 @@ from aiogram.filters import CommandStart
 from aiogram.types import Message, CallbackQuery, invoice, LabeledPrice, FSInputFile, MessageEntity
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ChatMember
 import asyncio # для работы с асинхронными функциями
+import html
 import sqlite3 as sq
 import requests
 import dotenv
@@ -58,7 +59,6 @@ def _vpn_response_user_already_exists(payload):
 
 
 def fetch_vpn_subscription_url_after_purchase(tg_id: int):
-    """Создаёт пользователя в API; если username занят — продлевает (PATCH). Возвращает subscriptionUrl или None."""
     created = vpn.create_new_user(tg_id)
     url = _vpn_response_subscription_url(created)
     if url:
@@ -68,14 +68,17 @@ def fetch_vpn_subscription_url_after_purchase(tg_id: int):
         return _vpn_response_subscription_url(renewed)
     return None
 
-
-VPN_SUBSCRIPTION_MESSAGE_HTML = (
-    "🔑 <b>Твоя подписка КОФЕМАНИЯ VPN</b>\n"
-    "\n"
-    "☕️ Мы автоматически установим ключ в приложении HAPP\n"
-    "\n"
-    "🚀 Нажми кнопку ниже — и всё настроится за тебя\n"
-)
+def vpn_subscription_message_html(url: str) -> str:
+    return (
+        "🔑 <b>Твоя подписка КОФЕМАНИЯ VPN</b>\n"
+        "\n"
+        "☕️ Мы автоматически установим ключ в приложении HAPP\n"
+        "\n"
+        "🚀 Нажми кнопку ниже — и всё настроится за тебя\n"
+        "\n"
+        "Если хочешь воспользоваться другим клиентом, то копируй ссылку:\n"
+        f"<code>{url}</code>"
+    )
 
 
 ### РАБОТА С ФОТКАМИ:
@@ -333,8 +336,9 @@ async def plan_trial(callback: CallbackQuery):
             print(f'Ошибка при выдаче подписки (trial): {e}')
         if url:
             try:
-                await callback.message.answer(
-                    VPN_SUBSCRIPTION_MESSAGE_HTML,
+                await callback.message.answer_photo(
+                    MY_KEYS_PHOTO,
+                    caption=vpn_subscription_message_html(url),
                     parse_mode='HTML',
                     reply_markup=create_ikb_sub_after_buy(url),
                 )
@@ -408,7 +412,7 @@ async def check_payment_yookassa_callback(callback: CallbackQuery): # сюды
         if url:
             try:
                 await callback.message.answer(
-                    VPN_SUBSCRIPTION_MESSAGE_HTML,
+                    vpn_subscription_message_html(url),
                     parse_mode='HTML',
                     reply_markup=create_ikb_sub_after_buy(url),
                 )
