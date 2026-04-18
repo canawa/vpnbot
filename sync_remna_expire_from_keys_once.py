@@ -10,6 +10,10 @@
   py -3 sync_remna_expire_from_keys_once.py --apply
 
 По умолчанию --dry-run: только печать, без POST/PATCH.
+
+При --apply после успешного создания/обновления в Remnawave пишет строку в
+таблицу subscriptions (user_id, subscription_expires_at, runout_notified,
+expiring_tomorrow_notified), как upsert_subscription_days в databases.py.
 """
 from __future__ import annotations
 
@@ -156,6 +160,48 @@ def load_active_buyers(db_path: Path) -> list[tuple[int, date]]:
     return sorted(out, key=lambda x: x[0])
 
 
+def ensure_subscriptions_schema(con: sqlite3.Connection) -> None:
+    """Схема как в databases.py / запрос пользователя."""
+    cur = con.cursor()
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS subscriptions (
+            user_id INTEGER PRIMARY KEY,
+            subscription_expires_at TEXT NOT NULL,
+            runout_notified INTEGER DEFAULT 0,
+            expiring_tomorrow_notified INTEGER DEFAULT 0
+        )
+        """
+    )
+    for col_sql in (
+        "ALTER TABLE subscriptions ADD COLUMN runout_notified INTEGER DEFAULT 0",
+        "ALTER TABLE subscriptions ADD COLUMN expiring_tomorrow_notified INTEGER DEFAULT 0",
+    ):
+        try:
+            cur.execute(col_sql)
+        except sqlite3.OperationalError:
+            pass
+    con.commit()
+
+
+def upsert_subscription_row(con: sqlite3.Connection, user_id: int, expiration_date: date) -> None:
+    """Дата в формате YYYY-MM-DD — как upsert_subscription_days в databases.py."""
+    expires_str = expiration_date.isoformat()
+    cur = con.cursor()
+    cur.execute(
+        """
+        INSERT INTO subscriptions (user_id, subscription_expires_at, runout_notified, expiring_tomorrow_notified)
+        VALUES (?, ?, 0, 0)
+        ON CONFLICT(user_id) DO UPDATE SET
+            subscription_expires_at = excluded.subscription_expires_at,
+            runout_notified = 0,
+            expiring_tomorrow_notified = 0
+        """,
+        (user_id, expires_str),
+    )
+    con.commit()
+
+
 def main() -> int:
     p = argparse.ArgumentParser()
     p.add_argument(
@@ -189,6 +235,7 @@ def main() -> int:
 
         if not args.apply:
             ok += 1
+            print(f"  [dry-run] subscriptions: user_id={tg_id}, subscription_expires_at={exp_d.isoformat()}")
             continue
 
         st_get, body_get = get_user_by_telegram(tg_id)
@@ -205,8 +252,16 @@ def main() -> int:
                 action = "POST->PATCH"
 
         if st in (200, 201):
-            ok += 1
             print(f"  OK {action} HTTP {st}")
+            try:
+                with sqlite3.connect(args.db) as con:
+                    ensure_subscriptions_schema(con)
+                    upsert_subscription_row(con, tg_id, exp_d)
+                print(f"  DB subscriptions upsert: user_id={tg_id}, subscription_expires_at={exp_d.isoformat()}")
+                ok += 1
+            except Exception as e:
+                fail += 1
+                print(f"  FAIL subscriptions DB (Remnawave уже обновлён): {e}")
         else:
             fail += 1
             print(f"  FAIL {action} HTTP {st}: {json.dumps(body, ensure_ascii=False)[:400]}")
