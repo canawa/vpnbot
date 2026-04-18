@@ -112,7 +112,7 @@ def get_vpn_pay_keyboard() -> InlineKeyboardMarkup:
         [InlineKeyboardButton(text='СБП (или картой)', callback_data=f'deposit_{MONTH_PRICE}_card', icon_custom_emoji_id=get_emoji('sbp'))],
         # [InlineKeyboardButton(text='Криптобот', callback_data=f'deposit_{MONTH_PRICE}_crypto', icon_custom_emoji_id=get_emoji('crypto_bot'))],
         # [InlineKeyboardButton(text='Звёзды', callback_data=f'deposit_{MONTH_PRICE}_stars', icon_custom_emoji_id=get_emoji('stars'))],
-        [InlineKeyboardButton(text='Назад', callback_data='ikb_back', icon_custom_emoji_id=get_emoji('exit'))],
+        [InlineKeyboardButton(text='Назад', callback_data='back', icon_custom_emoji_id=get_emoji('exit'))],
     ])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
@@ -242,6 +242,7 @@ async def buy_vpn_callback(callback: CallbackQuery):
 
 @dp.callback_query(lambda c: c.data == 'my_subscription')
 async def my_sub_callback(callback: CallbackQuery):
+    await callback.answer('Моя подписка')
     await callback.message.delete()
     result = vpn.get_user_by_tg_id(callback.from_user.id)
     try:
