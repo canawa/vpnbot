@@ -174,7 +174,7 @@ async def start_command(message):
         WELCOME_PHOTO,
         caption=text,
         reply_markup=generate_ikb_main(message.from_user.id),
-        parse_mode='Markdown'
+        parse_mode='HTML'
     )
     with sq.connect('database.db') as con:
         cur = con.cursor()
@@ -314,7 +314,7 @@ async def support_callback(callback: CallbackQuery):
 
 def welcome_back_caption(subscription_status):
     text = (
-        "👋 <b>Добро пожаловать в Кофеманию</b>\n"
+        "👋 Добро пожаловать в Кофеманию\n"
         "\n"
         f"Подписка: {'🟢 Активна' if subscription_status==True else '🔴 Отсутствует'}\n"
     )
@@ -327,7 +327,7 @@ async def back_callback(callback: CallbackQuery):
     today_str = date.today().isoformat()
     with sq.connect('database.db') as con:
         cur = con.cursor()
-        cur.execute(""" SELECT 1 FROM subscriptions WHERE user_id = ? AND date(subscription_expires_at) >= date(?)""", (callback.from_user.id, today_str))
+        cur.execute(""" SELECT * FROM subscriptions WHERE user_id = ? AND date(subscription_expires_at) >= date(?)""", (callback.from_user.id, today_str))
         has_active_subscription = cur.fetchone() is not None
         text = welcome_back_caption(has_active_subscription)
     await callback.message.answer_photo(
