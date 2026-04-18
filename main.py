@@ -61,7 +61,7 @@ def _subscription_url_from_dict(d):
 
 
 def _vpn_response_subscription_url(payload):
-    """Достаёт ссылку подписки из JSON ответа панели (разная вложенность у GET/POST)."""
+    """Достаёт ссылку подписки из JSON ответа панели (разная вложенность у GET/POST). ЭТО ПИСАЛ GPT ХУЙ ЕГО ЗНАЕТ ЧТО ЭТО"""
     if not isinstance(payload, dict):
         return None
     seen_ids = set()
@@ -572,29 +572,6 @@ async def check_payment_yookassa_callback(callback: CallbackQuery): # сюды
     else:
         await callback.message.answer(f'👀 Ожидаем оплату, оплатите и попробуйте снова!', parse_mode='HTML', reply_markup=ikb_back)
 
-
-@dp.callback_query(lambda c: c.data == 'vpnpay_stars')
-async def vpnpay_stars_callback(callback: CallbackQuery):
-    await callback.answer("Звёзды")
-    await callback.message.delete()
-    amount = MONTH_PRICE
-    stars_rate = 1.50
-    amount_stars = int(amount * stars_rate)
-    payload = f"vpnmonth_{amount}_{callback.from_user.id}"
-    try:
-        await bot.send_invoice(
-            chat_id=callback.from_user.id,
-            title=f"VPN на месяц",
-            description=f"Оплата {MONTH_PRICE} ₽",
-            payload=payload,
-            provider_token="",
-            currency="XTR",
-            prices=[LabeledPrice(label=f"VPN {MONTH_PRICE} ₽", amount=amount_stars)],
-        )
-    except Exception as e:
-        await callback.message.answer(f'❌ Не удалось создать счёт: {e}', reply_markup=get_vpn_pay_keyboard(0))
-
-
 @dp.callback_query(lambda c: c.data.startswith('deposit_'))
 async def process_deposit(callback: CallbackQuery):
     # Убрали лишний print для экономии памяти
@@ -628,146 +605,6 @@ async def process_deposit(callback: CallbackQuery):
         except Exception as e:
             await callback.message.answer(f'❌ Не удалось создать заявку: {e}. Напишите в техподдержку, мы обязательно поможем!', reply_markup=ikb_support)
             raise e
-
-    if method == 'stars':
-        stars_rate = 1.50 # 1 звезда = 1.50 рубля
-        amount_stars = amount * stars_rate
-        amount_stars = int(amount_stars)
-        try:
-            await bot.send_invoice(
-                chat_id=callback.from_user.id, # куда отправится инвойс
-                title=f"Пополнение баланса на {amount} ₽", # заголовок инвойса
-                description=f"👉 Создали заявку на оплату, переходите по ссылке и оплатите",
-                payload=f"deposit_{amount}_{callback.from_user.id}", # то что получит бот после оплаты (это для обработки успешности)
-                provider_token="", # для звезд не нужен provider_token
-                currency="XTR", # валюта звезд
-                prices=[LabeledPrice(label=f"Пополнение на {amount} ₽", amount=amount_stars),],
-            )
-        except Exception as e:
-            await callback.message.answer(f'❌ Не удалось создать заявку: {e}',  reply_markup=ikb_deposit_methods)
-            raise e
-
-        
-    if method == 'CryptoBot': # рассматриваем оплату криптой
-        response = get_pay_link(amount/rub_to_usdt) # переводим рубли в доллары от руки пока что пох
-        ok = response['ok'] # тру фолс
-        result = response['result'] # содержит инфу о результате запроса
-        pay_url = result['pay_url'] # ссылка на оплату
-        bot_invoice_url = result['bot_invoice_url'] # ссылка на оплату в боте
-        invoice_id = result['invoice_id'] # id заявки
-        # print(pay_url, bot_invoice_url, ok)
-
-        ikb = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text=f'👉 Перейти к оплате {amount} ₽', url=pay_url)],
-            [InlineKeyboardButton(text='✅️ Я оплатил', callback_data=f'check_payment_{invoice_id}')],
-            [InlineKeyboardButton(text='❌ Отменить платеж!', callback_data='back', icon_custom_emoji_id=get_emoji('exit'))],
-        ])
-        
-
-        if ok:
-            await callback.message.answer('👉 Создали заявку на оплату, переходите по ссылке и оплатите.\n\n <b>❗ После оплаты нажмите на кнопку "Я оплатил"</b>', parse_mode='HTML', reply_markup=ikb)
-        else:
-            await callback.message.answer('❌ Не удалось создать заявку. Попробуйте позже.',  reply_markup=ikb_deposit_methods)
-
-
-@dp.pre_checkout_query()
-async def process_pre_checkout(pre_checkout): # обработчик подтверждения платежа (я так понял типо это надо чтобы payload совпал с фактическим)
-    parts = pre_checkout.invoice_payload.split('_', 3)
-    if len(parts) >= 3 and parts[0] == 'deposit':
-        amount = int(parts[1])
-        user_id = int(parts[2])
-        if pre_checkout.invoice_payload == f"deposit_{amount}_{user_id}":
-            await pre_checkout.answer(ok=True)
-        else:
-            await pre_checkout.answer(ok=False, error_message="❌ Неверный payload (Напиши в поддержку)")
-    elif parts[0] == 'vpnmonth':
-        amount = int(parts[1])
-        user_id = int(parts[2])
-        if len(parts) >= 4:
-            country = parts[3]
-            ok_payload = pre_checkout.invoice_payload == f"vpnmonth_{amount}_{user_id}_{country}"
-        else:
-            ok_payload = pre_checkout.invoice_payload == f"vpnmonth_{amount}_{user_id}"
-        if ok_payload and pre_checkout.from_user.id == user_id:
-            await pre_checkout.answer(ok=True)
-        else:
-            await pre_checkout.answer(ok=False, error_message="❌ Неверный payload (Напиши в поддержку)")
-    else:
-        await pre_checkout.answer(ok=False, error_message="❌ Неверный payload (Напиши в поддержку)")
-                
-
-
-@dp.message(lambda m: m.successful_payment is not None) # обработчик успешного платежа
-async def handle_successful_payment(message: Message):
-    payment = message.successful_payment
-    payload = payment.invoice_payload
-    parts = payload.split('_', 3)
-    if parts[0] == 'vpnmonth' and len(parts) >= 3:
-        amount_rub = int(parts[1])
-        user_id = int(parts[2])
-        if message.from_user.id != user_id:
-            await message.answer("❌ Ошибка: несоответствие пользователя")
-            return
-        with sq.connect('database.db') as con:
-            cur = con.cursor()
-            cur.execute('UPDATE users SET balance = balance + ? WHERE id = ?', (amount_rub, user_id))
-            cur.execute('SELECT ref_master_id, registration_date FROM referal_users WHERE referral_id = ?', (user_id,))
-            ref_master = cur.fetchone()
-            if ref_master:
-                ref_master_id = ref_master[0]
-                registration_date_str = ref_master[1]
-                if registration_date_str:
-                    registration_date = date.fromisoformat(registration_date_str)
-                    three_months_later = registration_date + timedelta(days=90)
-                    if date.today() <= three_months_later:
-                        cur.execute('SELECT role FROM users WHERE id = ?', (ref_master_id,))
-                        ref_master_role = cur.fetchone()
-                        if ref_master_role and ref_master_role[0] == 'refmaster':
-                            cur.execute('UPDATE users SET ref_balance = ref_balance + ? WHERE id = ?', (int(amount_rub) / 2, ref_master_id))
-            con.commit()
-        url = None
-        try:
-            url = fetch_vpn_subscription_url_after_purchase(user_id)
-        except Exception as e:
-            print(f'Stars vpnmonth: выдача подписки: {e}')
-        if url:
-            upsert_subscription_days(user_id, VPN_SUBSCRIPTION_DAYS_PAID)
-            try:
-                await message.answer_photo(
-                    MY_KEYS_PHOTO,
-                    caption=vpn_subscription_message_html(url),
-                    parse_mode='HTML',
-                    reply_markup=create_ikb_sub_after_buy(url),
-                )
-            except Exception as e:
-                print(f'Stars vpnmonth: отправка ключа: {e}')
-        return
-    if len(parts) >= 3 and parts[0] == 'deposit':
-        amount_rub = int(parts[1])
-        user_id = int(parts[2])
-        if message.from_user.id != user_id:
-            await message.answer("❌ Ошибка: несоответствие пользователя")
-            return 
-        with sq.connect('database.db') as con:
-            cur = con.cursor()
-
-            cur.execute('UPDATE users SET balance = balance + ? WHERE id = ?', (amount_rub, user_id))
-            # Проверяем реферала и его роль
-            cur.execute('SELECT ref_master_id, registration_date FROM referal_users WHERE referral_id = ?', (user_id,))
-            ref_master = cur.fetchone()
-            if ref_master:
-                ref_master_id = ref_master[0]
-                registration_date_str = ref_master[1]
-                if registration_date_str:
-                    registration_date = date.fromisoformat(registration_date_str)
-                    three_months_later = registration_date + timedelta(days=90)
-                    if date.today() <= three_months_later:
-                        cur.execute('SELECT role FROM users WHERE id = ?', (ref_master_id,))
-                        ref_master_role = cur.fetchone()
-                        if ref_master_role and ref_master_role[0] == 'refmaster':
-                            cur.execute('UPDATE users SET ref_balance = ref_balance + ? WHERE id = ?', (int(amount_rub)/2, ref_master_id))
-            con.commit()
-        await message.answer(f'Спасибо за покупку, ваша подписка: ТУТ ГАЙД', parse_mode='HTML', reply_markup=ikb_back)
 
 @dp.callback_query(lambda c: c.data == 'bug_report')
 async def bug_report_callback(callback: CallbackQuery):
@@ -1070,18 +907,7 @@ async def admin_referrals_callback(callback: CallbackQuery):
         await callback.message.answer_document(FSInputFile('referals.xlsx'), reply_markup=ikb_admin_back)
 
 
-    with sq.connect('database.db') as con:
-        cur = con.cursor()
-        cur.execute('UPDATE users SET ref_balance = ref_balance - ? WHERE id = ?', (amount, callback.from_user.id))
-        cur.execute('INSERT INTO transactions (user_id, amount, type, date) VALUES (?, ?, ?, ?)', (callback.from_user.id, amount, 'Выплата по реферальному балансу', datetime.now().strftime('%Y-%m-%d %H:%M:%S')))
-        con.commit()
-
-
-
 async def main():
-    # Запускаем фоновую задачу для проверки подписок
-    asyncio.create_task(check_expired_subscriptions(bot)) # бесокнечная задача параллельно, если не через create_task то не будет работать
-    # Запускаем фоновую задачу для проверки подписок, истекающих завтра
     asyncio.create_task(check_expiring_tomorrow_subscriptions(bot))
     asyncio.create_task(check_expired_subscriptions_table(bot))
     asyncio.create_task(check_expiring_tomorrow_subscriptions_table(bot))

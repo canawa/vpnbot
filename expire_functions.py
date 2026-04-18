@@ -3,7 +3,8 @@ from datetime import datetime, date
 from datetime import timedelta
 import asyncio
 
-from ikbs import generate_ikb_main
+from ikbs import *
+
 
 async def check_expired_subscriptions_table(bot):
     """Таблица subscriptions: уведомление в день окончания subscription_expires_at (TEXT, сравнение через date())."""
@@ -33,7 +34,7 @@ async def check_expired_subscriptions_table(bot):
                             '⏰ <b>Срок подписки истёк</b>\n\n',
                             'Чтобы продолжить пользоваться сервисом, продлите подписку.\n\n',
                             parse_mode='HTML',
-                            reply_markup=generate_ikb_main(user_id),
+                            reply_markup=create_ikb_renew()
                         )
                         cur.execute(
                             'UPDATE subscriptions SET runout_notified = 1 WHERE user_id = ?',
@@ -79,7 +80,7 @@ async def check_expiring_tomorrow_subscriptions_table(bot):
                             '⏰ <b>Подписка заканчивается завтра</b>\n\n'
                             'Продлите заранее, чтобы не прерывать доступ.\n\n',
                             parse_mode='HTML',
-                            reply_markup=generate_ikb_main(user_id),
+                            reply_markup=create_ikb_renew(),
                         )
                         cur.execute(
                             'UPDATE subscriptions SET expiring_tomorrow_notified = 1 WHERE user_id = ?',
