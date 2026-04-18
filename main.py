@@ -25,15 +25,6 @@ from emojis import get_emoji
 from databases import create_tables, upsert_subscription_days
 from payments import get_pay_link, check_payment_status, check_payment_yookassa_status, rub_to_usdt
 from vpn import Vpn
-
-
-from expire_functions import (
-    check_expired_subscriptions,
-    check_expiring_tomorrow_subscriptions,
-    check_expired_subscriptions_table,
-    check_expiring_tomorrow_subscriptions_table,
-    reset_runout_notified_daily,
-)
 from ikbs import *
 from expire_functions import *
 locale.setlocale(locale.LC_TIME, 'ru_RU.UTF-8')
