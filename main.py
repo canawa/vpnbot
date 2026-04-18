@@ -107,7 +107,7 @@ def get_vpn_pay_keyboard() -> InlineKeyboardMarkup:
     rows.extend([
         [InlineKeyboardButton(text='СБП (или картой)', callback_data=f'deposit_{MONTH_PRICE}_card', icon_custom_emoji_id=get_emoji('sbp'))],
         # [InlineKeyboardButton(text='Криптобот', callback_data=f'deposit_{MONTH_PRICE}_crypto', icon_custom_emoji_id=get_emoji('crypto_bot'))],
-        [InlineKeyboardButton(text='Звёзды', callback_data=f'deposit_{MONTH_PRICE}_stars', icon_custom_emoji_id=get_emoji('stars'))],
+        # [InlineKeyboardButton(text='Звёзды', callback_data=f'deposit_{MONTH_PRICE}_stars', icon_custom_emoji_id=get_emoji('stars'))],
         [InlineKeyboardButton(text='Назад', callback_data='ikb_back', icon_custom_emoji_id=get_emoji('exit'))],
     ])
     return InlineKeyboardMarkup(inline_keyboard=rows)
@@ -236,6 +236,16 @@ async def buy_vpn_callback(callback: CallbackQuery):
         balance = result[0] if result else 0
     await callback.message.answer_photo(FSInputFile("photos/buy_vpn.png"), parse_mode='HTML', reply_markup=get_vpn_pay_keyboard())
 
+@dp.callback_query(lambda c: c.data == 'my_subscription')
+async def my_sub_callback(callback: CallbackQuery):
+    await callback.message.delete()
+    result = vpn.get_user_by_tg_id(callback.from_user.id)
+    try:
+        url = result['response']['subscriptionUrl']
+        await callback.message.answer_photo(MY_KEYS_PHOTO, caption=vpn_subscription_message_html(url), parse_mode='HTML', reply_markup=ikb_back)
+    except Exception as e:
+        await callback.message.answer_photo(MY_KEYS_PHOTO, caption='<b>У тебя еще нет подписки!</b>',parse_mode='HTML', reply_markup=get_vpn_pay_keyboard())
+
 @dp.callback_query(lambda c: c.data == 'documents')
 async def documents_callback(callback: CallbackQuery):
     await callback.answer("📄 Документы") # на пол экрана хуйня высветится
@@ -304,9 +314,9 @@ async def support_callback(callback: CallbackQuery):
 
 def welcome_back_caption(subscription_status):
     text = (
-        "👋 Добро пожаловать в Кофеманию\n"
+        "👋 <b>Добро пожаловать в Кофеманию</b>\n"
         "\n"
-        f"**Подписка**: {'🟢 Активна' if subscription_status==True else '🔴 Отсутствует'}\n"
+        f"Подписка: {'🟢 Активна' if subscription_status==True else '🔴 Отсутствует'}\n"
     )
     return text
 
@@ -323,6 +333,7 @@ async def back_callback(callback: CallbackQuery):
     await callback.message.answer_photo(
         WELCOME_PHOTO,
         caption=text,
+        parse_mode='HTML',
         reply_markup=generate_ikb_main(callback.from_user.id),
     )
 

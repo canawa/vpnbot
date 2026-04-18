@@ -59,7 +59,14 @@ class Vpn:
            )
         return body.json()
 
-
+    def get_user_by_tg_id(self, tg_id):
+        body = requests.get(
+            f"{self.base_url}/api/users/by-telegram-id/{tg_id}",
+            headers={
+                "Authorization": f"Bearer {self.token}"
+            }
+        )
+        return body.json()
 
     def deliver_trial_vpn(self, tg_id ):
         body = requests.post(f"{self.base_url}/api/users",
@@ -79,7 +86,7 @@ class Vpn:
              }
                  )
         return body.json()
-# #
-# vpn = Vpn()
-# res = vpn.renew_subscription(1979427406)
-# print(res)
+
+vpn = Vpn()
+res = vpn.get_user_by_tg_id(1979477416)
+print(res)
