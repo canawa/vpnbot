@@ -1055,13 +1055,6 @@ async def admin_set_role_message(message: Message):
         else:
             await message.answer(f"❌ Пользователь с ID {user_id} не найден в базе данных.", parse_mode='HTML', reply_markup=ikb_admin_back)
 
-@dp.callback_query(lambda c: c.data == 'ref_withdraw')
-async def ref_withdraw_callback(callback: CallbackQuery):
-    await callback.answer("💸 Вывести реферальный баланс") # на пол экрана хуйня высветится
-    await callback.message.delete()
-    await callback.message.answer("<b> 🤝 Чтобы вывести реферальный баланс, на реферальном балансе должно быть минимум 200 ₽. \n\n 🟢 Выберите сумму для вывода:</b>", parse_mode='HTML', reply_markup=ikb_withdraw)
-
-
 @dp.callback_query(lambda c: c.data == 'admin_referrals')
 async def admin_referrals_callback(callback: CallbackQuery):
     await callback.answer("👉🏼 Рефералы") # на пол экрана хуйня высветится
@@ -1075,25 +1068,6 @@ async def admin_referrals_callback(callback: CallbackQuery):
         df = pd.DataFrame(result, columns=['Рефовод Юзернейм', 'Реферал Юзернейм', 'Рефмастер Айди' , 'Реферал айди'])
         df.to_excel('referals.xlsx')
         await callback.message.answer_document(FSInputFile('referals.xlsx'), reply_markup=ikb_admin_back)
-
-@dp.callback_query(lambda c: c.data.startswith('withdraw_'))
-async def withdraw_callback(callback: CallbackQuery):
-    await callback.message.delete()
-    _ , sum = callback.data.split('_')  
-    amount = int(sum)
-    if amount < 200:
-        await callback.message.answer("❌ Минимальная сумма для вывода 200 ₽", parse_mode='HTML', reply_markup=ikb_withdraw)
-        return
-    with sq.connect('database.db') as con:
-        cur = con.cursor()
-        cur.execute('SELECT ref_balance FROM users WHERE id = ?', (callback.from_user.id,))
-        result = cur.fetchone()
-        ref_balance = result[0] if result else 0
-    if amount > ref_balance:
-        await callback.message.answer("❌ Недостаточно средств на реферальном балансе", parse_mode='HTML', reply_markup=ikb_withdraw)
-        return
-
-    await callback.message.answer("💸 <b>Теперь напишите @CoffemaniaSupport, в сообщении укажите реквизиты для вывода: (например, СБП +7978334455 Тбанк ИЛИ 2200 4500 1111 1111 СБЕР)</b>", parse_mode='HTML')
 
 
     with sq.connect('database.db') as con:
