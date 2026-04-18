@@ -311,9 +311,28 @@ async def plan_trial(callback: CallbackQuery):
         try:
             if result['message'] == 'User username already exists':
                 print('занято и вызывается функция продления')
-                vpn.renew_subscription(callback.from_user.id)
-        except:
-            pass
+                result = vpn.renew_subscription(callback.from_user.id)
+                try:
+                    url = result.get('response', {}).get('subscriptionUrl')
+
+                    if url:
+                        text = (
+                            "🔑 <b>Твоя подписка КОФЕМАНИЯ VPN</b>\n"
+                            "\n"
+                            "☕️ Мы автоматически установим ключ в приложении HAPP\n"
+                            "\n"
+                            "🚀 Нажми кнопку ниже — и всё настроится за тебя\n"
+                        )
+
+                        await callback.message.answer(
+                            text,
+                            parse_mode='HTML',
+                            reply_markup=create_ikb_sub_after_buy(url),
+                        )
+                except:
+                    pass
+        except Exception as e:
+            print(f'Ошибка при выдаче подписки, {e}')
 
         await callback.message.delete()
     else:
@@ -325,7 +344,7 @@ async def subscribe_confirmed_callback(callback: CallbackQuery):
     await callback.answer("✅ Я подписался") # на пол экрана хуйня высветится
     await callback.message.delete()
     if await is_subscribed(bot, callback.from_user.id):
-        await deliver_trial_vpn(callback.from_user.id, callback.message)
+        vpn.deliver_trial_vpn(callback.from_user.id)
     else:
         await callback.message.answer('❌ Вы не подписаны на канал! Подпишитесь на канал, чтобы получить бесплатный тестовый период!', parse_mode='HTML', reply_markup=ikb_subscribe)
 
@@ -398,7 +417,27 @@ async def check_payment_yookassa_callback(callback: CallbackQuery): # сюды
         try:
             if result['message'] == 'User username already exists':
                 print('занято и вызывается функция продления')
-                vpn.renew_subscription(callback.from_user.id)
+                result = vpn.renew_subscription(callback.from_user.id)
+                try:
+                    url = result.get('response', {}).get('subscriptionUrl')
+
+                    if url:
+                        text = (
+                            "🔑 <b>Твоя подписка КОФЕМАНИЯ VPN</b>\n"
+                            "\n"
+                            "☕️ Мы автоматически установим ключ в приложении HAPP\n"
+                            "\n"
+                            "🚀 Нажми кнопку ниже — и всё настроится за тебя\n"
+                        )
+
+                        await callback.message.answer(
+                            text,
+                            parse_mode='HTML',
+                            reply_markup=create_ikb_sub_after_buy(url),
+                        )
+                except:
+                    pass
+
         except:
             pass
 
