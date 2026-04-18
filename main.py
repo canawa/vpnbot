@@ -899,7 +899,6 @@ async def admin_referrals_callback(callback: CallbackQuery):
 
 
 async def main():
-    asyncio.create_task(check_expiring_tomorrow_subscriptions(bot))
     asyncio.create_task(check_expired_subscriptions_table(bot))
     asyncio.create_task(check_expiring_tomorrow_subscriptions_table(bot))
     # Запускаем фоновую задачу для сброса флага runout_notified в 00:01 каждый день
