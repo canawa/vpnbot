@@ -781,19 +781,54 @@ async def admin_back_callback(callback: CallbackQuery):
     await callback.message.delete()
     await callback.message.answer("👤 Админ панель", parse_mode='HTML', reply_markup=ikb_admin)
 
-@dp.message(F.text.startswith('shout'), (F.from_user.id.in_([1979477416, 7562967579])))
+@dp.message(F.text.startswith('shout '), (F.from_user.id.in_([1979477416, 7562967579])))
 async def shout_message(message: Message):
+    text = (message.text or '')[6:].strip()
+    if not text:
+        await message.answer("❌ Пустой текст. Пример: <code>shout Привет!</code>", parse_mode='HTML', reply_markup=ikb_back)
+        return
+
     with sq.connect('database.db') as con:
         cur = con.cursor()
         cur.execute('SELECT id FROM users;')
         result = cur.fetchall()
-        for user in result:
-            try:
-                await bot.send_message(user[0], message.text[6:], parse_mode='HTML')
-            except Exception as e:
-                await bot.send_message.answer(1979477416, f'Ошибка {e}')
-                await bot.send_message.answer(7562967579, f'Ошибка {e}')
-    await message.answer("🔊 Сообщение отправлено всем пользователям", parse_mode='HTML', reply_markup=ikb_back)
+
+    sent = 0
+    failed = 0
+    blocked = 0
+    for (uid,) in result:
+        try:
+            await bot.send_message(uid, text)
+            sent += 1
+        except Exception as e:
+            err_name = type(e).__name__
+            if err_name == 'TelegramRetryAfter':
+                wait_s = getattr(e, 'retry_after', 5) or 5
+                await asyncio.sleep(float(wait_s) + 0.5)
+                try:
+                    await bot.send_message(uid, text)
+                    sent += 1
+                    continue
+                except Exception:
+                    failed += 1
+            elif err_name in ('TelegramForbiddenError', 'TelegramNotFound'):
+                blocked += 1
+            else:
+                failed += 1
+                print(f'shout → {uid}: {err_name}: {e}')
+        await asyncio.sleep(0.05)
+
+    summary = (
+        f"🔊 Рассылка завершена\n"
+        f"✅ Отправлено: {sent}\n"
+        f"🚫 Заблокировали бота: {blocked}\n"
+        f"⚠️ Ошибок: {failed}\n"
+        f"👥 Всего в базе: {len(result)}"
+    )
+    try:
+        await message.answer(summary, reply_markup=ikb_back)
+    except Exception:
+        pass
 
 
 @dp.message(F.text == 'admin' , (F.from_user.id.in_([1979477416, 7562967579])))
