@@ -25,12 +25,6 @@ def upsert_subscription_days(user_id: int, duration_days: int) -> str:
 def create_tables():
     with sq.connect('database.db') as con:
         cur = con.cursor()
-        cur.execute("""CREATE TABLE IF NOT EXISTS "keys" (
-            "key"   TEXT,
-            "duration"      INTEGER,
-            "sold"  INTEGER DEFAULT 0,
-            "buyer_id"      INTEGER
-    , expiration_date, expired INTEGER, buy_date, username, location TEXT, marzban_username TEXT)""")
         cur.execute(
             "CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, username TEXT, balance INTEGER, ref_balance INTEGER DEFAULT 0, ref_amount INTEGER DEFAULT 0, keys TEXT, role TEXT DEFAULT NULL, had_trial INTEGER DEFAULT 0, runout_notified INTEGER DEFAULT 0, has_active_keys INTEGER DEFAULT 0)")
         cur.execute(
@@ -76,22 +70,6 @@ def create_tables():
         except:
             pass  # Поле уже существует
         try:
-            cur.execute('ALTER TABLE keys ADD COLUMN location TEXT')
-        except:
-            pass  # Поле уже существует
-        try:
-            cur.execute('ALTER TABLE keys ADD COLUMN marzban_username TEXT')
-        except:
-            pass  # Поле уже существует
-        try:
-            cur.execute('ALTER TABLE keys ADD COLUMN bundle_id TEXT')
-        except:
-            pass  # Поле уже существует
-        try:
-            cur.execute('ALTER TABLE users ADD COLUMN sub_status INTEGER DEFAULT 0')
-        except:
-            pass
-        try:
             cur.execute('ALTER TABLE users ADD COLUMN sub_expires_at TEXT')
         except:
             pass
@@ -101,12 +79,6 @@ def create_tables():
             pass
         try:
             cur.execute('ALTER TABLE users ADD COLUMN received_bonus INTEGER DEFAULT 0')
-        except:
-            pass
-        try:
-            cur.execute(
-                "UPDATE keys SET location = 'germany' WHERE location IS NULL OR TRIM(COALESCE(location, '')) = ''")
-            con.commit()
         except:
             pass
         cur.execute('CREATE TABLE IF NOT EXISTS vpn_pay_pending (user_id INTEGER PRIMARY KEY, country TEXT NOT NULL)')
