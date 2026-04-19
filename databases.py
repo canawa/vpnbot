@@ -100,7 +100,7 @@ def create_tables():
         except:
             pass
         try:
-            cur.execute('ALTER TABLE users ADD COLUMN refmaster_recieved_bonus INTEGER DEFAULT 0')
+            cur.execute('ALTER TABLE users ADD COLUMN received_bonus INTEGER DEFAULT 0')
         except:
             pass
         try:
