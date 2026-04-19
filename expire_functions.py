@@ -130,3 +130,13 @@ async def reset_runout_notified_daily(): # НЕ ЕБУ КАК РАБОТАЕТ!
             print(f"Error resetting runout_notified: {e}")
             # В случае ошибки ждем час перед следующей попыткой
             await asyncio.sleep(3600)
+
+async def referral_bought_vpn_check():
+    while True:
+        try:
+            with sq.connect('database.db') as con:
+                cur = con.cursor()
+                cur.execute("SELECT * FROM referal_users WHERE ref_master_id = ?")
+
+        except Exception as e:
+            print('Ошибка:', e)

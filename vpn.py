@@ -87,6 +87,3 @@ class Vpn:
                  )
         return body.json()
 
-vpn = Vpn()
-res = vpn.get_user_by_tg_id(1979477416)
-print(res)

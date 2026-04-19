@@ -96,6 +96,14 @@ def create_tables():
         except:
             pass
         try:
+            cur.execute('ALTER TABLE users ADD COLUMN ref_withdraw INTEGER DEFAULT 0')
+        except:
+            pass
+        try:
+            cur.execute('ALTER TABLE users ADD COLUMN refmaster_recieved_bonus INTEGER DEFAULT 0')
+        except:
+            pass
+        try:
             cur.execute(
                 "UPDATE keys SET location = 'germany' WHERE location IS NULL OR TRIM(COALESCE(location, '')) = ''")
             con.commit()

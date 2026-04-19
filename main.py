@@ -56,7 +56,6 @@ def _vpn_response_subscription_url(payload):
     if not isinstance(payload, dict):
         return None
     seen_ids = set()
-
     def walk(obj, depth):
         if depth > 14:
             return None
@@ -144,8 +143,6 @@ def get_vpn_pay_keyboard() -> InlineKeyboardMarkup:
     rows = []
     rows.extend([
         [InlineKeyboardButton(text=f'Оплатить {MONTH_PRICE}₽', callback_data=f'deposit_{MONTH_PRICE}_card', icon_custom_emoji_id=get_emoji('pay'))],
-        # [InlineKeyboardButton(text='Криптобот', callback_data=f'deposit_{MONTH_PRICE}_crypto', icon_custom_emoji_id=get_emoji('crypto_bot'))],
-        # [InlineKeyboardButton(text='Звёзды', callback_data=f'deposit_{MONTH_PRICE}_stars', icon_custom_emoji_id=get_emoji('stars'))],
         [InlineKeyboardButton(text='Назад', callback_data='back', icon_custom_emoji_id=get_emoji('exit'))],
     ])
     return InlineKeyboardMarkup(inline_keyboard=rows)
@@ -190,7 +187,7 @@ async def start_command(message):
                         ref_role = (ref_role_row[0] if ref_role_row else None) or ''
                         # Для refmaster отключен старый фиксированный бонус +50 за нового друга.
                         if ref_role.lower() != 'refmaster':
-                            cur.execute("UPDATE users SET balance = balance + 50 WHERE id = ?", (ref,))
+                            pass
                         cur.execute('UPDATE users SET ref_amount = ref_amount + 1 WHERE id = ?', (ref,))
                 con.commit()
 
@@ -365,9 +362,9 @@ async def referral_callback(callback: CallbackQuery):
         result = cur.fetchone() # получить результат из базы данных
         ref_amount = result[0] if result else 0 # если результат не пустой, то вытащить реферальное количество, иначе 0
         role = (result[1] if result and len(result) > 1 else None) or ''
-        cur.execute('SELECT ref_balance FROM users WHERE id = ?', (callback.from_user.id,))
+        cur.execute('SELECT ref_withdraw FROM users WHERE id = ?', (callback.from_user.id,))
         result = cur.fetchone()
-        ref_balance = result[0] if result else 0
+        ref_withdraw = result[0]
         if role.lower() == 'refmaster':
             cur.execute('SELECT COUNT(*) FROM referal_users WHERE ref_master_id = ?', (callback.from_user.id,))
             refs_total = (cur.fetchone() or (0,))[0]
@@ -397,7 +394,8 @@ async def referral_callback(callback: CallbackQuery):
                     f"💳 Количество депозитов: {deposits_count}\n"
                     f"💰 Общая сумма депозитов: {deposits_total} ₽\n"
                     f"🧮 Ваша доля: {ref_share} ₽\n"
-                    f"🏦 Реферальный баланс: {int(ref_balance)} ₽"
+                    f"🏦 Выведено: {int(ref_withdraw)} ₽"
+                    '\nДля вывода обращаться @yatogotsirka'
                 ),
                 parse_mode='HTML',
                 reply_markup=ikb_referral,
