@@ -26,15 +26,15 @@ async def check_expired_subscriptions_table(bot):
 
                 for (user_id,) in rows:
                     try:
-                        cur.execute('SELECT balance FROM users WHERE id = ?', (user_id,))
-                        result = cur.fetchone()
-                        balance = result[0] if result else 0
+
                         await bot.send_message(
                             user_id,
-                            '⏰ <b>Срок подписки истёк</b>\n\n',
-                            'Чтобы продолжить пользоваться сервисом, продлите подписку.\n\n',
+                            (
+                                '⏰ <b>Срок подписки истёк</b>\n\n'
+                                'Чтобы продолжить пользоваться сервисом, продлите подписку.\n\n'
+                            ),
                             parse_mode='HTML',
-                            reply_markup=create_ikb_renew()
+                            reply_markup=create_ikb_renew(),
                         )
                         cur.execute(
                             'UPDATE subscriptions SET runout_notified = 1 WHERE user_id = ?',
@@ -72,13 +72,12 @@ async def check_expiring_tomorrow_subscriptions_table(bot):
 
                 for (user_id,) in rows:
                     try:
-                        cur.execute('SELECT balance FROM users WHERE id = ?', (user_id,))
-                        result = cur.fetchone()
-                        balance = result[0] if result else 0
                         await bot.send_message(
                             user_id,
-                            '⏰ <b>Подписка заканчивается завтра</b>\n\n'
-                            'Продлите заранее, чтобы не прерывать доступ.\n\n',
+                            (
+                                '⏰ <b>Подписка заканчивается завтра</b>\n\n'
+                                'Продлите заранее, чтобы не прерывать доступ.\n\n'
+                            ),
                             parse_mode='HTML',
                             reply_markup=create_ikb_renew(),
                         )
@@ -123,8 +122,10 @@ async def reset_runout_notified_daily(): # НЕ ЕБУ КАК РАБОТАЕТ!
                 cur.execute('UPDATE subscriptions SET runout_notified = 0 WHERE runout_notified = 1')
                 cur.execute('UPDATE subscriptions SET expiring_tomorrow_notified = 0 WHERE expiring_tomorrow_notified = 1')
                 con.commit()
-                print \
-                    (f"runout_notified and expiring_tomorrow_notified flags reset for all users at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+                print(
+                    f"runout_notified and expiring_tomorrow_notified flags reset for all users at "
+                    f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+                )
         except Exception as e:
             print(f"Error resetting runout_notified: {e}")
             # В случае ошибки ждем час перед следующей попыткой
