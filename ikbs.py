@@ -114,3 +114,8 @@ def create_ikb_renew():
         [InlineKeyboardButton(text='Назад', callback_data='back', icon_custom_emoji_id=get_emoji('exit'), style='danger')],
     ])
     return ikb_renew
+
+ikb_my_sub = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text='Моя подписка', callback_data='my_subscription', icon_custom_emoji_id=get_emoji('shield_emoji'), style='success')],
+        [InlineKeyboardButton(text='Назад', callback_data='back', icon_custom_emoji_id=get_emoji('exit')]
+    ])

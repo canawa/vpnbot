@@ -41,7 +41,7 @@ class Vpn:
                       )
         return body.json()
 
-    def renew_subscription(self, tg_id):
+    def renew_subscription(self, tg_id, days):
         body = requests.patch(f"{self.base_url}/api/users",
            headers={
                "Content-Type": "application/json",
@@ -50,7 +50,7 @@ class Vpn:
            json={
                "username": f'user_{tg_id}',
                           "trafficLimitBytes": 0,
-                          "expireAt": (datetime.now() + timedelta(days=30)).isoformat(),
+                          "expireAt": (datetime.now() + timedelta(days=days)).isoformat(),
                           "createdAt": datetime.now().isoformat(),
                           "telegramId": tg_id,
                           "hwidDeviceLimit": 3,

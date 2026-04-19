@@ -97,7 +97,7 @@ def fetch_vpn_subscription_url_after_purchase(tg_id: int):
     if url:
         return url
     if _vpn_response_user_already_exists(created):
-        renewed = vpn.renew_subscription(tg_id)
+        renewed = vpn.renew_subscription(tg_id, 30)
         return _vpn_response_subscription_url(renewed)
     return None
 
@@ -522,6 +522,7 @@ async def plan_lifetime_callback(callback: CallbackQuery):
 )
 async def check_payment_yookassa_callback(callback: CallbackQuery): # сюды
     await callback.answer("🔄 Проверка статуса оплаты") # на пол экрана хуйня высветится
+    await callback.message.delete()
     raw = callback.data
     # Два первых разбиения: префикс (check|yookassa), сумма, остаток — id платежа Юкассы (UUID с дефисами)
     parts = raw.split('_', 2)
@@ -552,7 +553,14 @@ async def check_payment_yookassa_callback(callback: CallbackQuery): # сюды
                         cur.execute('SELECT role FROM users WHERE id = ?', (ref_master_id,))
                         ref_master_role = cur.fetchone()
                         if ref_master_role and ref_master_role[0] == 'refmaster':
-                            cur.execute('UPDATE users SET ref_balance = ref_balance + ? WHERE id = ?', (amount_rub / 2, ref_master_id)) # начислить 50% реферального бонуса рефоводу
+                            cur.execute('UPDATE users SET ref_balance = ref_balance + ? WHERE id = ?', (amount_rub // 2, ref_master_id)) # начислить 50% реферального бонуса рефоводу
+                        else:
+                            cur.execute('SELECT * FROM users WHERE received_bonus = 0 AND id = ?', (callback.from_user.id))
+                            result = cur.fetchone()
+                            if result is not None:
+                                cur.execute('UPDATE users SET received_bonus = 1 WHERE id = ?', (callback.from_user.id))
+                                vpn.renew_subscription(ref_master_id, 7)
+                                await bot.send_message(ref_master_id,'<tg-emoji emoji-id="5416117059207572332">➡️</tg-emoji> Ваш реферал совершил депозит, вы получили бонусом 7 дней подписки!', parse_mode = 'HTML', reply_markup = ikb_my_sub)
             con.commit()
         url = None
         try:
