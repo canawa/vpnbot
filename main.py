@@ -209,7 +209,10 @@ async def start_command(message):
 
     user = vpn.get_user_by_tg_id(message.from_user.id)
     print(user)
-    expire_at_str = user.get('response', {})['expireAt']
+    try:
+        expire_at_str = user['response'][0]['expireAt']
+    except:
+        expire_at_str = None
     if expire_at_str:
         expire_at = datetime.fromisoformat(expire_at_str)
         has_active_subscription = expire_at.date() > date.today()
