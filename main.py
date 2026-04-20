@@ -443,7 +443,6 @@ async def back_callback(callback: CallbackQuery):
     await callback.answer("Назад") # на пол экрана хуйня высветится
     await callback.message.delete()
     user = vpn.get_user_by_tg_id(callback.from_user.id)
-    user = vpn.get_user_by_tg_id(message.from_user.id)
     # print(user)
     try:
         expire_at_str = user['response'][0]['expireAt']
