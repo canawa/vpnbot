@@ -232,6 +232,7 @@ async def start_command(message):
 async def check_payment_callback(callback: CallbackQuery):
     await callback.answer("✅️ Я оплатил") # на пол экрана хуйня высветится
     # Убрали лишний print для экономии памяти
+    await callback.message.delete()
     parts = callback.data.split('_')
     if len(parts) < 3:
         await callback.message.answer('❌ Ошибка: неверный формат данных', parse_mode='HTML')
