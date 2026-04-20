@@ -48,30 +48,28 @@ class Vpn:
         with sq.connect('database.db') as con:
             cur = con.cursor()
             cur.execute('SELECT subscription_expires_at FROM subscriptions WHERE user_id = ?', (tg_id,))
-            expire_at = cur.fetchone()[0]
-            expire_at = datetime.fromisoformat(expire_at)
+            row = cur.fetchone()
+            if not row:
+                expire_at = datetime.now()
+            else:
+                expire_at = datetime.fromisoformat(row[0])
             expire_at = max(expire_at, datetime.now())
 
-        body = requests.patch(f"{self.base_url}/api/users",
-           headers={
-               "Content-Type": "application/json",
-               "Authorization": f"Bearer {self.token}"
-           },
-           json={
-                        "username": f'user_{tg_id}',
-                          "trafficLimitBytes": 0,
-                          "expireAt": (expire_at + timedelta(days=days)).isoformat(),
-                          "telegramId": tg_id,
-                          "hwidDeviceLimit": 3,
-                          "activeInternalSquads": ["6f11955f-6b95-4f96-bba4-3d866de8ce83"],
-           }
-           )
-        with sq.connect('database.db') as con:
-            cur = con.cursor()
-            cur.execute(
-                'UPDATE subscriptions SET subscription_expires_at = ? WHERE user_id = ?',
-                ((expire_at + timedelta(days=days)).isoformat(), tg_id)
-            )
+        new_expire = expire_at + timedelta(days=days)  # <-- вот эта строка
+
+        body = requests.patch(
+            f"{self.base_url}/api/users",
+            headers={"Content-Type": "application/json", "Authorization": f"Bearer {self.token}"},
+            json={
+                "username": f'user_{tg_id}',
+                "trafficLimitBytes": 0,
+                "expireAt": new_expire.isoformat(),
+                "telegramId": tg_id,
+                "hwidDeviceLimit": 3,
+                "activeInternalSquads": ["6f11955f-6b95-4f96-bba4-3d866de8ce83"],
+            }
+        )
+        upsert_subscription_days(tg_id, expires_at=new_expire.isoformat())
         print(body.json())
         return body.json()
 

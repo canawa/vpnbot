@@ -2,9 +2,12 @@ import sqlite3 as sq
 from datetime import datetime, timedelta
 
 
-def upsert_subscription_days(user_id: int, duration_days: int) -> str:
+def upsert_subscription_days(user_id: int, duration_days: int, expires_at: str = None) -> str:
     """Создаёт/обновляет subscriptions: дата окончания = сегодня + duration_days (ISO YYYY-MM-DD). Сбрасывает runout / expiring_tomorrow."""
-    expires = (datetime.now() + timedelta(days=int(duration_days))).date().isoformat()
+    if expires_at:
+        expires = expires_at
+    else:
+        expires = (datetime.now() + timedelta(days=int(duration_days))).date().isoformat()
     with sq.connect('database.db') as con:
         cur = con.cursor()
         cur.execute(

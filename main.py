@@ -94,16 +94,14 @@ def _vpn_response_user_already_exists(payload):
 
 def fetch_vpn_subscription_url_after_purchase(tg_id: int):
     created = vpn.create_new_user(tg_id)
-    if created['errorCode']:
+    if created.get('errorCode'):
         if _vpn_response_user_already_exists(created):
-            renewed = vpn.renew_subscription(tg_id, 30)
-            # renew_json = renewed['response']['expireAt']
-            # print(renew_json)
+            renewed = vpn.renew_subscription(tg_id, 30)  # renew сам обновляет БД
             return _vpn_response_subscription_url(renewed)
         return None
-    url = _vpn_response_subscription_url(created)
-    if url:
-        return url
+    # Новый пользователь — обновляем БД здесь
+    upsert_subscription_days(tg_id, VPN_SUBSCRIPTION_DAYS_PAID)
+    return _vpn_response_subscription_url(created)
 
 
 def vpn_subscription_message_html(url: str) -> str:
@@ -476,7 +474,6 @@ async def plan_trial(callback: CallbackQuery):
         except Exception as e:
             print(f'Ошибка при выдаче подписки (trial): {e}')
         if url:
-            upsert_subscription_days(callback.from_user.id, VPN_SUBSCRIPTION_DAYS_PAID)
             try:
                 await callback.message.answer_photo(
                     MY_KEYS_PHOTO,
@@ -582,7 +579,6 @@ async def check_payment_yookassa_callback(callback: CallbackQuery): # сюды
         except Exception as e:
             print(f'Ошибка при выдаче подписки после оплаты: {e}')
         if url:
-            upsert_subscription_days(callback.from_user.id, VPN_SUBSCRIPTION_DAYS_PAID)
             try:
                 await callback.message.answer_photo(
                     MY_KEYS_PHOTO,
