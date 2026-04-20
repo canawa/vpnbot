@@ -39,6 +39,7 @@ class Vpn:
                           "activeInternalSquads": ["6f11955f-6b95-4f96-bba4-3d866de8ce83"],
                       }
                       )
+        print(body.json())
         return body.json()
 
     def renew_subscription(self, tg_id, days):
@@ -57,6 +58,7 @@ class Vpn:
                           "activeInternalSquads": ["6f11955f-6b95-4f96-bba4-3d866de8ce83"],
            }
            )
+        print(body.json())
         return body.json()
 
     def get_user_by_tg_id(self, tg_id):
