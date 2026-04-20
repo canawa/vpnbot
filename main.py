@@ -209,7 +209,7 @@ async def start_command(message):
 
     user = vpn.get_user_by_tg_id(message.from_user.id)
     print(user)
-    expire_at_str = user['response'][0]['expireAt']
+    expire_at_str = user.get('response', {}).get('expireAt')
     if expire_at_str:
         expire_at = datetime.fromisoformat(expire_at_str)
         has_active_subscription = expire_at.date() > date.today()
@@ -439,7 +439,6 @@ def welcome_back_caption(has_active: bool, subscription_expires_at=None) -> str:
 async def back_callback(callback: CallbackQuery):
     await callback.answer("Назад") # на пол экрана хуйня высветится
     await callback.message.delete()
-    today_str = date.today().isoformat()
     user = vpn.get_user_by_tg_id(callback.from_user.id)
     expire_at_str = user['response'][0]['expireAt']
     if expire_at_str:
@@ -737,11 +736,6 @@ async def admin_users_callback(callback: CallbackQuery):
                 os.remove('users.xlsx')
             except:
                 pass
-        
-    #     message_text = "Список пользователей:\n\n" + "\n".join(
-    # f'👤 {user[0]} - {user[1]} - {user[2]} Р - {user[3]} рефов' for user in result)
-    #     message_text = message_text + f'\n\n ВСЕГО ПОЛЬЗОВАТЕЛЕЙ: {len(result)}'
-    # await callback.message.answer(f"{message_text}", parse_mode='HTML', reply_markup=ikb_admin_back)
 
 @dp.callback_query(lambda c: c.data == 'admin_payments')
 async def admin_payments_callback(callback: CallbackQuery):
@@ -799,56 +793,6 @@ async def admin_notify_trial_callback(callback: CallbackQuery):
                 fail+=1
                 pass
     await callback.message.answer(f"Итого: \n\n ✅ {success} \n\n ❌ {fail} ", parse_mode='HTML', reply_markup=ikb_admin_back)
-
-@dp.callback_query(lambda c: c.data == 'admin_notify_expired')
-async def admin_notify_expired_callback(callback: CallbackQuery):
-    await callback.answer("⏰ Уведомить о завершении пробной подписки") # на пол экрана хуйня высветится
-    await callback.message.delete()
-    today = date.today()
-    today_str = today.isoformat()  # Преобразуем дату в строку формата YYYY-MM-DD для корректного сравнения
-    
-    with sq.connect('database.db') as con:
-        cur = con.cursor()
-        # Находим всех пользователей, у которых нет активных ключей
-        # (либо вообще нет ключей, либо все ключи истекли)
-        cur.execute('''
-            SELECT DISTINCT users.id 
-            FROM users 
-            WHERE users.id NOT IN (
-                SELECT DISTINCT buyer_id 
-                FROM keys 
-                WHERE buyer_id IS NOT NULL 
-                AND expiration_date >= ?
-            )
-        ''', (today_str,))
-        users_without_active_keys = cur.fetchall()
-        
-        sent_count = 0
-        failed_count = 0
-        
-        for user in users_without_active_keys:
-            try:
-                cur.execute('SELECT balance FROM users WHERE id = ?', (user[0],))
-                result = cur.fetchone() # получить результат из базы данных
-                balance = result[0] if result else 0 # если результат не пустой, то вытащить баланс, иначе 0
-                await bot.send_message(
-                    user[0], 
-                    f"⏰ <b>Ваша пробная подписка закончилась</b>\n\nВаш тестовый период VPN истек. Для продолжения использования сервиса, пожалуйста, приобретите новый ключ.\n\n<b>Баланс: {balance}₽</b>",
-                    parse_mode='HTML',
-                    reply_markup='ПОЧИНИТЬ'
-                )
-                sent_count += 1
-            except Exception as e:
-                failed_count += 1
-                print(f"Error sending message to user {user[0]}: {e}")
-        
-        await callback.message.answer(
-            f"✅ Уведомления отправлены!\n\n"
-            f"📤 Отправлено: {sent_count}\n"
-            f"❌ Ошибок: {failed_count}",
-            parse_mode='HTML',
-            reply_markup=ikb_admin_back
-        )
 
 @dp.callback_query(lambda c: c.data == 'admin_notify_referral')
 async def admin_notify_referral_callback(callback: CallbackQuery):
