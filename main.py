@@ -207,9 +207,10 @@ async def start_command(message):
                         cur.execute('UPDATE users SET ref_amount = ref_amount + 1 WHERE id = ?', (ref,))
                 con.commit()
 
-    user = vpn.get_user_by_tg_id(message.from_user.id)
+
     # print(user)
     try:
+        user = vpn.get_user_by_tg_id(message.from_user.id)
         expire_at_str = user['response'][0]['expireAt']
     except:
         expire_at_str = None
@@ -442,9 +443,10 @@ def welcome_back_caption(has_active: bool, subscription_expires_at=None) -> str:
 async def back_callback(callback: CallbackQuery):
     await callback.answer("Назад") # на пол экрана хуйня высветится
     await callback.message.delete()
-    user = vpn.get_user_by_tg_id(callback.from_user.id)
+
     # print(user)
     try:
+        user = vpn.get_user_by_tg_id(callback.from_user.id)
         expire_at_str = user['response'][0]['expireAt']
     except:
         expire_at_str = None
