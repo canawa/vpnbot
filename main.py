@@ -96,6 +96,8 @@ def fetch_vpn_subscription_url_after_purchase(tg_id: int):
     if created['errorCode']:
         if _vpn_response_user_already_exists(created):
             renewed = vpn.renew_subscription(tg_id, 30)
+            renew_json = renewed['response']['expireAt']
+            print(renew_json)
             return _vpn_response_subscription_url(renewed)
         return None
     url = _vpn_response_subscription_url(created)
