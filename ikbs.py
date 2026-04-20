@@ -22,8 +22,8 @@ def generate_ikb_main(user_id):
             subscription_expires_at = datetime.fromisoformat(subscription_expires_at)
             if subscription_expires_at < datetime.now():
                 ikb_main.inline_keyboard.append([InlineKeyboardButton(text='Подключить VPN', callback_data='buy_vpn', icon_custom_emoji_id=get_emoji('plus'))])
-                if had_trial != 1:
-                    ikb_main.inline_keyboard.append([InlineKeyboardButton(text='🎁 Попробовать бесплатно', callback_data='trial', style = 'success')])
+        if had_trial != 1:
+            ikb_main.inline_keyboard.append([InlineKeyboardButton(text='🎁 Попробовать бесплатно', callback_data='trial', style = 'success')])
         else:
             ikb_main.inline_keyboard.append([InlineKeyboardButton(text='Подключить VPN', callback_data='buy_vpn', icon_custom_emoji_id=get_emoji('plus'))])
             if had_trial != 1:
