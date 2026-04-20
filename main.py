@@ -208,7 +208,7 @@ async def start_command(message):
                 con.commit()
 
     user = vpn.get_user_by_tg_id(message.from_user.id)
-    print(user)
+    # print(user)
     try:
         expire_at_str = user['response'][0]['expireAt']
     except:
@@ -443,7 +443,12 @@ async def back_callback(callback: CallbackQuery):
     await callback.answer("Назад") # на пол экрана хуйня высветится
     await callback.message.delete()
     user = vpn.get_user_by_tg_id(callback.from_user.id)
-    expire_at_str = user['response'][0]['expireAt']
+    user = vpn.get_user_by_tg_id(message.from_user.id)
+    # print(user)
+    try:
+        expire_at_str = user['response'][0]['expireAt']
+    except:
+        expire_at_str = None
     if expire_at_str:
         expire_at = datetime.fromisoformat(expire_at_str)
         has_active_subscription = expire_at.date() > date.today()
