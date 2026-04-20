@@ -68,7 +68,7 @@ class Vpn:
            )
         with sq.connect('database.db') as con:
             cur = con.cursor()
-            cur.execute('UPDATE subscriptions SET subscription_expires_at = ? WHERE user_id = ? ', (expire_at, tg_id))
+            cur.execute('UPDATE subscriptions SET subscription_expires_at = ? WHERE user_id = ? ', (expire_at + timedelta(days=days), tg_id))
         print(body.json())
         return body.json()
 
