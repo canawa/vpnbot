@@ -440,20 +440,17 @@ async def back_callback(callback: CallbackQuery):
     await callback.answer("Назад") # на пол экрана хуйня высветится
     await callback.message.delete()
     today_str = date.today().isoformat()
-    with sq.connect('database.db') as con:
-        cur = con.cursor()
-        cur.execute(
-            """
-            SELECT subscription_expires_at FROM subscriptions
-            WHERE user_id = ? AND date(subscription_expires_at) >= date(?)
-            LIMIT 1
-            """,
-            (callback.from_user.id, today_str),
-        )
-        sub_row = cur.fetchone()
-        has_active_subscription = sub_row is not None
-        subscription_expires_at = sub_row[0] if sub_row else None
-        text = welcome_back_caption(has_active_subscription, subscription_expires_at)
+    user = vpn.get_user_by_tg_id(callback.from_user.id)
+    expire_at_str = user['response'][0]['expireAt']
+    if expire_at_str:
+        expire_at = datetime.fromisoformat(expire_at_str)
+        has_active_subscription = expire_at.date() > date.today()
+        subscription_expires_at = format_date_ru(expire_at)
+    else:
+        has_active_subscription = False
+        subscription_expires_at = None
+
+    text = welcome_back_caption(has_active_subscription, subscription_expires_at)
     await callback.message.answer_photo(
         WELCOME_PHOTO,
         caption=text,
@@ -527,7 +524,7 @@ async def plan_lifetime_callback(callback: CallbackQuery):
     )
 )
 async def check_payment_yookassa_callback(callback: CallbackQuery): # сюды
-    print("CALLBACK DATA:", callback.data)
+    # print("CALLBACK DATA:", callback.data)
     await callback.answer("🔄 Проверка статуса оплаты") # на пол экрана хуйня высветится
     # await callback.message.delete()
     raw = callback.data
@@ -568,7 +565,7 @@ async def check_payment_yookassa_callback(callback: CallbackQuery): # сюды
                                 cur.execute('UPDATE users SET received_bonus = 1 WHERE id = ?', (callback.from_user.id))
                                 renew_json = vpn.renew_subscription(ref_master_id, 7)
                                 renew_json = renew_json['response']['expireAt']
-                                print(renew_json)
+                                # print(renew_json)
                                 await bot.send_message(ref_master_id,'<tg-emoji emoji-id="5416117059207572332">➡️</tg-emoji> Ваш реферал совершил депозит, вы получили бонусом 7 дней подписки!', parse_mode = 'HTML', reply_markup = ikb_my_sub)
             con.commit()
         url = None
