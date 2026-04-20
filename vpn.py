@@ -50,6 +50,7 @@ class Vpn:
             expire_at = cur.fetchone()[0]
             expire_at = datetime.fromisoformat(expire_at)
             expire_at = max(expire_at, datetime.now())
+
         body = requests.patch(f"{self.base_url}/api/users",
            headers={
                "Content-Type": "application/json",

@@ -110,7 +110,7 @@ def vpn_subscription_message_html(url: str) -> str:
         '\n'
         '- Обход белых списков'
         "\n"
-        'Безлимитный трафик\n'
+        '-Безлимитный трафик\n\n'
         "☕️ Мы автоматически установим ключ в приложении HAPP\n"
         "\n"
         "🚀 Нажми кнопку ниже — и всё настроится за тебя\n"
@@ -415,8 +415,7 @@ async def support_callback(callback: CallbackQuery):
 
 def welcome_back_caption(has_active: bool, subscription_expires_at=None) -> str:
     if has_active and subscription_expires_at:
-        exp_safe = html.escape(str(subscription_expires_at).strip(), quote=True)
-        sub_line = f"🟢 Активна до <b>{exp_safe}</b>"
+        sub_line = f"🟢 Активна до <b>{subscription_expires_at}</b>"
     elif has_active:
         sub_line = '🟢 Активна'
     else:
@@ -562,7 +561,9 @@ async def check_payment_yookassa_callback(callback: CallbackQuery): # сюды
                             result = cur.fetchone()
                             if result is not None:
                                 cur.execute('UPDATE users SET received_bonus = 1 WHERE id = ?', (callback.from_user.id))
-                                vpn.renew_subscription(ref_master_id, 7)
+                                renew_json = vpn.renew_subscription(ref_master_id, 7)
+                                renew_json = renew_json['response']['expireAt']
+                                print(renew_json)
                                 await bot.send_message(ref_master_id,'<tg-emoji emoji-id="5416117059207572332">➡️</tg-emoji> Ваш реферал совершил депозит, вы получили бонусом 7 дней подписки!', parse_mode = 'HTML', reply_markup = ikb_my_sub)
             con.commit()
         url = None
