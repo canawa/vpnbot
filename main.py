@@ -471,6 +471,9 @@ async def plan_trial(callback: CallbackQuery):
         url = None
         try:
             url = fetch_vpn_subscription_url_after_purchase(callback.from_user.id)
+            with sq.connect('database.db') as con:
+                cur = con.cursor()
+                cur.execute('UPDATE users SET had_trial = 1 WHERE user_id = ?', (callback.from_user.id,))
         except Exception as e:
             print(f'Ошибка при выдаче подписки (trial): {e}')
         if url:
