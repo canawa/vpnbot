@@ -199,13 +199,12 @@ async def start_command(message):
                         cur.execute('UPDATE users SET ref_amount = ref_amount + 1 WHERE id = ?', (ref,))
                 con.commit()
 
-    today_str = date.today().isoformat()
     user = vpn.get_user_by_tg_id(message.from_user.id)
-    expire_at_str = user['response']['expireAt']
-
+    print(user)
+    expire_at_str = user.get('response').get('expireAt')
     if expire_at_str:
-        expire_at = datetime.fromisoformat(expire_at_str.replace('Z', '+00:00'))
-        has_active_subscription = expire_at > datetime.now()
+        expire_at = datetime.fromisoformat(expire_at_str)
+        has_active_subscription = expire_at.date() > date.today()
         subscription_expires_at = expire_at_str
     else:
         has_active_subscription = False
