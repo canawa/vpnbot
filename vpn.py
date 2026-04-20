@@ -3,6 +3,7 @@ import dotenv
 import asyncio
 import requests
 import sqlite3 as sq
+from databases import *
 from datetime import datetime, time, timedelta
 import uuid
 import secrets
@@ -65,6 +66,9 @@ class Vpn:
                           "activeInternalSquads": ["6f11955f-6b95-4f96-bba4-3d866de8ce83"],
            }
            )
+        with sq.connect('database.db') as con:
+            cur = con.cursor()
+            cur.execute('UPDATE subscriptions SET subscription_expires_at = ? WHERE user_id = ? ', (expire_at, tg_id))
         print(body.json())
         return body.json()
 
