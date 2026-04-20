@@ -147,6 +147,14 @@ MONTH_PRICE = 1
 VPN_SUBSCRIPTION_DAYS_PAID = 30
 VPN_SUBSCRIPTION_DAYS_TRIAL = 3
 
+MONTHS_RU = {
+    1: 'января', 2: 'февраля', 3: 'марта', 4: 'апреля',
+    5: 'мая', 6: 'июня', 7: 'июля', 8: 'августа',
+    9: 'сентября', 10: 'октября', 11: 'ноября', 12: 'декабря'
+}
+
+def format_date_ru(dt) -> str:
+    return f"{dt.day} {MONTHS_RU[dt.month]} {dt.year}"
 
 def get_vpn_pay_keyboard() -> InlineKeyboardMarkup:
     rows = []
@@ -205,7 +213,7 @@ async def start_command(message):
     if expire_at_str:
         expire_at = datetime.fromisoformat(expire_at_str)
         has_active_subscription = expire_at.date() > date.today()
-        subscription_expires_at = expire_at_str
+        subscription_expires_at = format_date_ru(expire_at)
     else:
         has_active_subscription = False
         subscription_expires_at = None
