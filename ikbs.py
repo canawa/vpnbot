@@ -18,16 +18,14 @@ def generate_ikb_main(user_id):
         cur.execute('SELECT subscription_expires_at FROM subscriptions WHERE user_id = ?', (user_id,))
         result = cur.fetchone()
         subscription_expires_at = result[0] if result else None
+        if had_trial != 1:
+            ikb_main.inline_keyboard.append([InlineKeyboardButton(text='🎁 Попробовать бесплатно', callback_data='trial', style = 'success')])
         if subscription_expires_at:
             subscription_expires_at = datetime.fromisoformat(subscription_expires_at)
             if subscription_expires_at < datetime.now():
                 ikb_main.inline_keyboard.append([InlineKeyboardButton(text='Подключить VPN', callback_data='buy_vpn', icon_custom_emoji_id=get_emoji('plus'))])
-        if had_trial != 1:
-            ikb_main.inline_keyboard.append([InlineKeyboardButton(text='🎁 Попробовать бесплатно', callback_data='trial', style = 'success')])
         else:
             ikb_main.inline_keyboard.append([InlineKeyboardButton(text='Подключить VPN', callback_data='buy_vpn', icon_custom_emoji_id=get_emoji('plus'))])
-            if had_trial != 1:
-                ikb_main.inline_keyboard.append([InlineKeyboardButton(text='🎁 Попробовать бесплатно', callback_data='trial', style = 'success')])
 
     ikb_main.inline_keyboard.append([
         InlineKeyboardButton(text='Реферальная программа', callback_data='referral', icon_custom_emoji_id=get_emoji('add_user')),
