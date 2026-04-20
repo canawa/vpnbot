@@ -497,6 +497,9 @@ async def subscribe_confirmed_callback(callback: CallbackQuery):
         trial_url = _vpn_response_subscription_url(result) if isinstance(result, dict) else None
         if trial_url:
             upsert_subscription_days(callback.from_user.id, VPN_SUBSCRIPTION_DAYS_TRIAL)
+            with sq.connect('database.db') as con:
+                cur = con.cursor()
+                cur.execute('UPDATE users SET had_trial = 1 WHERE user_id = ?', (callback.from_user.id,))
             try:
                 await callback.message.answer_photo(
                     MY_KEYS_PHOTO,
