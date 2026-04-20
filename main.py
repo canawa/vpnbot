@@ -521,7 +521,7 @@ async def plan_lifetime_callback(callback: CallbackQuery):
 )
 async def check_payment_yookassa_callback(callback: CallbackQuery): # сюды
     await callback.answer("🔄 Проверка статуса оплаты") # на пол экрана хуйня высветится
-    await callback.message.delete()
+    # await callback.message.delete()
     raw = callback.data
     # Два первых разбиения: префикс (check|yookassa), сумма, остаток — id платежа Юкассы (UUID с дефисами)
     parts = raw.split('_', 2)
