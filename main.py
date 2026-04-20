@@ -468,15 +468,13 @@ async def back_callback(callback: CallbackQuery):
 async def plan_trial(callback: CallbackQuery):
     await callback.message.delete()
     if await is_subscribed(bot, callback.from_user.id):
-        url = None
-        try:
-            url = fetch_vpn_subscription_url_after_purchase(callback.from_user.id)
+        result = vpn.deliver_trial_vpn(callback.from_user.id)
+        url = _vpn_response_subscription_url(result) if isinstance(result, dict) else None
+        if url:
+            upsert_subscription_days(callback.from_user.id, VPN_SUBSCRIPTION_DAYS_TRIAL)  # 3 дня
             with sq.connect('database.db') as con:
                 cur = con.cursor()
-                cur.execute('UPDATE users SET had_trial = 1 WHERE user_id = ?', (callback.from_user.id,))
-        except Exception as e:
-            print(f'Ошибка при выдаче подписки (trial): {e}')
-        if url:
+                cur.execute('UPDATE users SET had_trial = 1 WHERE id = ?', (callback.from_user.id,))
             try:
                 await callback.message.answer_photo(
                     MY_KEYS_PHOTO,
@@ -486,10 +484,8 @@ async def plan_trial(callback: CallbackQuery):
                 )
             except Exception as e:
                 print(f'Ошибка отправки сообщения с ключом (trial): {e}')
-        await callback.message.delete()
     else:
-        await callback.message.answer('❌ Вы не подписаны на канал! Подпишитесь на канал, чтобы получить бесплатный тестовый период!', parse_mode='HTML', reply_markup=ikb_subscribe)
-
+        await callback.message.answer('❌ Вы не подписаны на канал!', parse_mode='HTML', reply_markup=ikb_subscribe)
 
 @dp.callback_query(lambda c: c.data == 'subscribe_confirmed')
 async def subscribe_confirmed_callback(callback: CallbackQuery):
@@ -502,7 +498,7 @@ async def subscribe_confirmed_callback(callback: CallbackQuery):
             upsert_subscription_days(callback.from_user.id, VPN_SUBSCRIPTION_DAYS_TRIAL)
             with sq.connect('database.db') as con:
                 cur = con.cursor()
-                cur.execute('UPDATE users SET had_trial = 1 WHERE user_id = ?', (callback.from_user.id,))
+                cur.execute('UPDATE users SET had_trial = 1 WHERE id = ?', (callback.from_user.id,))
             try:
                 await callback.message.answer_photo(
                     MY_KEYS_PHOTO,
