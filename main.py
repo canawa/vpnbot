@@ -93,13 +93,15 @@ def _vpn_response_user_already_exists(payload):
 
 def fetch_vpn_subscription_url_after_purchase(tg_id: int):
     created = vpn.create_new_user(tg_id)
+    if created['errorCode']:
+        if _vpn_response_user_already_exists(created):
+            renewed = vpn.renew_subscription(tg_id, 30)
+            return _vpn_response_subscription_url(renewed)
+        return None
     url = _vpn_response_subscription_url(created)
     if url:
         return url
-    if _vpn_response_user_already_exists(created):
-        renewed = vpn.renew_subscription(tg_id, 30)
-        return _vpn_response_subscription_url(renewed)
-    return None
+
 
 def vpn_subscription_message_html(url: str) -> str:
     return (
