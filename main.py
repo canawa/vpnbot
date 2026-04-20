@@ -24,6 +24,7 @@ import locale
 from emojis import get_emoji
 from databases import create_tables, upsert_subscription_days
 from payments import get_pay_link, check_payment_status, check_payment_yookassa_status, rub_to_usdt
+from sync_remna_expire_from_keys_once import get_user_by_tg_id
 from vpn import Vpn
 from ikbs import *
 from expire_functions import *
@@ -96,8 +97,8 @@ def fetch_vpn_subscription_url_after_purchase(tg_id: int):
     if created['errorCode']:
         if _vpn_response_user_already_exists(created):
             renewed = vpn.renew_subscription(tg_id, 30)
-            renew_json = renewed['response']['expireAt']
-            print(renew_json)
+            # renew_json = renewed['response']['expireAt']
+            # print(renew_json)
             return _vpn_response_subscription_url(renewed)
         return None
     url = _vpn_response_subscription_url(created)
@@ -180,7 +181,6 @@ async def start_command(message):
                             await bot.send_message(ref, f' <b>🎉 У вас новый реферал - {message.from_user.username}! </b>', parse_mode='HTML')
                         except:
                             pass
-
                         registration_date = date.today().isoformat()
                         cur.execute("SELECT username FROM users WHERE id = ?", (ref,))
                         ref_master_username_row = cur.fetchone()
@@ -200,20 +200,16 @@ async def start_command(message):
                 con.commit()
 
     today_str = date.today().isoformat()
-    with sq.connect('database.db') as con:
-        cur = con.cursor()
-        cur.execute(
-            """
-            SELECT subscription_expires_at FROM subscriptions
-            WHERE user_id = ?
-              AND date(subscription_expires_at) >= date(?)
-            LIMIT 1
-            """,
-            (message.from_user.id, today_str),
-        )
-        sub_row = cur.fetchone()
-        has_active_subscription = sub_row is not None
-        subscription_expires_at = sub_row[0] if sub_row else None
+    user = vpn.get_user_by_tg_id(message.from_user.id)
+    expire_at_str = user.get('response', {}).get('expireAt')
+
+    if expire_at_str:
+        expire_at = datetime.fromisoformat(expire_at_str.replace('Z', '+00:00'))
+        has_active_subscription = expire_at > datetime.now()
+        subscription_expires_at = expire_at_str
+    else:
+        has_active_subscription = False
+        subscription_expires_at = None
 
     text = welcome_back_caption(has_active_subscription, subscription_expires_at)
     await message.answer_photo(
