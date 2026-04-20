@@ -520,6 +520,7 @@ async def plan_lifetime_callback(callback: CallbackQuery):
     )
 )
 async def check_payment_yookassa_callback(callback: CallbackQuery): # сюды
+    print("CALLBACK DATA:", callback.data)
     await callback.answer("🔄 Проверка статуса оплаты") # на пол экрана хуйня высветится
     # await callback.message.delete()
     raw = callback.data
@@ -536,6 +537,7 @@ async def check_payment_yookassa_callback(callback: CallbackQuery): # сюды
         return
     # Убрали лишний print для экономии памяти
     if check_payment_yookassa_status(amount_rub, payment_id, callback.from_user.id):
+
         with sq.connect('database.db') as con:
             cur = con.cursor()
             cur.execute('SELECT ref_master_id, registration_date FROM referal_users WHERE referral_id = ?', (callback.from_user.id,))
