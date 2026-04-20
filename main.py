@@ -271,11 +271,6 @@ async def check_payment_callback(callback: CallbackQuery):
 async def buy_vpn_callback(callback: CallbackQuery):
     await callback.message.delete()
     await callback.answer("🛒 Раздел покупки VPN") # на пол экрана хуйня высветится
-    with sq.connect('database.db') as con:
-        cur = con.cursor()
-        cur.execute('SELECT balance FROM users WHERE id = ?', (callback.from_user.id,))
-        result = cur.fetchone()
-        balance = result[0] if result else 0
     await callback.message.answer_photo(FSInputFile("photos/buy_vpn.png"), caption= (
         '🚀 <b>В подписку входит:</b>\n  \n'
         '<i>— Неограниченная скорость</i> \n'
@@ -543,7 +538,6 @@ async def check_payment_yookassa_callback(callback: CallbackQuery): # сюды
     if check_payment_yookassa_status(amount_rub, payment_id, callback.from_user.id):
         with sq.connect('database.db') as con:
             cur = con.cursor()
-            cur.execute('UPDATE users SET balance = balance + ? WHERE id = ?', (amount_rub, callback.from_user.id))
             cur.execute('SELECT ref_master_id, registration_date FROM referal_users WHERE referral_id = ?', (callback.from_user.id,))
             ref_master = cur.fetchone()
             if ref_master: # если есть рефовод то:
