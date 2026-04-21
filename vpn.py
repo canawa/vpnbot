@@ -5,6 +5,7 @@ import requests
 import sqlite3 as sq
 from databases import *
 from datetime import datetime, time, timedelta
+import logging
 import uuid
 import secrets
 import string
@@ -16,6 +17,7 @@ from remnawave.models import (  # Updated import path
     CreateInternalSquadRequestDto
 )
 dotenv.load_dotenv()
+logger = logging.getLogger(__name__)
 
 class Vpn:
     def __init__(self):
@@ -41,7 +43,7 @@ class Vpn:
                           "activeInternalSquads": ["6f11955f-6b95-4f96-bba4-3d866de8ce83"],
                       }
                       )
-        print(body.json())
+        logger.debug('create_new_user response received')
         return body.json()
 
     def renew_subscription(self, tg_id, days):
@@ -104,7 +106,7 @@ class Vpn:
             }
         )
         upsert_subscription_days(tg_id, expires_at=new_expire.isoformat())
-        print(body.json())
+        logger.debug('renew_subscription response received')
         return body.json()
 
     def get_user_by_tg_id(self, tg_id):

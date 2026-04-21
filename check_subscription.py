@@ -1,6 +1,9 @@
 
 
 from aiogram.types import ChatMember
+import logging
+
+logger = logging.getLogger(__name__)
 
 CHANNEL_ID = '@coffemaniavpn'
 
@@ -12,6 +15,6 @@ async def is_subscribed(bot, user_id):
         )
         return member.status not in ('left', 'kicked') # если не лефт и не кикед то вернет true
     except Exception as e:
-        print(e)
+        logger.exception('is_subscribed failed')
         return False
 

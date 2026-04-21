@@ -12,6 +12,7 @@ import requests
 import dotenv
 import os
 import random
+import logging
 
 from traitlets import Bool
 from yookassa import Configuration, Payment # для работы с Юкассой
@@ -29,7 +30,9 @@ from vpn import Vpn
 from ikbs import *
 from expire_functions import *
 locale.setlocale(locale.LC_TIME, 'ru_RU.UTF-8')
-print('BOT STARTED!!!')
+logging.basicConfig(level=logging.ERROR)
+logger = logging.getLogger(__name__)
+logger.error('BOT STARTED')
 
 vpn = Vpn()
 
@@ -131,7 +134,7 @@ try:
     MY_KEYS_PHOTO = FSInputFile("photos/my_keys.png")
     DEPOSIT_PHOTO = FSInputFile("photos/deposit.png")
 except FileNotFoundError:
-    print("Photo files not found")
+    logger.error("Photo files not found")
     exit()
 
 bot = Bot(token=os.getenv('BOT_TOKEN')) # объект бота
@@ -278,7 +281,7 @@ async def check_payment_callback(callback: CallbackQuery):
             parse_mode='HTML',
             reply_markup=ikb_support,
         )
-        print(f'check_payment_callback error: {type(e).__name__}: {e}')
+        logger.exception('check_payment_callback error')
         raise e
 
 # ОБРАБОТЧИКИ КОЛЛБЭКОВ
@@ -306,7 +309,7 @@ async def my_sub_callback(callback: CallbackQuery):
     try:
         result = vpn.get_user_by_tg_id(uid)
     except Exception as e:
-        print(f'get_user_by_tg_id({uid}): {e}')
+        logger.exception('get_user_by_tg_id failed for uid=%s', uid)
         result = None
     url = _vpn_response_subscription_url(result) if result else None
     if url:
@@ -488,7 +491,7 @@ async def plan_trial(callback: CallbackQuery):
                     reply_markup=create_ikb_sub_after_buy(url),
                 )
             except Exception as e:
-                print(f'Ошибка отправки сообщения с ключом (trial): {e}')
+                logger.exception('Ошибка отправки сообщения с ключом (trial)')
     else:
         await callback.message.answer('❌ Вы не подписаны на канал!', parse_mode='HTML', reply_markup=ikb_subscribe)
 
@@ -513,7 +516,7 @@ async def subscribe_confirmed_callback(callback: CallbackQuery):
                     reply_markup=create_ikb_sub_after_buy(trial_url),
                 )
             except Exception as e:
-                print(f'Ошибка отправки trial-ключа: {e}')
+                logger.exception('Ошибка отправки trial-ключа')
         else:
             await callback.message.answer(
                 '✅ Подписка на канал подтверждена. Если ключ не пришёл — нажми «Попробовать бесплатно» ещё раз или напиши в поддержку.',
@@ -585,7 +588,7 @@ async def check_payment_yookassa_callback(callback: CallbackQuery): # сюды
         try:
             url = fetch_vpn_subscription_url_after_purchase(callback.from_user.id)
         except Exception as e:
-            print(f'Ошибка при выдаче подписки после оплаты: {e}')
+            logger.exception('Ошибка при выдаче подписки после оплаты')
         if url:
             try:
                 await callback.message.answer_photo(
@@ -595,7 +598,7 @@ async def check_payment_yookassa_callback(callback: CallbackQuery): # сюды
                     reply_markup=create_ikb_sub_after_buy(url),
                 )
             except Exception as e:
-                print(f'Ошибка отправки сообщения с ключом после оплаты: {e}')
+                logger.exception('Ошибка отправки сообщения с ключом после оплаты')
         await callback.message.delete()
 
     elif payment_state == 'already_processed':
@@ -610,7 +613,6 @@ async def check_payment_yookassa_callback(callback: CallbackQuery): # сюды
 @dp.callback_query(lambda c: c.data.startswith('deposit_'))
 async def process_deposit(callback: CallbackQuery):
     # Убрали лишний print для экономии памяти
-    print(callback.data)
     _ , price , method = callback.data.split('_')
     
     amount = int(price)
@@ -642,7 +644,7 @@ async def process_deposit(callback: CallbackQuery):
                 '❌ Не удалось создать заявку. Напишите в техподдержку, мы обязательно поможем!',
                 reply_markup=ikb_support,
             )
-            print(f'process_deposit error: {type(e).__name__}: {e}')
+            logger.exception('process_deposit error')
             raise e
 
 @dp.callback_query(lambda c: c.data == 'bug_report')
@@ -691,7 +693,7 @@ async def shout_message(message: Message):
                 blocked += 1
             else:
                 failed += 1
-                print(f'shout → {uid}: {err_name}: {e}')
+                logger.exception('shout send failed uid=%s err=%s', uid, err_name)
         await asyncio.sleep(0.05)
 
     summary = (

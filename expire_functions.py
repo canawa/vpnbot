@@ -2,8 +2,10 @@ import sqlite3 as sq
 from datetime import datetime, date
 from datetime import timedelta
 import asyncio
+import logging
 
 from ikbs import *
+logger = logging.getLogger(__name__)
 
 
 async def check_expired_subscriptions_table(bot):
@@ -41,13 +43,13 @@ async def check_expired_subscriptions_table(bot):
                             (user_id,),
                         )
                         con.commit()
-                        print(f'{user_id}: subscriptions table — expired today notified')
+                        logger.debug('%s: subscriptions table — expired today notified', user_id)
                     except Exception as e:
-                        print(f"subscriptions expired notify {user_id}: {e}")
+                        logger.exception('subscriptions expired notify user_id=%s', user_id)
                         continue
 
         except Exception as e:
-            print(f'Error check_expired_subscriptions_table: {e}')
+            logger.exception('Error check_expired_subscriptions_table')
 
         await asyncio.sleep(3600)
 
@@ -86,13 +88,13 @@ async def check_expiring_tomorrow_subscriptions_table(bot):
                             (user_id,),
                         )
                         con.commit()
-                        print(f'{user_id}: subscriptions table — expiring tomorrow notified')
+                        logger.debug('%s: subscriptions table — expiring tomorrow notified', user_id)
                     except Exception as e:
-                        print(f"subscriptions tomorrow notify {user_id}: {e}")
+                        logger.exception('subscriptions tomorrow notify user_id=%s', user_id)
                         continue
 
         except Exception as e:
-            print(f'Error check_expiring_tomorrow_subscriptions_table: {e}')
+            logger.exception('Error check_expiring_tomorrow_subscriptions_table')
 
         await asyncio.sleep(3600)
 
@@ -111,7 +113,7 @@ async def reset_runout_notified_daily(): # НЕ ЕБУ КАК РАБОТАЕТ!
             # Вычисляем количество секунд до следующего 00:01
             seconds_until_reset = (next_reset - now).total_seconds()
 
-            print(f"Next runout_notified reset will be at {next_reset.strftime('%Y-%m-%d %H:%M:%S')}")
+            logger.debug("Next runout_notified reset will be at %s", next_reset.strftime('%Y-%m-%d %H:%M:%S'))
             await asyncio.sleep(seconds_until_reset)
 
             # Сбрасываем флаги для всех пользователей
@@ -122,12 +124,12 @@ async def reset_runout_notified_daily(): # НЕ ЕБУ КАК РАБОТАЕТ!
                 cur.execute('UPDATE subscriptions SET runout_notified = 0 WHERE runout_notified = 1')
                 cur.execute('UPDATE subscriptions SET expiring_tomorrow_notified = 0 WHERE expiring_tomorrow_notified = 1')
                 con.commit()
-                print(
-                    f"runout_notified and expiring_tomorrow_notified flags reset for all users at "
-                    f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+                logger.debug(
+                    "runout_notified and expiring_tomorrow_notified flags reset for all users at %s",
+                    datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
                 )
         except Exception as e:
-            print(f"Error resetting runout_notified: {e}")
+            logger.exception("Error resetting runout_notified")
             # В случае ошибки ждем час перед следующей попыткой
             await asyncio.sleep(3600)
 
