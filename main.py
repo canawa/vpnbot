@@ -140,7 +140,7 @@ create_tables()
 
 dp = Dispatcher() # объект диспетчера
 
-MONTH_PRICE = 149
+MONTH_PRICE = 1
 # Сроки как в vpn.py: create/renew +30 дн., trial POST +3 дн.
 VPN_SUBSCRIPTION_DAYS_PAID = 30
 VPN_SUBSCRIPTION_DAYS_TRIAL = 3
