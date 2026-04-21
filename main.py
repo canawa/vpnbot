@@ -605,7 +605,7 @@ async def check_payment_yookassa_callback(callback: CallbackQuery): # сюды
             reply_markup=ikb_my_sub,
         )
     else:
-        await callback.message.answer(f'👀 Ожидаем оплату, оплатите и попробуйте снова!', parse_mode='HTML', reply_markup=ikb_back)
+        await callback.message.answer(f'👀 Ожидаем оплату, оплатите и попробуйте снова!', parse_mode='HTML')
 
 @dp.callback_query(lambda c: c.data.startswith('deposit_'))
 async def process_deposit(callback: CallbackQuery):
