@@ -45,17 +45,51 @@ class Vpn:
         return body.json()
 
     def renew_subscription(self, tg_id, days):
+        def _parse_iso_dt(value):
+            if not value:
+                return None
+            if isinstance(value, datetime):
+                return value
+            text = str(value).strip()
+            if not text:
+                return None
+            # fromisoformat не всегда принимает суффикс Z.
+            if text.endswith('Z'):
+                text = text[:-1] + '+00:00'
+            try:
+                dt = datetime.fromisoformat(text)
+            except Exception:
+                return None
+            # Приводим timezone-aware к naive в локальном времени процесса.
+            if dt.tzinfo is not None:
+                dt = dt.astimezone().replace(tzinfo=None)
+            return dt
+
+        now = datetime.now()
+        db_expire = None
         with sq.connect('database.db') as con:
             cur = con.cursor()
             cur.execute('SELECT subscription_expires_at FROM subscriptions WHERE user_id = ?', (tg_id,))
             row = cur.fetchone()
-            if not row:
-                expire_at = datetime.now()
-            else:
-                expire_at = datetime.fromisoformat(row[0])
-            expire_at = max(expire_at, datetime.now())
+            if row:
+                db_expire = _parse_iso_dt(row[0])
 
-        new_expire = expire_at + timedelta(days=days)  # <-- вот эта строка
+        panel_expire = None
+        try:
+            panel_user = self.get_user_by_tg_id(tg_id)
+            if isinstance(panel_user, dict):
+                response = panel_user.get('response')
+                if isinstance(response, list) and response:
+                    panel_expire = _parse_iso_dt(response[0].get('expireAt'))
+                elif isinstance(response, dict):
+                    panel_expire = _parse_iso_dt(response.get('expireAt'))
+        except Exception:
+            panel_expire = None
+
+        # Ключевой фикс: продлеваем от максимальной актуальной даты, а не только от "сейчас".
+        base_expire = max((dt for dt in (db_expire, panel_expire, now) if dt is not None))
+
+        new_expire = base_expire + timedelta(days=days)
 
         body = requests.patch(
             f"{self.base_url}/api/users",

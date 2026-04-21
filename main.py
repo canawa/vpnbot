@@ -273,7 +273,12 @@ async def check_payment_callback(callback: CallbackQuery):
         else:
             await callback.message.answer('👀 Ожидаем оплату, оплатите и попробуйте снова!', parse_mode='HTML')
     except Exception as e:
-        await callback.message.answer(f'❌ Ошибка: {e}', parse_mode='HTML')
+        await callback.message.answer(
+            '❌ Не удалось проверить оплату. Попробуйте чуть позже или напишите в поддержку.',
+            parse_mode='HTML',
+            reply_markup=ikb_support,
+        )
+        print(f'check_payment_callback error: {type(e).__name__}: {e}')
         raise e
 
 # ОБРАБОТЧИКИ КОЛЛБЭКОВ
@@ -547,7 +552,8 @@ async def check_payment_yookassa_callback(callback: CallbackQuery): # сюды
         await callback.answer('❌ Неверная сумма в данных кнопки.', show_alert=True)
         return
     # Убрали лишний print для экономии памяти
-    if check_payment_yookassa_status(amount_rub, payment_id, callback.from_user.id):
+    payment_state = check_payment_yookassa_status(amount_rub, payment_id, callback.from_user.id)
+    if payment_state == 'paid':
 
         with sq.connect('database.db') as con:
             cur = con.cursor()
@@ -592,6 +598,12 @@ async def check_payment_yookassa_callback(callback: CallbackQuery): # сюды
                 print(f'Ошибка отправки сообщения с ключом после оплаты: {e}')
         await callback.message.delete()
 
+    elif payment_state == 'already_processed':
+        await callback.message.answer(
+            '✅ Этот платёж уже обработан ранее. Если доступ не появился, откройте «Моя подписка».',
+            parse_mode='HTML',
+            reply_markup=ikb_my_sub,
+        )
     else:
         await callback.message.answer(f'👀 Ожидаем оплату, оплатите и попробуйте снова!', parse_mode='HTML', reply_markup=ikb_back)
 
@@ -626,7 +638,11 @@ async def process_deposit(callback: CallbackQuery):
             confirmation_url = payment.confirmation.confirmation_url
             await callback.message.answer(f'👉 Создали заявку на оплату, переходите по ссылке и оплатите.\n\n <b>❗ После оплаты нажмите на кнопку "Я оплатил"</b>', parse_mode='HTML', reply_markup=create_yookassa_payment_keyboard(amount, confirmation_url, payment_id))
         except Exception as e:
-            await callback.message.answer(f'❌ Не удалось создать заявку: {e}. Напишите в техподдержку, мы обязательно поможем!', reply_markup=ikb_support)
+            await callback.message.answer(
+                '❌ Не удалось создать заявку. Напишите в техподдержку, мы обязательно поможем!',
+                reply_markup=ikb_support,
+            )
+            print(f'process_deposit error: {type(e).__name__}: {e}')
             raise e
 
 @dp.callback_query(lambda c: c.data == 'bug_report')

@@ -32,7 +32,7 @@ def create_tables():
         cur.execute(
             'CREATE TABLE IF NOT EXISTS referal_users (id INTEGER PRIMARY KEY, referral_id INTEGER UNIQUE, ref_master_id INTEGER, registration_date TEXT, referral_username TEXT, ref_master_username TEXT)')
         cur.execute(
-            'CREATE TABLE IF NOT EXISTS transactions (id INTEGER PRIMARY KEY, user_id INTEGER, amount INTEGER, type TEXT, date TEXT)')
+            'CREATE TABLE IF NOT EXISTS transactions (id INTEGER PRIMARY KEY, user_id INTEGER, amount INTEGER, type TEXT, date TEXT, external_payment_id TEXT)')
         # Добавляем поле role, если его еще нет
         try:
             cur.execute('ALTER TABLE users ADD COLUMN role TEXT DEFAULT NULL')
@@ -83,6 +83,13 @@ def create_tables():
             cur.execute('ALTER TABLE users ADD COLUMN received_bonus INTEGER DEFAULT 0')
         except:
             pass
+        try:
+            cur.execute('ALTER TABLE transactions ADD COLUMN external_payment_id TEXT')
+        except Exception:
+            pass
+        cur.execute(
+            'CREATE UNIQUE INDEX IF NOT EXISTS ux_transactions_type_external_payment ON transactions(type, external_payment_id)'
+        )
         cur.execute('CREATE TABLE IF NOT EXISTS vpn_pay_pending (user_id INTEGER PRIMARY KEY, country TEXT NOT NULL)')
         cur.execute('CREATE TABLE IF NOT EXISTS subscriptions (user_id INTEGER PRIMARY KEY, subscription_expires_at TEXT NOT NULL)')
         try:
