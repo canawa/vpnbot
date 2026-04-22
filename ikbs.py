@@ -41,7 +41,7 @@ ikb_back = InlineKeyboardMarkup(inline_keyboard=[
     ])
 
 ikb_referral_reminder = InlineKeyboardMarkup(inline_keyboard=[ # клава которая вылезит людям
-    [InlineKeyboardButton(text='🤝 Получить 50₽ на баланс', callback_data='referral', icon_custom_emoji_id=get_emoji('game'), style = 'success')],
+    [InlineKeyboardButton(text='🤝 Получить 7 дней подписки', callback_data='referral', icon_custom_emoji_id=get_emoji('game'), style = 'success')],
     [InlineKeyboardButton(text='Назад', callback_data='back', icon_custom_emoji_id=get_emoji('exit'))],
 ])
 
