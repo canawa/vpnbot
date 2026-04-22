@@ -829,7 +829,7 @@ async def admin_notify_referral_callback(callback: CallbackQuery):
         failed_count = 0
         for user in result:
             try:
-                await bot.send_message(user[0], '<tg-emoji emoji-id="5416117059207572332">➡️</tg-emoji> Кстати! Если пригласишь друга и он купит подписку, то получишь 7 дней бонусом!', reply_markup=ikb_referral_reminder)
+                await bot.send_message(user[0], '<tg-emoji emoji-id="5416117059207572332">➡️</tg-emoji> Кстати! Если пригласишь друга и он купит подписку, то получишь 7 дней бонусом!', parse_mode = 'HTML', reply_markup=ikb_referral_reminder)
                 sent_count += 1
             except:
                 failed_count += 1
