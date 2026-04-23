@@ -810,9 +810,21 @@ async def admin_notify_trial_callback(callback: CallbackQuery):
         fail = 0
         for user in result:
             try:
-                await bot.send_message(user[0], "🎁 <b>У вас есть бесплатный тестовый период VPN на 3 дня!</b>\n\nВы можете использовать его, чтобы протестировать наш сервис.\n\n Пишите /start чтобы получить бесплатный тестовый период!", parse_mode='HTML')
+                await bot.send_message(user[0], (
+                    "Похоже, ты не успел попробовать VPN 👌\n\n"
+                    'Коротко, почему его вообще стоит включить хотя бы раз:\n'
+                    '— установка и запуск &lt; 1 минуты\n'
+                    '— включил и забыл (работает в фоне)\n'
+                    '— ВК и ру-сервисы не ломаются\n'
+                    '— быстрый обход блокировок без тормозов\n\n'
+                    '👉 Можешь просто зайти и проверить — без лишних настроек\n\n'
+                    '🎁 Если подключишься сегодня — получишь 3 дня бесплатной подписки\n\n'
+                    'Жми /start'
+
+                                                 ), parse_mode='HTML')
                 success+=1
-            except:
+            except Exception as e:
+                print(e)
                 fail+=1
                 pass
     await callback.message.answer(f"Итого: \n\n ✅ {success} \n\n ❌ {fail} ", parse_mode='HTML', reply_markup=ikb_admin_back)
