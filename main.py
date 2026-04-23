@@ -805,7 +805,8 @@ async def admin_notify_trial_callback(callback: CallbackQuery):
 
                                                  ), parse_mode='HTML')
                 success+=1
-            except:
+            except Exception as e:
+                print(e)
                 fail+=1
                 pass
     await callback.message.answer(f"Итого: \n\n ✅ {success} \n\n ❌ {fail} ", parse_mode='HTML', reply_markup=ikb_admin_back)
