@@ -790,7 +790,7 @@ async def admin_keys_callback(callback: CallbackQuery):
         df = pd.DataFrame(result, columns=['user_id', 'subscription_expires_at', 'runout_notified', 'expiring_tomorrow_notified'])
         df.to_excel('subscriptions.xlsx', index=False)
         try:
-            await callback.message.answer_document(document=FSInputFile('keys.xlsx'), reply_markup=ikb_admin_back)
+            await callback.message.answer_document(document=FSInputFile('subscriptions.xlsx'), reply_markup=ikb_admin_back)
         finally:
             # Удаляем файл после отправки, чтобы не засорять диск
             try:
