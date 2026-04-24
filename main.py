@@ -733,10 +733,10 @@ async def admin_users_callback(callback: CallbackQuery):
             )
         ''', (today_str,))
         con.commit()
-        cur.execute('SELECT id, username, balance, ref_withdraw, sub_expires_at,  ref_amount, role, had_trial, has_active_keys FROM users')
+        cur.execute('SELECT id, username, balance, ref_balance, sub_expires_at,  ref_amount, role, had_trial, has_active_keys FROM users')
         result = cur.fetchall()
         # используя пандас содаем xlsx файл
-        df = pd.DataFrame(result, columns=['ID', 'Username', 'Balance', 'ref_withdraw', 'sub_expires_at', 'Ref_amount', 'Role', 'Had_trial', 'Has_active_keys'])
+        df = pd.DataFrame(result, columns=['ID', 'Username', 'Balance', 'ref_balance', 'sub_expires_at', 'Ref_amount', 'Role', 'Had_trial', 'Has_active_keys'])
         
         # Вычисляем статистику
         total_users = len(df)

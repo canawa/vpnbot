@@ -86,7 +86,7 @@ ikb_admin = InlineKeyboardMarkup(inline_keyboard=[
 ])
 
 ikb_admin_back = InlineKeyboardMarkup(inline_keyboard=[
-    [InlineKeyboardButton(text=' Назад', callback_data='admin_back', icon_custom_emoji_id=get_emoji('exit'))],
+    [InlineKeyboardButton(text=' Назад', callback_data='admin_back', icon_cuadminstom_emoji_id=get_emoji('exit'))],
 ])
 
 def create_yookassa_payment_keyboard(amount, confirmation_url, payment_id): # функция для создания клавиатуры для оплаты через Юкассу
