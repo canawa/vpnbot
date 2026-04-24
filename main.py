@@ -733,10 +733,10 @@ async def admin_users_callback(callback: CallbackQuery):
             )
         ''', (today_str,))
         con.commit()
-        cur.execute('SELECT id, username, balance, ref_amount, role, had_trial, has_active_keys FROM users')
+        cur.execute('SELECT id, username, balance, ref_withdraw, sub_expires_at,  ref_amount, role, had_trial, has_active_keys FROM users')
         result = cur.fetchall()
         # используя пандас содаем xlsx файл
-        df = pd.DataFrame(result, columns=['ID', 'Username', 'Balance', 'Ref_amount', 'Role', 'Had_trial', 'Has_active_keys'])
+        df = pd.DataFrame(result, columns=['ID', 'Username', 'Balance', 'ref_withdraw', 'sub_expires_at', 'Ref_amount', 'Role', 'Had_trial', 'Has_active_keys'])
         
         # Вычисляем статистику
         total_users = len(df)
@@ -781,20 +781,20 @@ async def admin_payments_callback(callback: CallbackQuery):
 
 @dp.callback_query(lambda c: c.data == 'admin_keys')
 async def admin_keys_callback(callback: CallbackQuery):
-    await callback.answer("🔑 Ключи") # на пол экрана хуйня высветится
+    await callback.answer("🔑 Подписки") # на пол экрана хуйня высветится
     await callback.message.delete()
     with sq.connect('database.db') as con:
         cur = con.cursor()
-        cur.execute('SELECT key, duration, buyer_id, username, buy_date, expiration_date, location FROM keys')
+        cur.execute('SELECT user_id, subscription_expires_at, runout_notified , expiring_tomorrow_notified FROM subscriptions)')
         result = cur.fetchall()
-        df = pd.DataFrame(result, columns=['Key', 'Duration', 'Buyer_id', 'username', 'buy_date', 'expires_at', 'location'])
-        df.to_excel('keys.xlsx', index=False)
+        df = pd.DataFrame(result, columns=['user_id', 'subscription_expires_at', 'runout_notified', 'expiring_tomorrow_notified'])
+        df.to_excel('subscriptions.xlsx', index=False)
         try:
             await callback.message.answer_document(document=FSInputFile('keys.xlsx'), reply_markup=ikb_admin_back)
         finally:
             # Удаляем файл после отправки, чтобы не засорять диск
             try:
-                os.remove('keys.xlsx')
+                os.remove('subscriptions.xlsx')
             except:
                 pass
 
