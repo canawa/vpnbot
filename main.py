@@ -785,7 +785,7 @@ async def admin_keys_callback(callback: CallbackQuery):
     await callback.message.delete()
     with sq.connect('database.db') as con:
         cur = con.cursor()
-        cur.execute('SELECT user_id, subscription_expires_at, runout_notified , expiring_tomorrow_notified FROM subscriptions)')
+        cur.execute('SELECT user_id, subscription_expires_at, runout_notified , expiring_tomorrow_notified FROM subscriptions')
         result = cur.fetchall()
         df = pd.DataFrame(result, columns=['user_id', 'subscription_expires_at', 'runout_notified', 'expiring_tomorrow_notified'])
         df.to_excel('subscriptions.xlsx', index=False)
