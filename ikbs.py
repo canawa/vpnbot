@@ -80,7 +80,7 @@ ikb_admin = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text='👉🏼 Рефералы', callback_data='admin_referrals')],
     [InlineKeyboardButton(text='👑 Роли', callback_data='admin_roles')],
     [InlineKeyboardButton(text='🔊 Напомнить юзерам о бесплатном тестовом периоде', callback_data='admin_notify_trial')],
-    # [InlineKeyboardButton(text='⏰ Уведомить о завершении пробной подписки', callback_data='admin_notify_expired')],
+    [InlineKeyboardButton(text='⏰ Уведомить о завершении пробной подписки', callback_data='admin_notify_sale')],
     [InlineKeyboardButton(text='🤝 Напомнить о рефке', callback_data='admin_notify_referral')],
 
 ])

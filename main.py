@@ -798,6 +798,16 @@ async def admin_keys_callback(callback: CallbackQuery):
             except:
                 pass
 
+@dp.callback_query(lambda c: c.data == 'admin_notify_sale')
+async def admin_notify_sale(callback: CallbackQuery):
+    await callback.message.delete()
+    with sq.connect('database.db') as con:
+        cur = con.cursor()
+        today = datetime.now().strftime('%Y-%m-%d')
+        cur.execute(f'SELECT user_id FROM users WHERE subscription_expires_at < ?', (today,))
+        result = cur.fetchall()
+    print(result)
+
 @dp.callback_query(lambda c: c.data == 'admin_notify_trial')
 async def admin_notify_trial_callback(callback: CallbackQuery):
     await callback.answer("🔊 Напомнить юзерам о бесплатном тестовом периоде") # на пол экрана хуйня высветится
