@@ -6,7 +6,7 @@ def upsert_subscription_days(user_id: int, duration_days: int = None, expires_at
     if expires_at:
         expires = expires_at
     else:
-        expires = (datetime.now() + timedelta(days=int(duration_days))).date().isoformat()
+        expires = (datetime.now() + timedelta(days=int(duration_days))).isoformat()
     with sq.connect('database.db') as con:
         cur = con.cursor()
         cur.execute(
