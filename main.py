@@ -806,7 +806,25 @@ async def admin_notify_sale(callback: CallbackQuery):
         today = datetime.now().strftime('%Y-%m-%d')
         cur.execute(f'SELECT user_id FROM subscriptions WHERE subscription_expires_at < ?', (today,))
         result = cur.fetchall()
-    print(result)
+    # for user in result:
+    #     try:
+        await bot.send_message(1979477416,(
+            "<tg-emoji emoji-id='5436319619000313467'>🛑</tg-emoji> СКОРО ТЫ ПОТЕРЯЕШЬ ВСЁ... \n"
+            "\n"
+            "Твой доступ к Telegram, YouTube и любимым Reels под угрозой. Помнишь, как тепло и спокойно тебе было с нашим VPN?\n"
+            "\n"
+            "Мы создали сервис, который работает по принципу «включил и забыл»:\n"
+            "\n"
+            "<tg-emoji emoji-id='5436087613456918666'>✅</tg-emoji> Сервера переключаются автоматически.\n"
+            "<tg-emoji emoji-id='5307965711065292927'>🚀</tg-emoji> Одинаково стабильно летит ДАЖЕ ПРИ ГЛУШИЛКАХ\n"
+            "<tg-emoji emoji-id='5433895041242246420'>🎙</tg-emoji> Никаких настроек - всё просто работает.\n"
+            "\n"
+            "Мы дарим тебе скидку 10% на продление!\n"
+            "\n"
+            "Больше не думай о том, какой VPN сегодня заработает. Просто пользуйся НАШИМ.",
+        ), parse_mode = 'HTML', reply_markup = ikb_sale)
+        # except Exception as e:
+        #     print(e)
 
 @dp.callback_query(lambda c: c.data == 'admin_notify_trial')
 async def admin_notify_trial_callback(callback: CallbackQuery):

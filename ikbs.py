@@ -118,3 +118,6 @@ ikb_my_sub = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text='Моя подписка', callback_data='my_subscription', icon_custom_emoji_id=get_emoji('shield_emoji'), style='success')],
         [InlineKeyboardButton(text='Назад', callback_data='back', icon_custom_emoji_id=get_emoji('exit'))]
     ])
+ikb_sale = InlineKeyboardMarkup(inline_keyboard = [
+        [InlineKeyboardButton('Оплатить', callback_data = 'deposit_134_card', icon_custom_emoji_id=get_emoji('shield_emoji'), style='success')],
+])
