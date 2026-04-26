@@ -829,8 +829,8 @@ async def admin_notify_sale(callback: CallbackQuery):
             print(e)
             fail += 1
             pass
-        await callback.message.answer(f"Итого: \n\n ✅ {success} \n\n ❌ {fail} ", parse_mode='HTML',
-                                      reply_markup=ikb_admin_back)
+    await callback.message.answer(f"Итого: \n\n ✅ {success} \n\n ❌ {fail} ", parse_mode='HTML',
+                                  reply_markup=ikb_admin_back)
 
 @dp.callback_query(lambda c: c.data == 'admin_notify_trial')
 async def admin_notify_trial_callback(callback: CallbackQuery):
