@@ -801,37 +801,54 @@ async def admin_keys_callback(callback: CallbackQuery):
 @dp.callback_query(lambda c: c.data == 'admin_notify_sale')
 async def admin_notify_sale(callback: CallbackQuery):
     await callback.message.delete()
+
     with sq.connect('database.db') as con:
         cur = con.cursor()
         today = datetime.now().strftime('%Y-%m-%d')
-        cur.execute(f'SELECT user_id FROM subscriptions WHERE subscription_expires_at < ?', (today,))
+        cur.execute(
+            'SELECT user_id FROM subscriptions WHERE subscription_expires_at < ?',
+            (today,)
+        )
         result = cur.fetchall()
-        success = 0
-        fail = 0
+
+    success = 0
+    fail = 0
+
     for user in result:
         try:
-            await bot.send_message(user[0],(
-                "<tg-emoji emoji-id='5436319619000313467'>🛑</tg-emoji> СКОРО ТЫ ПОТЕРЯЕШЬ ВСЁ... \n"
-                "\n"
-                "Твой доступ к Telegram, YouTube и любимым Reels под угрозой. Помнишь, как тепло и спокойно тебе было с нашим VPN?\n"
-                "\n"
-                "Мы создали сервис, который работает по принципу «включил и забыл»:\n"
-                "\n"
-                "<tg-emoji emoji-id='5436087613456918666'>✅</tg-emoji> Сервера переключаются автоматически.\n"
-                "<tg-emoji emoji-id='5307965711065292927'>🚀</tg-emoji> Одинаково стабильно летит ДАЖЕ ПРИ ГЛУШИЛКАХ\n"
-                "<tg-emoji emoji-id='5433895041242246420'>🎙</tg-emoji> Никаких настроек - всё просто работает.\n"
-                "\n"
-                "Для тебя подписка с 'обходом' за всего 99₽\n"
-                "\n"
-                "Больше не думай о том, какой VPN сегодня заработает. Просто пользуйся НАШИМ."
-            ), parse_mode = 'HTML', reply_markup = ikb_sale)
+            await bot.send_message(
+                user[0],
+                (
+                    "<tg-emoji emoji-id='5436319619000313467'>🛑</tg-emoji> СКОРО ТЫ ПОТЕРЯЕШЬ ВСЁ...\n"
+                    "\n"
+                    "Твой доступ к Telegram, YouTube и любимым Reels под угрозой...\n"
+                    "\n"
+                    "Мы создали сервис, который работает по принципу «включил и забыл»:\n"
+                    "\n"
+                    "<tg-emoji emoji-id='5436087613456918666'>✅</tg-emoji> Сервера переключаются автоматически.\n"
+                    "<tg-emoji emoji-id='5307965711065292927'>🚀</tg-emoji> Одинаково стабильно летит ДАЖЕ ПРИ ГЛУШИЛКАХ\n"
+                    "<tg-emoji emoji-id='5433895041242246420'>🎙</tg-emoji> Никаких настроек - всё просто работает.\n"
+                    "\n"
+                    "Для тебя подписка с 'обходом' за всего 99₽\n"
+                    "\n"
+                    "Больше не думай о том, какой VPN сегодня заработает. Просто пользуйся НАШИМ."
+                ),
+                parse_mode='HTML',
+                reply_markup=ikb_sale
+            )
+
+            success += 1
+
         except Exception as e:
             print(e)
             fail += 1
-            pass
-    await callback.message.answer(f"Итого: \n\n ✅ {success} \n\n ❌ {fail} ", parse_mode='HTML',
-                                  reply_markup=ikb_admin_back)
 
+        await asyncio.sleep(0.05)  # 👈 маленький дилей
+
+    await callback.message.answer(
+        f"Итого:\n\n✅ {success}\n\n❌ {fail}",
+        reply_markup=ikb_admin_back
+    )
 @dp.callback_query(lambda c: c.data == 'admin_notify_trial')
 async def admin_notify_trial_callback(callback: CallbackQuery):
     await callback.answer("🔊 Напомнить юзерам о бесплатном тестовом периоде") # на пол экрана хуйня высветится
