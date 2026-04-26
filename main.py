@@ -806,6 +806,8 @@ async def admin_notify_sale(callback: CallbackQuery):
         today = datetime.now().strftime('%Y-%m-%d')
         cur.execute(f'SELECT user_id FROM subscriptions WHERE subscription_expires_at < ?', (today,))
         result = cur.fetchall()
+        success = 0
+        fail = 0
     for user in result:
         try:
             await bot.send_message(user[0],(
@@ -819,7 +821,7 @@ async def admin_notify_sale(callback: CallbackQuery):
                 "<tg-emoji emoji-id='5307965711065292927'>🚀</tg-emoji> Одинаково стабильно летит ДАЖЕ ПРИ ГЛУШИЛКАХ\n"
                 "<tg-emoji emoji-id='5433895041242246420'>🎙</tg-emoji> Никаких настроек - всё просто работает.\n"
                 "\n"
-                "Мы дарим тебе скидку 10% на продление!\n"
+                "Для тебя подписка с 'обходом' за всего 99₽\n"
                 "\n"
                 "Больше не думай о том, какой VPN сегодня заработает. Просто пользуйся НАШИМ."
             ), parse_mode = 'HTML', reply_markup = ikb_sale)
