@@ -804,7 +804,7 @@ async def admin_notify_sale(callback: CallbackQuery):
     with sq.connect('database.db') as con:
         cur = con.cursor()
         today = datetime.now().strftime('%Y-%m-%d')
-        cur.execute(f'SELECT user_id FROM users WHERE subscription_expires_at < ?', (today,))
+        cur.execute(f'SELECT user_id FROM subscriptions WHERE subscription_expires_at < ?', (today,))
         result = cur.fetchall()
     print(result)
 
