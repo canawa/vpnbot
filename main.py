@@ -821,7 +821,7 @@ async def admin_notify_sale(callback: CallbackQuery):
             "\n"
             "Мы дарим тебе скидку 10% на продление!\n"
             "\n"
-            "Больше не думай о том, какой VPN сегодня заработает. Просто пользуйся НАШИМ.",
+            "Больше не думай о том, какой VPN сегодня заработает. Просто пользуйся НАШИМ."
         ), parse_mode = 'HTML', reply_markup = ikb_sale)
         # except Exception as e:
         #     print(e)
