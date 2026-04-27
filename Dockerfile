@@ -1,6 +1,5 @@
 FROM python:3.12
 LABEL authors="den"
-LABEL name=
 
 WORKDIR /app
 COPY . .
