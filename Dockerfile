@@ -1,7 +1,6 @@
 FROM python:3.12
 LABEL authors="den"
-
-ENTRYPOINT ["top", "-b"]
+LABEL name=
 
 WORKDIR /app
 COPY . .
