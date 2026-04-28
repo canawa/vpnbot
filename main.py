@@ -849,6 +849,11 @@ async def admin_notify_sale(callback: CallbackQuery):
         f"Итого:\n\n✅ {success}\n\n❌ {fail}",
         reply_markup=ikb_admin_back
     )
+
+
+
+
+
 @dp.callback_query(lambda c: c.data == 'admin_notify_trial')
 async def admin_notify_trial_callback(callback: CallbackQuery):
     await callback.answer("🔊 Напомнить юзерам о бесплатном тестовом периоде") # на пол экрана хуйня высветится
