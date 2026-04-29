@@ -858,7 +858,7 @@ async def admin_notify_trial_callback(callback: CallbackQuery):
     await callback.message.delete()
     with sq.connect('database.db') as con:
         cur = con.cursor()
-        cur.execute('SELECT id FROM users WHERE had_trial != 1 AND has_active_keys = 0')
+        cur.execute('SELECT id FROM users WHERE had_trial != 1 AND has_active_subscriptions = 0')
         result = cur.fetchall()
         success = 0
         fail = 0
