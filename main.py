@@ -711,7 +711,7 @@ async def shout_message(message: Message):
 async def admin_message (message: Message):
     await message.answer("👤 Админ панель", parse_mode='HTML', reply_markup=ikb_admin)
 
-@dp.callback_query(lambda c: c.data == 'admin_users')
+@dp.callback_query(F.data == 'admin_users')
 async def admin_users_callback(callback: CallbackQuery):
     await callback.answer("👤 Пользователи") # на пол экрана хуйня высветится
     await callback.message.delete() # удаляем соо на котором нажали на кнопку
@@ -721,34 +721,35 @@ async def admin_users_callback(callback: CallbackQuery):
         today_str = today.isoformat()  # Преобразуем дату в строку формата YYYY-MM-DD для корректного сравнения
         # Оптимизация: обновляем has_active_keys одним запросом вместо цикла
         # Сначала устанавливаем всем 0
-        cur.execute("UPDATE users SET has_active_keys = 0")
-        # Затем устанавливаем 1 тем, у кого есть активные ключи
+        cur.execute("UPDATE users SET has_active_subscription = 0")
+        # Затем устанавливаем 1 тем, у кого есть активные подписки
         cur.execute('''
             UPDATE users 
-            SET has_active_keys = 1 
+            SET has_active_subscription = 1 
             WHERE id IN (
                 SELECT DISTINCT buyer_id 
-                FROM keys 
-                WHERE expiration_date >= ? AND buyer_id IS NOT NULL
+                FROM subscriptions 
+                WHERE subscription_expires_at >= ?
             )
         ''', (today_str,))
-        con.commit()
-        cur.execute('SELECT id, username, balance, ref_balance, sub_expires_at,  ref_amount, role, had_trial, has_active_keys FROM users')
+        cur.execute("""SELECT users.id, users.username, users.ref_balance, users.ref_amount, users.had_trial, users.ref_withdraw, users.received_bonus, subscriptions.subscription_expires_at FROM users 
+                    LEFT JOIN subscriptions ON users.id = subscriptions.user_id
+        """)
         result = cur.fetchall()
         # используя пандас содаем xlsx файл
-        df = pd.DataFrame(result, columns=['ID', 'Username', 'Balance', 'ref_balance', 'sub_expires_at', 'Ref_amount', 'Role', 'Had_trial', 'Has_active_keys'])
+        df = pd.DataFrame(result, columns=['ID', 'Username', 'РефБаланс', 'Кол-во Рефов', 'had_trial', 'Сумма вывода ', 'received_bonus', 'Дата окончания подписки'])
         
         # Вычисляем статистику
         total_users = len(df)
-        had_trial_count = len(df[df['Had_trial'] == 1])
-        has_active_keys_count = len(df[df['Has_active_keys'] == 1])
+        had_trial_count = len(df[df['had_trial'] == 1])
+        has_active_sub_count = len(df[df['Дата окончания подписки'] >= today_str])
         
         had_trial_percent = (had_trial_count / total_users * 100) if total_users > 0 else 0
-        has_active_keys_percent = (has_active_keys_count / total_users * 100) if total_users > 0 else 0
-        
+        has_active_sub_percent = (has_active_sub_count / total_users * 100) if total_users > 0 else 0
+
         # Добавляем колонки со статистикой
         df['Had_trial_%'] = round(had_trial_percent, 2)
-        df['Has_active_keys_%'] = round(has_active_keys_percent, 2)
+        df['Has_active_keys_%'] = round(has_active_sub_percent, 2)
         
         df.to_excel('users.xlsx', index=False)
         try:
@@ -779,7 +780,7 @@ async def admin_payments_callback(callback: CallbackQuery):
             except:
                 pass
 
-@dp.callback_query(lambda c: c.data == 'admin_keys')
+@dp.callback_query(F.data == 'admin_keys')
 async def admin_keys_callback(callback: CallbackQuery):
     await callback.answer("🔑 Подписки") # на пол экрана хуйня высветится
     await callback.message.delete()
@@ -801,12 +802,55 @@ async def admin_keys_callback(callback: CallbackQuery):
 @dp.callback_query(lambda c: c.data == 'admin_notify_sale')
 async def admin_notify_sale(callback: CallbackQuery):
     await callback.message.delete()
+
     with sq.connect('database.db') as con:
         cur = con.cursor()
         today = datetime.now().strftime('%Y-%m-%d')
-        cur.execute(f'SELECT user_id FROM users WHERE subscription_expires_at < ?', (today,))
+        cur.execute(
+            'SELECT user_id FROM subscriptions WHERE subscription_expires_at < ?',
+            (today,)
+        )
         result = cur.fetchall()
-    print(result)
+
+    success = 0
+    fail = 0
+
+    for user in result:
+        try:
+            await bot.send_message(
+                user[0],
+                (
+                    "<tg-emoji emoji-id='5436319619000313467'>🛑</tg-emoji> СКОРО ТЫ ПОТЕРЯЕШЬ ВСЁ...\n"
+                    "\n"
+                    "Твой доступ к Telegram, YouTube и любимым Reels под угрозой...\n"
+                    "\n"
+                    "Мы создали сервис, который работает по принципу «включил и забыл»:\n"
+                    "\n"
+                    "<tg-emoji emoji-id='5436087613456918666'>✅</tg-emoji> Сервера переключаются автоматически.\n"
+                    "<tg-emoji emoji-id='5307965711065292927'>🚀</tg-emoji> Одинаково стабильно летит ДАЖЕ ПРИ ГЛУШИЛКАХ\n"
+                    "<tg-emoji emoji-id='5433895041242246420'>🎙</tg-emoji> Никаких настроек - всё просто работает.\n"
+                    "\n"
+                    "Для тебя подписка с 'обходом' за всего 99₽\n"
+                    "\n"
+                    "Больше не думай о том, какой VPN сегодня заработает. Просто пользуйся НАШИМ."
+                ),
+                parse_mode='HTML',
+                reply_markup=ikb_sale
+            )
+
+            success += 1
+
+        except Exception as e:
+            print(e)
+            fail += 1
+
+        await asyncio.sleep(0.05)  # 👈 маленький дилей
+
+    await callback.message.answer(
+        f"Итого:\n\n✅ {success}\n\n❌ {fail}",
+        reply_markup=ikb_admin_back
+    )
+
 
 @dp.callback_query(lambda c: c.data == 'admin_notify_trial')
 async def admin_notify_trial_callback(callback: CallbackQuery):
@@ -884,7 +928,7 @@ async def admin_notify_referral_callback(callback: CallbackQuery):
         failed_count = 0
         for user in result:
             try:
-                await bot.send_message(user[0], '<tg-emoji emoji-id="5416117059207572332">➡️</tg-emoji> Кстати! Если пригласишь друга и он купит подписку, то получишь 7 дней бонусом!', parse_mode = 'HTML', reply_markup=ikb_referral_reminder)
+                await bot.send_message(user[0], '<tg-emoji emoji-id="5433895041242246420">🎙</tg-emoji> Поделись нашим VPN-ом с друзьями и получи +7 дней к подписке.', parse_mode = 'HTML', reply_markup=ikb_referral_reminder)
                 sent_count += 1
             except:
                 failed_count += 1

@@ -91,7 +91,7 @@ class Vpn:
 
         new_expire = base_expire + timedelta(days=days)
 
-        body = requests.patch(
+        response = requests.patch(
             f"{self.base_url}/api/users",
             headers={"Content-Type": "application/json", "Authorization": f"Bearer {self.token}"},
             json={
@@ -103,9 +103,17 @@ class Vpn:
                 "activeInternalSquads": ["6f11955f-6b95-4f96-bba4-3d866de8ce83"],
             }
         )
-        upsert_subscription_days(tg_id, expires_at=new_expire.isoformat())
-        print(body.json())
-        return body.json()
+        try:
+            body = response.json()
+        except Exception:
+            body = {}
+
+        is_success = response.ok and not (isinstance(body, dict) and body.get('errorCode'))
+        if is_success:
+            upsert_subscription_days(tg_id, expires_at=new_expire.isoformat())
+
+        print(body)
+        return body
 
     def get_user_by_tg_id(self, tg_id):
         body = requests.get(
