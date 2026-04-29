@@ -839,6 +839,39 @@ async def admin_notify_trial_callback(callback: CallbackQuery):
                 pass
     await callback.message.answer(f"Итого: \n\n ✅ {success} \n\n ❌ {fail} ", parse_mode='HTML', reply_markup=ikb_admin_back)
 
+
+
+ikb_adv = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text='Подключить', url = 'https://t.me/coffemaniaVPNbot?start=8168364415', icon_custom_emoji_id=get_emoji('shield_emoji'), style='success')],
+    ])
+
+@dp.callback_query(lambda c: c.data == 'admin_test_adv')
+async def admin_test(callback: CallbackQuery):
+        await callback.message.delete()
+        success=0
+        fail=0
+        try:
+            # тут логика перебора всех данных
+            await bot.send_message(user[0], (
+                "<tg-emoji emoji-id='5283176435438068447'>⚡️</tg-emoji> ИНТЕРНЕТ — ВСЕ!\n\n"
+                'Наш VPN с обходом глушилок -> <b><a href="https://t.me/coffemaniaVPNbot?start=8168364415">ТУТ</a></b>\n\n'
+                "✅ Тестовая подписка в нём бесплатна\n\n"
+                "Коротко, почему его вообще стоит включить хотя бы раз:\n"
+                "— установка и запуск < 1 минуты\n"
+                "— включил и забыл (работает в фоне)\n"
+                "— ВК и ру-сервисы не ломаются\n"
+                "— быстрый обход блокировок без тормозов\n\n"
+                "<tg-emoji emoji-id='5436070334803485828'>✅</tg-emoji> Можешь просто зайти и проверить — без лишних настроек\n\n"
+                "🎁 Если подключишься сегодня — получишь 3 дня бесплатной подписки\n\n"
+            ), parse_mode='HTML', reply_markup = ikb_adv)
+            success += 1
+        except Exception as e:
+            print(e)
+            fail += 1
+            pass
+
+
+
 @dp.callback_query(lambda c: c.data == 'admin_notify_referral')
 async def admin_notify_referral_callback(callback: CallbackQuery):
     await callback.answer("🤝 Напомнить о рефке") # на пол экрана хуйня высветится

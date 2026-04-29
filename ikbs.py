@@ -82,6 +82,8 @@ ikb_admin = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text='🔊 Напомнить юзерам о бесплатном тестовом периоде', callback_data='admin_notify_trial')],
     [InlineKeyboardButton(text='⏰ Уведомить о завершении пробной подписки', callback_data='admin_notify_sale')],
     [InlineKeyboardButton(text='🤝 Напомнить о рефке', callback_data='admin_notify_referral')],
+    [InlineKeyboardButton(text='Тест рассылка рекламы', callback_data='admin_test_adv')],
+
 
 ])
 
