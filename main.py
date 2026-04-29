@@ -711,7 +711,7 @@ async def shout_message(message: Message):
 async def admin_message (message: Message):
     await message.answer("👤 Админ панель", parse_mode='HTML', reply_markup=ikb_admin)
 
-@dp.callback_query(lambda c: c.data == 'admin_users')
+@dp.callback_query(F.data == 'admin_users')
 async def admin_users_callback(callback: CallbackQuery):
     await callback.answer("👤 Пользователи") # на пол экрана хуйня высветится
     await callback.message.delete() # удаляем соо на котором нажали на кнопку
@@ -741,10 +741,9 @@ async def admin_users_callback(callback: CallbackQuery):
         # Вычисляем статистику
         total_users = len(df)
         had_trial_count = len(df[df['Had_trial'] == 1])
-        has_active_keys_count = len(df[df['Has_active_keys'] == 1])
+
         
         had_trial_percent = (had_trial_count / total_users * 100) if total_users > 0 else 0
-        has_active_keys_percent = (has_active_keys_count / total_users * 100) if total_users > 0 else 0
         
         # Добавляем колонки со статистикой
         df['Had_trial_%'] = round(had_trial_percent, 2)
@@ -779,7 +778,7 @@ async def admin_payments_callback(callback: CallbackQuery):
             except:
                 pass
 
-@dp.callback_query(lambda c: c.data == 'admin_keys')
+@dp.callback_query(F.data == 'admin_keys')
 async def admin_keys_callback(callback: CallbackQuery):
     await callback.answer("🔑 Подписки") # на пол экрана хуйня высветится
     await callback.message.delete()
