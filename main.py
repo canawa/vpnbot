@@ -727,7 +727,7 @@ async def admin_users_callback(callback: CallbackQuery):
             UPDATE users 
             SET has_active_subscription = 1 
             WHERE id IN (
-                SELECT DISTINCT buyer_id 
+                SELECT DISTINCT user_id 
                 FROM subscriptions 
                 WHERE subscription_expires_at >= ?
             )
