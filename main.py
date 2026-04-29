@@ -851,9 +851,6 @@ async def admin_notify_sale(callback: CallbackQuery):
     )
 
 
-
-
-
 @dp.callback_query(lambda c: c.data == 'admin_notify_trial')
 async def admin_notify_trial_callback(callback: CallbackQuery):
     await callback.answer("🔊 Напомнить юзерам о бесплатном тестовом периоде") # на пол экрана хуйня высветится
@@ -897,7 +894,7 @@ async def admin_notify_referral_callback(callback: CallbackQuery):
         failed_count = 0
         for user in result:
             try:
-                await bot.send_message(user[0], '<tg-emoji emoji-id="5416117059207572332">➡️</tg-emoji> Кстати! Если пригласишь друга и он купит подписку, то получишь 7 дней бонусом!', parse_mode = 'HTML', reply_markup=ikb_referral_reminder)
+                await bot.send_message(user[0], '<tg-emoji emoji-id="5433895041242246420">🎙</tg-emoji> Поделись нашим VPN-ом с друзьями и получи +7 дней к подписке.', parse_mode = 'HTML', reply_markup=ikb_referral_reminder)
                 sent_count += 1
             except:
                 failed_count += 1
