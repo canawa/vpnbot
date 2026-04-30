@@ -5,6 +5,7 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.filters import CommandStart
 from aiogram.types import Message, CallbackQuery, invoice, LabeledPrice, FSInputFile, MessageEntity
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ChatMember
+from texts import *
 import asyncio # для работы с асинхронными функциями
 import html
 import sqlite3 as sq
@@ -24,6 +25,7 @@ import locale
 from emojis import get_emoji
 from databases import create_tables, upsert_subscription_days
 from payments import get_pay_link, check_payment_status, check_payment_yookassa_status, rub_to_usdt
+
 from sync_remna_expire_from_keys_once import get_user_by_tg_id
 from vpn import Vpn
 from ikbs import *
@@ -362,7 +364,10 @@ async def my_sub_callback(callback: CallbackQuery):
 @dp.callback_query(F.data == 'device_list')
 async def devices_list_callback(callback: CallbackQuery):
     await callback.message.delete()
-    await callback.message.answer_photo(DEVICES_PHOTO, reply_markup = create_ikb_devices(callback.from_user.id))
+    await callback.message.answer_photo(DEVICES_PHOTO, text=get_devices_list_text(callback.from_user.id),  reply_markup = create_ikb_devices(callback.from_user.id))
+
+@dp.callback_query(F.data.startswith('device_'))
+async def
 
 @dp.callback_query(lambda c: c.data == 'documents')
 async def documents_callback(callback: CallbackQuery):

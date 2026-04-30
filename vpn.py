@@ -159,6 +159,6 @@ class Vpn:
         )
         devices = body.json()['response']['devices']
         return devices
-
-vpn = Vpn()
-print(vpn.get_hwid_devices(1))
+#
+# vpn = Vpn()
+# print(vpn.get_hwid_devices(1))
