@@ -15,6 +15,9 @@ from remnawave.models import (  # Updated import path
     GetAllConfigProfilesResponseDto,
     CreateInternalSquadRequestDto
 )
+
+from sync_remna_expire_from_keys_once import get_user_by_tg_id
+
 dotenv.load_dotenv()
 
 class Vpn:
@@ -143,3 +146,19 @@ class Vpn:
                  )
         return body.json()
 
+
+
+    def get_hwid_devices(self, tg_id):
+        user = self.get_user_by_tg_id(tg_id)
+        uuid = user['response'][0]['uuid']
+        body = requests.get(
+            f"{self.base_url}/api/hwid/devices/{uuid}",
+            headers={
+                "Authorization": f"Bearer {self.token}"
+            }
+        )
+        devices = body.json()['response']['devices']
+        return devices
+
+vpn = Vpn()
+print(vpn.get_hwid_devices(1))

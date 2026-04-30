@@ -130,6 +130,7 @@ try:
     INVITE_FRIEND_PHOTO = FSInputFile("photos/invite_friend.png")
     MY_KEYS_PHOTO = FSInputFile("photos/my_keys.png")
     DEPOSIT_PHOTO = FSInputFile("photos/deposit.png")
+    DEVICES_PHOTO = FSInputFile('photos/devices.png')
 except FileNotFoundError:
     print("Photo files not found")
     exit()
@@ -357,6 +358,11 @@ async def my_sub_callback(callback: CallbackQuery):
         parse_mode='HTML',
         reply_markup=get_vpn_pay_keyboard(),
     )
+
+@dp.callback_query(F.data == 'device_list')
+async def devices_list_callback(callback: CallbackQuery):
+    await callback.message.delete()
+    await callback.message.answer_photo(DEVICES_PHOTO, reply_markup = create_ikb_devices(callback.from_user.id))
 
 @dp.callback_query(lambda c: c.data == 'documents')
 async def documents_callback(callback: CallbackQuery):
