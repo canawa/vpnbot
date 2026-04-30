@@ -163,15 +163,20 @@ class Vpn:
     def delete_hwid_device(self,tg_id, hwid):
         user = self.get_user_by_tg_id(tg_id)
         uuid = user['response'][0]['uuid']
-        body = requests.post(f"{self.base_url}/api/hwid/devices/delete",
-        headers={
-              "Content-Type": "application/json",
-              "Authorization": f"Bearer {self.token}"
-            },
-            json={
-              "userUuid": {uuid},
-              "hwid": {hwid},
-            }
-        )
+        try:
+            body = requests.post(f"{self.base_url}/api/hwid/devices/delete",
+            headers={
+                  "Content-Type": "application/json",
+                  "Authorization": f"Bearer {self.token}"
+                },
+                json={
+                  "userUuid": uuid,
+                  "hwid": hwid,
+                }
+            )
+            return True
+        except Exception as e:
+            return e
+
 # vpn = Vpn()
 # print(vpn.get_hwid_devices(1))
