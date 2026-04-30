@@ -5,6 +5,7 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.filters import CommandStart
 from aiogram.types import Message, CallbackQuery, invoice, LabeledPrice, FSInputFile, MessageEntity
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ChatMember
+from texts import *
 import asyncio # для работы с асинхронными функциями
 import html
 import sqlite3 as sq
@@ -24,6 +25,7 @@ import locale
 from emojis import get_emoji
 from databases import create_tables, upsert_subscription_days
 from payments import get_pay_link, check_payment_status, check_payment_yookassa_status, rub_to_usdt
+
 from sync_remna_expire_from_keys_once import get_user_by_tg_id
 from vpn import Vpn
 from ikbs import *
@@ -130,6 +132,7 @@ try:
     INVITE_FRIEND_PHOTO = FSInputFile("photos/invite_friend.png")
     MY_KEYS_PHOTO = FSInputFile("photos/my_keys.png")
     DEPOSIT_PHOTO = FSInputFile("photos/deposit.png")
+    DEVICES_PHOTO = FSInputFile('photos/devices.png')
 except FileNotFoundError:
     print("Photo files not found")
     exit()
@@ -357,6 +360,21 @@ async def my_sub_callback(callback: CallbackQuery):
         parse_mode='HTML',
         reply_markup=get_vpn_pay_keyboard(),
     )
+
+@dp.callback_query(F.data == 'device_list')
+async def devices_list_callback(callback: CallbackQuery):
+    await callback.message.delete()
+    await callback.message.answer_photo(DEVICES_PHOTO, caption=get_devices_list_text(callback.from_user.id), parse_mode='HTML', reply_markup = create_ikb_devices(callback.from_user.id))
+
+@dp.callback_query(F.data.startswith('delete_device_'))
+async def delete_device(callback: CallbackQuery):
+    hwid = callback.data.replace('delete_device_', '')
+    await callback.message.delete()
+    try:
+        Vpn().delete_hwid_device(callback.from_user.id, hwid)
+        await callback.message.answer(text=hwid_deleted_text, parse_mode = 'HTML', reply_markup=ikb_back)
+    except Exception as e:
+        await callback.message.answer(text=f'Ошибка удаления устройства: \n {e}\n\n Перешлите это сообщение в поддержку.', reply_markup=ikb_support)
 
 @dp.callback_query(lambda c: c.data == 'documents')
 async def documents_callback(callback: CallbackQuery):
