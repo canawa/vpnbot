@@ -364,10 +364,17 @@ async def my_sub_callback(callback: CallbackQuery):
 @dp.callback_query(F.data == 'device_list')
 async def devices_list_callback(callback: CallbackQuery):
     await callback.message.delete()
-    await callback.message.answer_photo(DEVICES_PHOTO, text=get_devices_list_text(callback.from_user.id),  reply_markup = create_ikb_devices(callback.from_user.id))
+    await callback.message.answer_photo(DEVICES_PHOTO, caption=get_devices_list_text(callback.from_user.id), parse_mode='HTML', reply_markup = create_ikb_devices(callback.from_user.id))
 
-@dp.callback_query(F.data.startswith('device_'))
-async def
+@dp.callback_query(F.data.startswith('delete_device_'))
+async def delete_device(callback: CallbackQuery):
+    hwid = callback.data.replace('delete_device_', '')
+    await callback.message.delete()
+    try:
+        Vpn().delete_hwid_device(callback.from_user.id, hwid)
+        await callback.message.answer(text=hwid_deleted_text, parse_mode = 'HTML', reply_markup=ikb_back)
+    except Exception as e:
+        await callback.message.answer(text=f'Ошибка удаления устройства: \n {e}\n\n Перешлите это сообщение в поддержку.', reply_markup=ikb_support)
 
 @dp.callback_query(lambda c: c.data == 'documents')
 async def documents_callback(callback: CallbackQuery):

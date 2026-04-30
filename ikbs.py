@@ -130,6 +130,6 @@ def create_ikb_devices(tg_id):
     devices = Vpn().get_hwid_devices(tg_id)
     ikb_devices = InlineKeyboardMarkup(inline_keyboard=[])
     for device in devices:
-       ikb_devices.inline_keyboard.append([InlineKeyboardButton(text = f'{device['deviceModel']}', callback_data = f'device_{device['hwid']}')])
-    ikb_devices.inline_keyboard.append([InlineKeyboardButton(text='Назад', callback_data='back', icon_custom_emoji_id=get_emoji('exit'))]),
+       ikb_devices.inline_keyboard.append([InlineKeyboardButton(text = f'Удалить {device["deviceModel"]}', callback_data = f'delete_device_{device["hwid"]}' , style='danger')])
+    ikb_devices.inline_keyboard.append([InlineKeyboardButton(text='Назад', callback_data='back', icon_custom_emoji_id=get_emoji('exit'))])
     return ikb_devices
