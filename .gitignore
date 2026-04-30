@@ -6,3 +6,4 @@ database.db__pycache__/
 __pycache__/
 /logs
 *.log
+database.db
