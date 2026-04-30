@@ -177,6 +177,3 @@ class Vpn:
             return True
         except Exception as e:
             return e
-
-# vpn = Vpn()
-# print(vpn.get_hwid_devices(1))
