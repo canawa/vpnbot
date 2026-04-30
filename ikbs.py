@@ -2,6 +2,7 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 import sqlite3 as sq
 from emojis import get_emoji
 from datetime import datetime
+from vpn import *
 ikb_subscribe = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text='🔗 Подписаться на канал', url='https://t.me/coffemaniavpn')],
     [InlineKeyboardButton(text='✅ Я подписался', callback_data='subscribe_confirmed')],
@@ -104,7 +105,8 @@ def create_yookassa_payment_keyboard(amount, confirmation_url, payment_id): # ф
 def create_ikb_sub_after_buy(url):
     ikb_subscription_after_buy = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text='Подключиться', url=url, icon_custom_emoji_id=get_emoji('shield_emoji'), style='success')],
-            [InlineKeyboardButton(text = 'Продлить на 30 дней', callback_data='buy_vpn')],
+            [InlineKeyboardButton(text ='Продлить на 30 дней', callback_data='buy_vpn')],
+            [InlineKeyboardButton(text='Список устройств', callback_data='device_list', icon_custom_emoji_id = get_emoji('device'))],
             [InlineKeyboardButton(text='Назад', callback_data='back', icon_custom_emoji_id=get_emoji('exit'))],
         ])
     return ikb_subscription_after_buy
@@ -123,3 +125,11 @@ ikb_my_sub = InlineKeyboardMarkup(inline_keyboard=[
 ikb_sale = InlineKeyboardMarkup(inline_keyboard = [
         [InlineKeyboardButton(text = 'Оплатить', callback_data = 'deposit_99_card', icon_custom_emoji_id=get_emoji('shield_emoji'), style='success')],
 ])
+
+def create_ikb_devices(tg_id):
+    devices = Vpn().get_hwid_devices(tg_id)
+    ikb_devices = InlineKeyboardMarkup(inline_keyboard=[])
+    for device in devices:
+       ikb_devices.inline_keyboard.append([InlineKeyboardButton(text = f'Удалить {device["deviceModel"]}', callback_data = f'delete_device_{device["hwid"]}' , style='danger')])
+    ikb_devices.inline_keyboard.append([InlineKeyboardButton(text='Назад', callback_data='back', icon_custom_emoji_id=get_emoji('exit'))])
+    return ikb_devices
