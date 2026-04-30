@@ -1,3 +1,4 @@
 .env
 Keys.txt
-database.db
+database.db__pycache__/
+*.pyc
