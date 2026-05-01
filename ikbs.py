@@ -32,7 +32,7 @@ def generate_ikb_main(user_id):
         InlineKeyboardButton(text='Реферальная программа', callback_data='referral', icon_custom_emoji_id=get_emoji('add_user')),
         InlineKeyboardButton(text='Моя подписка', callback_data='my_subscription', icon_custom_emoji_id=get_emoji('keys')),
     ])
-    ikb_main.inline_keyboard.append([InlineKeyboardButton(text='Написать в поддержку', url='https://t.me/CoffemaniaSupport', icon_custom_emoji_id=get_emoji('telegram'))]),
+    ikb_main.inline_keyboard.append([InlineKeyboardButton(text='Написать в поддержку', url='https://t.me/@coffeemaniasup2', icon_custom_emoji_id=get_emoji('telegram'))]),
     ikb_main.inline_keyboard.append([InlineKeyboardButton(text='Документы', callback_data='documents', icon_custom_emoji_id=get_emoji('documents'))])
 
     return ikb_main
@@ -58,7 +58,7 @@ ikb_referral = InlineKeyboardMarkup(inline_keyboard=[
 ])
 
 ikb_support = InlineKeyboardMarkup(inline_keyboard=[
-    [InlineKeyboardButton(text='💬 Написать в поддержку', url='https://t.me/CoffemaniaSupport')],
+    [InlineKeyboardButton(text='💬 Написать в поддержку', url='https://t.me/coffeemaniasup2')],
     [InlineKeyboardButton(text='Назад', callback_data='back', icon_custom_emoji_id=get_emoji('exit'))],
 ])
 
@@ -150,4 +150,18 @@ def get_vpn_pay_keyboard(price, days) -> InlineKeyboardMarkup:
     ])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
+ikb_gbs_variants = InlineKeyboardMarkup(inline_keyboard = [
+    [InlineKeyboardButton(text='10 ГБ · 49₽', callback_data='gbs_10')],
+    [InlineKeyboardButton(text='30 ГБ · 99₽', callback_data='gbs_30')],
+    [InlineKeyboardButton(text='50 ГБ · 149₽', callback_data='gbs_50')],
+    [InlineKeyboardButton(text='Назад', callback_data='back', icon_custom_emoji_id=get_emoji('exit'))]
+    ])
 
+def create_yookassa_gb_payment(payment_id, gb_amount, confirmation_url, price):
+    pid = str(payment_id).strip()
+    ikb_yookassa = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=f'👉 Перейти к оплате {price} ₽', url=confirmation_url)],
+        [InlineKeyboardButton(text='Я оплатил', callback_data=f'gb_yookassa_{pid}_{gb_amount}_{price}', style='success')],
+        [InlineKeyboardButton(text='Отменить платеж!', callback_data='back', style='danger')],
+    ])
+    return ikb_yookassa

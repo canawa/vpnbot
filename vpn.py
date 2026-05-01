@@ -100,7 +100,7 @@ class Vpn:
             headers={"Content-Type": "application/json", "Authorization": f"Bearer {self.token}"},
             json={
                 "username": f'user_{tg_id}',
-                "trafficLimitBytes": 0,
+                "trafficLimitBytes": 322122547200 + self.get_previous(),
                 "expireAt": new_expire.isoformat(),
                 "telegramId": tg_id,
                 "hwidDeviceLimit": 3,
@@ -128,6 +128,17 @@ class Vpn:
         )
         return body.json()
 
+    def get_user_traffic_by_tg_id(self, tg_id):
+        body = requests.get(
+            f"{self.base_url}/api/users/by-telegram-id/{tg_id}",
+            headers={
+                "Authorization": f"Bearer {self.token}"
+            }
+        )
+        data = body.json()
+
+        return data['response'][0]['userTraffic']['usedTrafficBytes'],
+
     def deliver_trial_vpn(self, tg_id ):
         body = requests.post(f"{self.base_url}/api/users",
              headers={
@@ -136,11 +147,11 @@ class Vpn:
              },
              json={
                  "username": f'user_{tg_id}',
-                 "trafficLimitBytes": 0,
                  "expireAt": (datetime.now() + timedelta(days=3)).isoformat(),
                  "createdAt": datetime.now().isoformat(),
                  "telegramId": tg_id,
                  "hwidDeviceLimit": 3,
+                 "trafficLimitBytes": 3221225472,
                  "activeInternalSquads": ["6f11955f-6b95-4f96-bba4-3d866de8ce83"],
 
              }
@@ -179,4 +190,30 @@ class Vpn:
         except Exception as e:
             return e
 
-# ok
+    def give_lte_gbs(self, tg_id, gb_amount):
+        bytes_amount = int(gb_amount * 1073741824)
+
+        try:
+            user = self.get_user_by_tg_id(tg_id)
+            current_limit = user['response'][0]['trafficLimitBytes']
+            new_limit = current_limit + bytes_amount
+            body = requests.patch(f"{self.base_url}/api/users",
+               headers={
+                   "Content-Type": "application/json",
+                   "Authorization": f"Bearer {self.token}"
+               },
+               json={
+                   'uuid': Vpn().get_user_by_tg_id(tg_id)['response'][0]['uuid'],
+                   "trafficLimitBytes": new_limit,
+                   "externalSquadUuid": None
+               })
+            print('Применилось')
+            return body
+        except Exception as e:
+            print(e)
+            return False
+
+
+# print(Vpn().get_user_by_tg_id(1979477416))
+# Vpn().give_lte_gbs(1979477416, 2 )
+# print(Vpn().get_user_by_tg_id(1979477416))

@@ -135,6 +135,7 @@ try:
     MY_KEYS_PHOTO = FSInputFile("photos/my_keys.png")
     DEPOSIT_PHOTO = FSInputFile("photos/deposit.png")
     DEVICES_PHOTO = FSInputFile('photos/devices.png')
+    BUY_GBS_PHOTO = FSInputFile('photos/buy_gbs.png')
 except FileNotFoundError:
     print("Photo files not found")
     exit()
@@ -159,6 +160,13 @@ LEGACY_PRICE_TO_DAYS = {
     149: 30,
     399: 90,
     599: 180,
+}
+
+GBS_PRICES = {
+    10: 4,
+    30: 99,
+    50: 149,
+
 }
 
 MONTHS_RU = {
@@ -381,6 +389,57 @@ async def my_sub_callback(callback: CallbackQuery):
 @dp.callback_query(F.data == 'buy_lte_gigabytes')
 async def lte_gigabytes(callback: CallbackQuery):
     await callback.message.delete()
+    await callback.message.answer_photo(BUY_GBS_PHOTO, caption=buy_gbs_text, parse_mode='HTML', reply_markup=ikb_gbs_variants)
+
+@dp.callback_query(F.data.startswith('gbs_'))
+async def buy_gbs(callback: CallbackQuery):
+    gb_amount = int(callback.data.replace('gbs_', ''))
+    price = GBS_PRICES.get(gb_amount)
+    if price is None:
+        await callback.message.answer("❌ Неверный тариф")
+        return
+    try:
+        payment = Payment.create({
+            "amount": {
+                "value": f"{price}",
+                "currency": "RUB"
+            },
+            "confirmation": {
+                "type": "redirect",
+                "return_url": "https://t.me/coffemaniaVPNbot"
+            },
+            "capture": True,
+            "description": f"Покупка дополнительных {gb_amount} ГБ",
+            "metadata": {
+            "user_id": callback.from_user.id,
+        }
+        }, uuid.uuid4())
+        payment_id = payment.id
+        confirmation_url = payment.confirmation.confirmation_url
+        await callback.message.answer(
+            f'👉 Создали заявку на оплату, переходите по ссылке и оплатите.\n\n <b>❗ После оплаты нажмите на кнопку "Я оплатил"</b>',
+            parse_mode='HTML',
+            reply_markup=create_yookassa_gb_payment(payment_id, gb_amount, confirmation_url, price))
+    except Exception as e:
+        await callback.message.answer(
+            '❌ Не удалось создать заявку. Напишите в техподдержку, мы обязательно поможем!',
+            reply_markup=ikb_support,
+        )
+        print(f'process_deposit error: {type(e).__name__}: {e}')
+
+@dp.callback_query(F.data.startswith('gb_yookassa_'))
+async def process_gb_addition(callback: CallbackQuery):
+    pid = callback.data.replace('gb_yookassa_','').split('_')[0]
+    gb_amount = int(callback.data.replace('gb_yookassa_', '').split('_')[1])
+    price = int(callback.data.replace('gb_yookassa_', '').split('_')[2])
+    status = check_payment_yookassa_status(price,pid, callback.from_user.id)
+    if status == 'paid':
+        body = Vpn().give_lte_gbs(callback.from_user.id, gb_amount)
+        print(body)
+        await callback.message.answer(text=f'Успешно добавили вам +{gb_amount} ГБ к LTE трафику!', reply_markup=ikb_back)
+    else:
+        await callback.message.answer(text=f'Ваша оплата не прошла. Попробуйте еще раз!', reply_markup=ikb_back)
+
 
 
 @dp.callback_query(F.data == 'device_list')
@@ -400,7 +459,6 @@ async def delete_device(callback: CallbackQuery):
 
 @dp.callback_query(lambda c: c.data == 'documents')
 async def documents_callback(callback: CallbackQuery):
-    await callback.answer("📄 Документы") # на пол экрана хуйня высветится
     await callback.message.delete()
     await callback.message.answer_photo(DOCUMENTS_PHOTO, parse_mode='HTML', reply_markup=ikb_documents)
 
