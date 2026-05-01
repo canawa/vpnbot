@@ -115,7 +115,7 @@ def vpn_subscription_message_html(url: str) -> str:
         '\n'
         '- Обход белых списков'
         "\n"
-        '- Безлимитный трафик\n\n'
+        '- Безлимитный трафик* (Трафик расходуется только на LTE-серверах)\n\n'
         "☕️ Мы автоматически установим ключ в приложении HAPP\n"
         "\n"
         "🚀 Нажми кнопку ниже — и всё настроится за тебя\n"
@@ -163,7 +163,7 @@ LEGACY_PRICE_TO_DAYS = {
 }
 
 GBS_PRICES = {
-    10: 4,
+    10: 49,
     30: 99,
     50: 149,
 
@@ -436,9 +436,10 @@ async def process_gb_addition(callback: CallbackQuery):
     if status == 'paid':
         body = Vpn().give_lte_gbs(callback.from_user.id, gb_amount)
         print(body)
-        await callback.message.answer(text=f'Успешно добавили вам +{gb_amount} ГБ к LTE трафику!', reply_markup=ikb_back)
+        await callback.message.delete()
+        await callback.message.answer(text=f' Успешно добавили вам +{gb_amount} ГБ к LTE трафику!', parse_mode='HTML', reply_markup=ikb_back)
     else:
-        await callback.message.answer(text=f'Ваша оплата не прошла. Попробуйте еще раз!', reply_markup=ikb_back)
+        await callback.message.answer(text=f' Ваша оплата не прошла. Попробуйте еще раз!', parse_mode='HTML', reply_markup=ikb_back)
 
 
 

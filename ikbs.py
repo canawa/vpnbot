@@ -32,7 +32,7 @@ def generate_ikb_main(user_id):
         InlineKeyboardButton(text='Реферальная программа', callback_data='referral', icon_custom_emoji_id=get_emoji('add_user')),
         InlineKeyboardButton(text='Моя подписка', callback_data='my_subscription', icon_custom_emoji_id=get_emoji('keys')),
     ])
-    ikb_main.inline_keyboard.append([InlineKeyboardButton(text='Написать в поддержку', url='https://t.me/@coffeemaniasup2', icon_custom_emoji_id=get_emoji('telegram'))]),
+    ikb_main.inline_keyboard.append([InlineKeyboardButton(text='Написать в поддержку', url='@coffeemaniasup2', icon_custom_emoji_id=get_emoji('telegram'))]),
     ikb_main.inline_keyboard.append([InlineKeyboardButton(text='Документы', callback_data='documents', icon_custom_emoji_id=get_emoji('documents'))])
 
     return ikb_main
@@ -58,7 +58,7 @@ ikb_referral = InlineKeyboardMarkup(inline_keyboard=[
 ])
 
 ikb_support = InlineKeyboardMarkup(inline_keyboard=[
-    [InlineKeyboardButton(text='💬 Написать в поддержку', url='https://t.me/coffeemaniasup2')],
+    [InlineKeyboardButton(text='💬 Написать в поддержку', url='@coffeemaniasup2')],
     [InlineKeyboardButton(text='Назад', callback_data='back', icon_custom_emoji_id=get_emoji('exit'))],
 ])
 
@@ -105,8 +105,8 @@ def create_yookassa_payment_keyboard(amount, days, confirmation_url, payment_id)
 def create_ikb_sub_after_buy(url):
     ikb_subscription_after_buy = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text='Подключиться', url=url, icon_custom_emoji_id=get_emoji('shield_emoji'), style='success')],
-            [InlineKeyboardButton(text ='Продлить подписку', callback_data='buy_vpn')],
-            [InlineKeyboardButton(text ='Докупить ГБ обхода LTE', callback_data='buy_lte_gigabytes')],
+            [InlineKeyboardButton(text ='Продлить подписку', callback_data='buy_vpn', icon_custom_emoji_id=get_emoji('locate'))],
+            [InlineKeyboardButton(text ='Докупить ГБ обхода LTE', callback_data='buy_lte_gigabytes', icon_custom_emoji_id=get_emoji('time'))],
             [InlineKeyboardButton(text='Список устройств', callback_data='device_list', icon_custom_emoji_id = get_emoji('device'))],
             [InlineKeyboardButton(text='Назад', callback_data='back', icon_custom_emoji_id=get_emoji('exit'))],
         ])
