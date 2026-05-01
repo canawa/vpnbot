@@ -378,6 +378,11 @@ async def my_sub_callback(callback: CallbackQuery):
         reply_markup=get_vpn_pay_keyboard(SUBSCRIPTION_PLAN_PRICES[VPN_SUBSCRIPTION_DAYS_PAID], VPN_SUBSCRIPTION_DAYS_PAID),
     )
 
+@dp.callback_query(F.data == 'buy_lte_gigabytes')
+async def lte_gigabytes(callback: CallbackQuery):
+    await callback.message.delete()
+
+
 @dp.callback_query(F.data == 'device_list')
 async def devices_list_callback(callback: CallbackQuery):
     await callback.message.delete()
