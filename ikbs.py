@@ -105,7 +105,7 @@ def create_yookassa_payment_keyboard(amount, days, confirmation_url, payment_id)
 def create_ikb_sub_after_buy(url):
     ikb_subscription_after_buy = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text='Подключиться', url=url, icon_custom_emoji_id=get_emoji('shield_emoji'), style='success')],
-            [InlineKeyboardButton(text ='Продлить на 30 дней', callback_data='buy_vpn')],
+            [InlineKeyboardButton(text ='Продлить подписку', callback_data='buy_vpn')],
             [InlineKeyboardButton(text='Список устройств', callback_data='device_list', icon_custom_emoji_id = get_emoji('device'))],
             [InlineKeyboardButton(text='Назад', callback_data='back', icon_custom_emoji_id=get_emoji('exit'))],
         ])
