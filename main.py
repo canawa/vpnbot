@@ -94,15 +94,17 @@ def _vpn_response_user_already_exists(payload):
     return 'already exists' in msg.lower()
 
 
-def fetch_vpn_subscription_url_after_purchase(tg_id: int):
-    created = vpn.create_new_user(tg_id)
+def fetch_vpn_subscription_url_after_purchase(tg_id: int, paid_days: int | None = None):
+    if paid_days is None:
+        paid_days = VPN_SUBSCRIPTION_DAYS_PAID
+    created = vpn.create_new_user(tg_id, days=paid_days)
     if created.get('errorCode'):
         if _vpn_response_user_already_exists(created):
-            renewed = vpn.renew_subscription(tg_id, 30)  # renew сам обновляет БД
+            renewed = vpn.renew_subscription(tg_id, paid_days)  # renew сам обновляет БД
             return _vpn_response_subscription_url(renewed)
         return None
     # Новый пользователь — обновляем БД здесь
-    upsert_subscription_days(tg_id, VPN_SUBSCRIPTION_DAYS_PAID)
+    upsert_subscription_days(tg_id, paid_days)
     return _vpn_response_subscription_url(created)
 
 
@@ -147,6 +149,17 @@ MONTH_PRICE = 149
 # Сроки как в vpn.py: create/renew +30 дн., trial POST +3 дн.
 VPN_SUBSCRIPTION_DAYS_PAID = 30
 VPN_SUBSCRIPTION_DAYS_TRIAL = 3
+SUBSCRIPTION_PLAN_PRICES = {
+    30: 149,
+    90: 399,
+    180: 599,
+}
+LEGACY_PRICE_TO_DAYS = {
+    99: 30,  # акционная цена
+    149: 30,
+    399: 90,
+    599: 180,
+}
 
 MONTHS_RU = {
     1: 'января', 2: 'февраля', 3: 'марта', 4: 'апреля',
@@ -157,13 +170,7 @@ MONTHS_RU = {
 def format_date_ru(dt) -> str:
     return f"{dt.day} {MONTHS_RU[dt.month]} {dt.year}"
 
-def get_vpn_pay_keyboard() -> InlineKeyboardMarkup:
-    rows = []
-    rows.extend([
-        [InlineKeyboardButton(text=f'Оплатить {MONTH_PRICE}₽', callback_data=f'deposit_{MONTH_PRICE}_card', icon_custom_emoji_id=get_emoji('pay'))],
-        [InlineKeyboardButton(text='Назад', callback_data='back', icon_custom_emoji_id=get_emoji('exit'))],
-    ])
-    return InlineKeyboardMarkup(inline_keyboard=rows)
+
 
 
 @dp.message(CommandStart())
@@ -293,13 +300,23 @@ async def buy_vpn_callback(callback: CallbackQuery):
         '🚀 <b>В подписку входит:</b>\n  \n'
         '<i>— Неограниченная скорость</i> \n'
         '<i>— Обход белых списков</i> \n'
-        '<i>— Безлимитный трафик</i>\n' 
         '<i>— До 3 устройств </i>\n'
         '<i>— Безотказная работа </i>\n'
         '<i>— Отзывчивая техподдержка </i>\n'
 
 
-    ), parse_mode='HTML', reply_markup=get_vpn_pay_keyboard())
+    ), parse_mode='HTML', reply_markup=vpn_sub_duration_ikb_choose)
+
+@dp.callback_query(F.data.startswith('duration_'))
+async def subscription_duration_choose(callback: CallbackQuery):
+    await callback.message.delete()
+    days = int(callback.data.replace('duration_',''))
+    price = SUBSCRIPTION_PLAN_PRICES.get(days)
+    if price is None:
+        await callback.message.answer('❌ Неизвестный тариф. Выберите тариф заново.', parse_mode='HTML', reply_markup=ikb_back)
+        return
+    await callback.message.answer_photo(BUY_VPN_PHOTO, reply_markup=get_vpn_pay_keyboard(price, days))
+
 
 @dp.callback_query(lambda c: c.data == 'my_subscription')
 async def my_sub_callback(callback: CallbackQuery):
@@ -358,7 +375,7 @@ async def my_sub_callback(callback: CallbackQuery):
         MY_KEYS_PHOTO,
         caption='<b>У тебя еще нет подписки!</b>',
         parse_mode='HTML',
-        reply_markup=get_vpn_pay_keyboard(),
+        reply_markup=get_vpn_pay_keyboard(SUBSCRIPTION_PLAN_PRICES[VPN_SUBSCRIPTION_DAYS_PAID], VPN_SUBSCRIPTION_DAYS_PAID),
     )
 
 @dp.callback_query(F.data == 'device_list')
@@ -558,16 +575,37 @@ async def check_payment_yookassa_callback(callback: CallbackQuery): # сюды
     await callback.answer("🔄 Проверка статуса оплаты") # на пол экрана хуйня высветится
     # await callback.message.delete()
     raw = callback.data
-    # Два первых разбиения: префикс (check|yookassa), сумма, остаток — id платежа Юкассы (UUID с дефисами)
-    parts = raw.split('_', 2)
-    if len(parts) != 3:
+    # Формат: yookassa_{amount}_{days}_{payment_id}
+    parts = raw.split('_', 3)
+    if len(parts) not in (3, 4):
         await callback.answer('❌ Устарела кнопка оплаты. Создайте платёж заново.', show_alert=True)
         return
-    _, amount_str, payment_id = parts
+    if len(parts) == 4:
+        _, amount_str, days_str, payment_id = parts
+    else:
+        # Обратная совместимость для старых кнопок: yookassa_{amount}_{payment_id}
+        _, amount_str, payment_id = parts
+        try:
+            legacy_amount = int(amount_str)
+        except ValueError:
+            await callback.answer('❌ Неверная сумма в данных кнопки.', show_alert=True)
+            return
+        legacy_days = LEGACY_PRICE_TO_DAYS.get(legacy_amount)
+        if legacy_days is None:
+            await callback.answer('❌ Устаревшая кнопка оплаты. Создайте платёж заново.', show_alert=True)
+            return
+        days_str = str(legacy_days)
     try:
         amount_rub = int(amount_str)
+        paid_days = int(days_str)
     except ValueError:
         await callback.answer('❌ Неверная сумма в данных кнопки.', show_alert=True)
+        return
+    expected_amount = SUBSCRIPTION_PLAN_PRICES.get(paid_days)
+    if expected_amount is None or (
+        expected_amount != amount_rub and LEGACY_PRICE_TO_DAYS.get(amount_rub) != paid_days
+    ):
+        await callback.answer('❌ Сумма не соответствует выбранному тарифу. Создайте платёж заново.', show_alert=True)
         return
     # Убрали лишний print для экономии памяти
     payment_state = check_payment_yookassa_status(amount_rub, payment_id, callback.from_user.id)
@@ -601,7 +639,7 @@ async def check_payment_yookassa_callback(callback: CallbackQuery): # сюды
             con.commit()
         url = None
         try:
-            url = fetch_vpn_subscription_url_after_purchase(callback.from_user.id)
+            url = fetch_vpn_subscription_url_after_purchase(callback.from_user.id, paid_days=paid_days)
         except Exception as e:
             print(f'Ошибка при выдаче подписки после оплаты: {e}')
         if url:
@@ -627,11 +665,39 @@ async def check_payment_yookassa_callback(callback: CallbackQuery): # сюды
 
 @dp.callback_query(lambda c: c.data.startswith('deposit_'))
 async def process_deposit(callback: CallbackQuery):
-    # Убрали лишний print для экономии памяти
-    print(callback.data)
-    _ , price , method = callback.data.split('_')
-    
-    amount = int(price)
+    parts = callback.data.split('_')
+    if len(parts) not in (3, 4):
+        await callback.message.answer('❌ Неверные данные платежа. Выберите тариф заново.', reply_markup=ikb_back)
+        return
+    if len(parts) == 4:
+        _, price, days_str, method = parts
+    else:
+        # Обратная совместимость для старых кнопок: deposit_{price}_card
+        _, price, method = parts
+        try:
+            legacy_amount = int(price)
+        except ValueError:
+            await callback.message.answer('❌ Неверные данные суммы/тарифа. Выберите тариф заново.', reply_markup=ikb_back)
+            return
+        legacy_days = LEGACY_PRICE_TO_DAYS.get(legacy_amount)
+        if legacy_days is None:
+            await callback.message.answer('❌ Устаревшие данные платежа. Выберите тариф заново.', reply_markup=ikb_back)
+            return
+        days_str = str(legacy_days)
+
+    try:
+        amount = int(price)
+        paid_days = int(days_str)
+    except ValueError:
+        await callback.message.answer('❌ Неверные данные суммы/тарифа. Выберите тариф заново.', reply_markup=ikb_back)
+        return
+    expected_amount = SUBSCRIPTION_PLAN_PRICES.get(paid_days)
+    if expected_amount is None or (
+        expected_amount != amount and LEGACY_PRICE_TO_DAYS.get(amount) != paid_days
+    ):
+        await callback.message.answer('❌ Сумма не соответствует тарифу. Выберите тариф заново.', reply_markup=ikb_back)
+        return
+
     # await callback.message.answer(f"💰 Пополнение на {amount} ₽\n\n<b>💳 Способ пополнения: {method}</b> \n\n Создаем заявку...", parse_mode='HTML')
     await callback.message.delete()
     if method == 'card':
@@ -654,7 +720,7 @@ async def process_deposit(callback: CallbackQuery):
             # Убрали pprint для экономии памяти
             payment_id = payment.id
             confirmation_url = payment.confirmation.confirmation_url
-            await callback.message.answer(f'👉 Создали заявку на оплату, переходите по ссылке и оплатите.\n\n <b>❗ После оплаты нажмите на кнопку "Я оплатил"</b>', parse_mode='HTML', reply_markup=create_yookassa_payment_keyboard(amount, confirmation_url, payment_id))
+            await callback.message.answer(f'👉 Создали заявку на оплату, переходите по ссылке и оплатите.\n\n <b>❗ После оплаты нажмите на кнопку "Я оплатил"</b>', parse_mode='HTML', reply_markup=create_yookassa_payment_keyboard(amount, paid_days, confirmation_url, payment_id))
         except Exception as e:
             await callback.message.answer(
                 '❌ Не удалось создать заявку. Напишите в техподдержку, мы обязательно поможем!',

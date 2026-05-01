@@ -92,12 +92,12 @@ ikb_admin_back = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text=' Назад', callback_data='admin_back', icon_cuadminstom_emoji_id=get_emoji('exit'))],
 ])
 
-def create_yookassa_payment_keyboard(amount, confirmation_url, payment_id): # функция для создания клавиатуры для оплаты через Юкассу
-    # Префикс yookassa_ и разбор через split('_', 2) в хендлере — иначе коллизия с check_payment_ (крипта) и ошибка unpack «expected 3, got 2»
+def create_yookassa_payment_keyboard(amount, days, confirmation_url, payment_id): # функция для создания клавиатуры для оплаты через Юкассу
+    # Формат callback_data: yookassa_{amount}_{days}_{payment_id}
     pid = str(payment_id).strip()
     ikb_yookassa = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text=f'👉 Перейти к оплате {amount} ₽', url=confirmation_url)],
-        [InlineKeyboardButton(text='Я оплатил', callback_data=f'yookassa_{amount}_{pid}', style = 'success')],
+        [InlineKeyboardButton(text='Я оплатил', callback_data=f'yookassa_{amount}_{days}_{pid}', style = 'success')],
         [InlineKeyboardButton(text='Отменить платеж!', callback_data='back', style = 'danger')],
     ])
     return ikb_yookassa
@@ -133,3 +133,20 @@ def create_ikb_devices(tg_id):
        ikb_devices.inline_keyboard.append([InlineKeyboardButton(text = f'Удалить {device["deviceModel"]}', callback_data = f'delete_device_{device["hwid"]}' , style='danger')])
     ikb_devices.inline_keyboard.append([InlineKeyboardButton(text='Назад', callback_data='back', icon_custom_emoji_id=get_emoji('exit'))])
     return ikb_devices
+
+vpn_sub_duration_ikb_choose = InlineKeyboardMarkup(inline_keyboard = [
+    [InlineKeyboardButton(text='30 дней · 149₽', callback_data='duration_30')],
+    [InlineKeyboardButton(text='90 дней · 399₽', callback_data='duration_90')],
+    [InlineKeyboardButton(text='180 дней · 599₽', callback_data='duration_180')],
+    [InlineKeyboardButton(text='Назад', callback_data='back', icon_custom_emoji_id=get_emoji('exit'))]
+])
+
+def get_vpn_pay_keyboard(price, days) -> InlineKeyboardMarkup:
+    rows = []
+    rows.extend([
+        [InlineKeyboardButton(text=f'Оплатить {price}₽', callback_data=f'deposit_{price}_{days}_card', icon_custom_emoji_id=get_emoji('pay'))],
+        [InlineKeyboardButton(text='Назад', callback_data='back', icon_custom_emoji_id=get_emoji('exit'))],
+    ])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+

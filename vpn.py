@@ -28,7 +28,7 @@ class Vpn:
         self.admin_login = os.getenv('REMNAWAVE_ADMIN_LOGIN')
         self.admin_password = os.getenv('REMNAWAVE_ADMIN_PASSWORD')
 
-    def create_new_user(self, tg_id):
+    def create_new_user(self, tg_id, days=30):
         body = requests.post(f"{self.base_url}/api/users",
                       headers={
                           "Content-Type": "application/json",
@@ -36,10 +36,11 @@ class Vpn:
                       },
                       json={
                           "username": f'user_{tg_id}',
-                          "trafficLimitBytes": 0,
-                          "expireAt": (datetime.now() + timedelta(days=30)).isoformat(),
+                          "trafficLimitBytes": 322122547200,
+                          "expireAt": (datetime.now() + timedelta(days=int(days))).isoformat(),
                           "createdAt": datetime.now().isoformat(),
                           "telegramId": tg_id,
+                          'trafficLimitStrategy': 'MONTH',
                           "hwidDeviceLimit": 3,
                           "activeInternalSquads": ["6f11955f-6b95-4f96-bba4-3d866de8ce83"],
                       }
