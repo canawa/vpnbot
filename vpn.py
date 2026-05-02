@@ -125,6 +125,9 @@ class Vpn:
         is_success = response.ok and not (isinstance(body, dict) and body.get('errorCode'))
         if is_success:
             upsert_subscription_days(tg_id, expires_at=new_expire.isoformat())
+            # Обнуляем остаток — он уже учтён в новом лимите
+            with sq.connect('database.db') as con:
+                con.execute('UPDATE subscriptions SET traffic_leftover_bytes = 0 WHERE user_id = ?', (tg_id,))
 
         print(body)
         return body
