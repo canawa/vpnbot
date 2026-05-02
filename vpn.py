@@ -95,12 +95,22 @@ class Vpn:
 
         new_expire = base_expire + timedelta(days=days)
 
+        user_data = self.get_user_by_tg_id(tg_id)['response'][0] # перенос трафика на след месяц
+        current_limit = user_data['trafficLimitBytes']
+        used = user_data['userTraffic']['usedTrafficBytes']
+        leftover = max(0, current_limit - used)
+
+        # Сохраняем остаток в БД
+        with sq.connect('database.db') as con:
+            con.execute('UPDATE subscriptions SET traffic_leftover_bytes = ? WHERE user_id = ?',
+                        (leftover, tg_id))
+
         response = requests.patch(
             f"{self.base_url}/api/users",
             headers={"Content-Type": "application/json", "Authorization": f"Bearer {self.token}"},
             json={
                 "username": f'user_{tg_id}',
-                "trafficLimitBytes": 322122547200 + self.get_previous(),
+                "trafficLimitBytes": 322122547200 + leftover,
                 "expireAt": new_expire.isoformat(),
                 "telegramId": tg_id,
                 "hwidDeviceLimit": 3,
@@ -115,6 +125,9 @@ class Vpn:
         is_success = response.ok and not (isinstance(body, dict) and body.get('errorCode'))
         if is_success:
             upsert_subscription_days(tg_id, expires_at=new_expire.isoformat())
+            # Обнуляем остаток — он уже учтён в новом лимите
+            with sq.connect('database.db') as con:
+                con.execute('UPDATE subscriptions SET traffic_leftover_bytes = 0 WHERE user_id = ?', (tg_id,))
 
         print(body)
         return body
@@ -193,26 +206,28 @@ class Vpn:
     def give_lte_gbs(self, tg_id, gb_amount):
         bytes_amount = int(gb_amount * 1073741824)
 
-        try:
-            user = self.get_user_by_tg_id(tg_id)
-            current_limit = user['response'][0]['trafficLimitBytes']
-            new_limit = current_limit + bytes_amount
-            body = requests.patch(f"{self.base_url}/api/users",
-               headers={
-                   "Content-Type": "application/json",
-                   "Authorization": f"Bearer {self.token}"
-               },
-               json={
-                   'uuid': Vpn().get_user_by_tg_id(tg_id)['response'][0]['uuid'],
-                   "trafficLimitBytes": new_limit,
-                   "externalSquadUuid": None
-               })
-            print('Применилось')
-            return body
-        except Exception as e:
-            print(e)
-            return False
+        with sq.connect('database.db') as con:
+            cur = con.cursor()
+            cur.execute('SELECT traffic_leftover_bytes FROM subscriptions WHERE user_id = ?', (tg_id,))
+            row = cur.fetchone()
+            leftover = row[0] if row else 0
 
+        new_limit = bytes_amount + leftover
+
+        body = requests.patch(f"{self.base_url}/api/users",
+                              headers={"Content-Type": "application/json", "Authorization": f"Bearer {self.token}"},
+                              json={
+                                  "username": f'user_{tg_id}',
+                                  "trafficLimitBytes": new_limit,
+                                  "activeInternalSquads": ["6f11955f-6b95-4f96-bba4-3d866de8ce83"],
+                              })
+
+        # Обнуляем только если успешно
+        if body.ok:
+            with sq.connect('database.db') as con:
+                con.execute('UPDATE subscriptions SET traffic_leftover_bytes = 0 WHERE user_id = ?', (tg_id,))
+
+        return body
 
 # print(Vpn().get_user_by_tg_id(1979477416))
 # Vpn().give_lte_gbs(1979477416, 2 )

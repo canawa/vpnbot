@@ -116,3 +116,7 @@ def create_tables():
             cur.execute('ALTER TABLE users DROP COLUMN sub_expires_at')
         except:
             pass
+        try:
+            cur.execute('ALTER TABLE subscriptions ADD COLUMN traffic_leftover_bytes INTEGER DEFAULT 0;')
+        except:
+            pass
