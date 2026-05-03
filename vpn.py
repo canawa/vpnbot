@@ -165,7 +165,7 @@ class Vpn:
                  "telegramId": tg_id,
                  "hwidDeviceLimit": 3,
                  "trafficLimitBytes": 3221225472,
-                 "activeInternalSquads": ["ffa0ca48-bb6e-447b-a404-f1808b09c967"],
+                 "activeInternalSquads": ["ffa0ca48-bb6e-447b-a404-f1808b09c967", "6f11955f-6b95-4f96-bba4-3d866de8ce83"],
 
              }
                  )
