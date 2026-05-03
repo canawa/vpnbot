@@ -1088,7 +1088,7 @@ async def admin_notify_referral_callback(callback: CallbackQuery):
                             '• друг регистрируется по твоей ссылке\n'
                             '• выполняет условия акции\n'
                             '• ты получаешь бонус\n\n'
-                            '<i><a href="http://t.me/coffemaniavpn/48">Подробные условия</a></i>',
+                            '<i><a href="http://t.me/coffemaniavpn/49">Подробные условия</a></i>',
                     parse_mode='HTML',
                     reply_markup=ikb_referral_reminder
                 )
