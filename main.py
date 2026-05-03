@@ -698,7 +698,7 @@ async def check_payment_yookassa_callback(callback: CallbackQuery): # сюды
                             result = cur.fetchone()
                             if result is not None:
                                 cur.execute('UPDATE users SET received_bonus = 1 WHERE id = ?', (callback.from_user.id))
-                                renew_json = vpn.renew_subscription(ref_master_id, 7)
+                                renew_json = vpn.renew_subscription(ref_master_id, 30)
                                 renew_json = renew_json['response']['expireAt']
                                 # print(renew_json)
                                 await bot.send_message(ref_master_id,'<tg-emoji emoji-id="5416117059207572332">➡️</tg-emoji> Ваш реферал совершил депозит, вы получили бонусом 30 дней подписки!', parse_mode = 'HTML', reply_markup = ikb_my_sub)

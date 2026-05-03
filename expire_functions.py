@@ -140,8 +140,8 @@ async def notify_gbs_ending(bot):
                 users = cur.fetchall()
 
             for (tg_id,) in users:
-                print('РАссылаем об окончании трафика')
-                print(tg_id)
+                # print('РАссылаем об окончании трафика')
+                # print(tg_id)
                 try:
 
                     user_data = Vpn().get_user_by_tg_id(tg_id)['response'][0]
