@@ -178,6 +178,6 @@ async def notify_gbs_ending(bot):
 
             print(e)
 
-        await asyncio.sleep(60)
+        await asyncio.sleep(3600)
 
 
