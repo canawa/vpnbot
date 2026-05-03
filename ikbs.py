@@ -42,7 +42,7 @@ ikb_back = InlineKeyboardMarkup(inline_keyboard=[
     ])
 
 ikb_referral_reminder = InlineKeyboardMarkup(inline_keyboard=[ # клава которая вылезит людям
-    [InlineKeyboardButton(text='Получить 7 дней подписки', callback_data='referral', icon_custom_emoji_id=get_emoji('game'), style = 'success')],
+    [InlineKeyboardButton(text='Получить 30 дней подписки', callback_data='referral', style = 'success')],
     [InlineKeyboardButton(text='Назад', callback_data='back', icon_custom_emoji_id=get_emoji('exit'))],
 ])
 
@@ -83,7 +83,6 @@ ikb_admin = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text='🔊 Напомнить юзерам о бесплатном тестовом периоде', callback_data='admin_notify_trial')],
     [InlineKeyboardButton(text='⏰ Уведомить ро скидке у кого нет подписки', callback_data='admin_notify_sale')],
     [InlineKeyboardButton(text='🤝 Напомнить о рефке', callback_data='admin_notify_referral')],
-    [InlineKeyboardButton(text='Тест рассылка рекламы', callback_data='admin_test_adv')],
 
 
 ])
@@ -112,6 +111,10 @@ def create_ikb_sub_after_buy(url):
         ])
     return ikb_subscription_after_buy
 
+ikb_gbs_reminder_buy_option = InlineKeyboardMarkup(inline_keyboard=[
+    [InlineKeyboardButton(text ='Докупить ГБ обхода LTE', callback_data='buy_lte_gigabytes', icon_custom_emoji_id=get_emoji('time'))],
+])
+
 def create_ikb_renew():
     ikb_renew = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text='Продлить подписку', callback_data='buy_vpn', icon_custom_emoji_id=get_emoji('shield_emoji'), style='success')],
@@ -136,9 +139,9 @@ def create_ikb_devices(tg_id):
     return ikb_devices
 
 vpn_sub_duration_ikb_choose = InlineKeyboardMarkup(inline_keyboard = [
-    [InlineKeyboardButton(text='30 дней · 149₽', callback_data='duration_30')],
-    [InlineKeyboardButton(text='90 дней · 399₽', callback_data='duration_90')],
-    [InlineKeyboardButton(text='180 дней · 599₽', callback_data='duration_180')],
+    [InlineKeyboardButton(text='30 дней · 149₽', callback_data='deposit_149_30_card')],
+    [InlineKeyboardButton(text='90 дней · 399₽', callback_data='deposit_399_90_card')],
+    [InlineKeyboardButton(text='180 дней · 599₽', callback_data='deposit_599_180_card')],
     [InlineKeyboardButton(text='Назад', callback_data='back', icon_custom_emoji_id=get_emoji('exit'))]
 ])
 

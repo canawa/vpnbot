@@ -165,7 +165,7 @@ class Vpn:
                  "telegramId": tg_id,
                  "hwidDeviceLimit": 3,
                  "trafficLimitBytes": 3221225472,
-                 "activeInternalSquads": ["6f11955f-6b95-4f96-bba4-3d866de8ce83"],
+                 "activeInternalSquads": ["ffa0ca48-bb6e-447b-a404-f1808b09c967"],
 
              }
                  )
@@ -232,3 +232,10 @@ class Vpn:
 # print(Vpn().get_user_by_tg_id(1979477416))
 # Vpn().give_lte_gbs(1979477416, 2 )
 # print(Vpn().get_user_by_tg_id(1979477416))
+
+# user_data = Vpn().get_user_by_tg_id(1979477416)['response'][0]
+# current_limit = user_data['trafficLimitBytes']
+# used = user_data['userTraffic']['usedTrafficBytes']
+# remaining_gb = (current_limit - used) / 1073741824
+#
+# print(current_limit, used, remaining_gb)
