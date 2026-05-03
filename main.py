@@ -516,7 +516,7 @@ async def referral_callback(callback: CallbackQuery):
                 reply_markup=ikb_referral,
             )
             return
-    await callback.message.answer_photo(INVITE_FRIEND_PHOTO, caption=f"🤝 <b>Пригласить друга</b>\n\nВаша реферальная ссылка:\n<code>https://t.me/coffemaniaVPNbot?start={callback.from_user.id}</code>\n\nВсего приведено друзей: {ref_amount}\n\n🤔 <b>За каждого приглашенного друга, который пополнит баланс вы получаете 30 дней подписки!</b>", parse_mode='HTML', reply_markup=ikb_referral)
+    await callback.message.answer_photo(INVITE_FRIEND_PHOTO, caption=f"🤝 <b>Пригласить друга</b>\n\nВаша реферальная ссылка:\n<code>https://t.me/coffemaniaVPNbot?start={callback.from_user.id}</code>\n\nВсего приведено друзей: {ref_amount}\n\n<tg-emoji emoji-id='5407064977544583568'>👌</tg-emoji> <b>За каждого приглашенного друга, который пополнит баланс вы получаете 30 дней подписки!</b>", parse_mode='HTML', reply_markup=ikb_referral)
 
 
 @dp.callback_query(lambda c: c.data == 'support')
