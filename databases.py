@@ -90,7 +90,6 @@ def create_tables():
         cur.execute(
             'CREATE UNIQUE INDEX IF NOT EXISTS ux_transactions_type_external_payment ON transactions(type, external_payment_id)'
         )
-        cur.execute('CREATE TABLE IF NOT EXISTS vpn_pay_pending (user_id INTEGER PRIMARY KEY, country TEXT NOT NULL)')
         cur.execute('CREATE TABLE IF NOT EXISTS subscriptions (user_id INTEGER PRIMARY KEY, subscription_expires_at TEXT NOT NULL)')
         try:
             cur.execute('ALTER TABLE subscriptions ADD COLUMN runout_notified INTEGER DEFAULT 0')
@@ -118,5 +117,9 @@ def create_tables():
             pass
         try:
             cur.execute('ALTER TABLE subscriptions ADD COLUMN traffic_leftover_bytes INTEGER DEFAULT 0;')
+        except:
+            pass
+        try:
+            cur.execute('ALTER TABLE subscriptions ADD COLUMN notified_low_traffic INTEGER DEFAULT 0;')
         except:
             pass

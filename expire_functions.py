@@ -131,3 +131,53 @@ async def reset_runout_notified_daily(): # НЕ ЕБУ КАК РАБОТАЕТ!
             # В случае ошибки ждем час перед следующей попыткой
             await asyncio.sleep(3600)
 
+async def notify_gbs_ending(bot):
+    while True:
+        try:
+            with sq.connect('database.db') as con:
+                cur = con.cursor()
+                cur.execute('SELECT user_id FROM subscriptions')
+                users = cur.fetchall()
+
+            for (tg_id,) in users:
+                print('РАссылаем об окончании трафика')
+                print(tg_id)
+                try:
+
+                    user_data = Vpn().get_user_by_tg_id(tg_id)['response'][0]
+                    current_limit = user_data['trafficLimitBytes']
+                    used = user_data['userTraffic']['usedTrafficBytes']
+                    remaining_gb = (current_limit - used) / 1073741824
+
+                    with sq.connect('database.db') as con:
+                        cur = con.cursor()
+                        cur.execute('SELECT notified_low_traffic FROM subscriptions WHERE user_id = ?', (tg_id,))
+                        notified = cur.fetchone()[0]
+
+                    if remaining_gb <= 1 and not notified:
+                        await bot.send_message(
+                            tg_id,
+                            f"\n<tg-emoji emoji-id='5274099962655816924'>❗️</tg-emoji><b>У вас осталось всего {remaining_gb:.1f} ГБ</b>\n\nПополните трафик, чтобы не прерывать доступ:",
+                            parse_mode='HTML',
+                            reply_markup=ikb_gbs_reminder_buy_option,
+                        )
+                        with sq.connect('database.db') as con:
+                            con.execute('UPDATE subscriptions SET notified_low_traffic = 1 WHERE user_id = ?', (tg_id,))
+
+                    # Сбрасываем флаг когда трафик обновился (купил ещё или продлил)
+                    elif remaining_gb > 1 and notified:
+                        with sq.connect('database.db') as con:
+                            con.execute('UPDATE subscriptions SET notified_low_traffic = 0 WHERE user_id = ?', (tg_id,))
+
+                except Exception as e:
+                    print(f'Ошибка для {tg_id}: {e}')
+
+                    continue
+
+        except Exception as e:
+
+            print(e)
+
+        await asyncio.sleep(60)
+
+

@@ -129,13 +129,14 @@ def vpn_subscription_message_html(url: str) -> str:
 ### РАБОТА С ФОТКАМИ:
 try:
     WELCOME_PHOTO = FSInputFile("photos/welcome.png")
-    BUY_VPN_PHOTO = FSInputFile("photos/buy_vpn.png")
+    BUY_VPN_PHOTO = FSInputFile("photos/buy_vpn.jpg")
     DOCUMENTS_PHOTO = FSInputFile("photos/documents.png")
-    INVITE_FRIEND_PHOTO = FSInputFile("photos/invite_friend.png")
+    INVITE_FRIEND_PHOTO = FSInputFile("photos/invite_friend.jpg")
     MY_KEYS_PHOTO = FSInputFile("photos/my_keys.png")
     DEPOSIT_PHOTO = FSInputFile("photos/deposit.png")
     DEVICES_PHOTO = FSInputFile('photos/devices.png')
     BUY_GBS_PHOTO = FSInputFile('photos/buy_gbs.png')
+    LIMITED_OFFER_PHOTO = FSInputFile('photos/LIMITED OFFER.png')
 except FileNotFoundError:
     print("Photo files not found")
     exit()
@@ -305,26 +306,27 @@ async def buy_vpn_callback(callback: CallbackQuery):
     await callback.message.delete()
     await callback.answer("🛒 Раздел покупки VPN") # на пол экрана хуйня высветится
     await callback.message.answer_photo(FSInputFile("photos/buy_vpn.png"), caption= (
-        '🚀 <b>В подписку входит:</b>\n  \n'
-        '<i>— Неограниченная скорость</i> \n'
-        '<i>— Обход белых списков</i> \n'
-        '<i>— До 3 устройств </i>\n'
-        '<i>— Безотказная работа </i>\n'
-        '<i>— Отзывчивая техподдержка </i>\n'
+        '<b>В подписку входит:</b>\n  \n'
+        '<i><tg-emoji emoji-id="5233346147560465779">🟢</tg-emoji> Неограниченная скорость</i> \n'
+        '<i><tg-emoji emoji-id="5233346147560465779">🟢</tg-emoji> Обход белых списков</i> \n'
+        '<i><tg-emoji emoji-id="5233346147560465779">🟢</tg-emoji> Множество локаций </i>\n'
+        '<i><tg-emoji emoji-id="5233346147560465779">🟢</tg-emoji> До 3 устройств </i>\n'
+        '<i><tg-emoji emoji-id="5233346147560465779">🟢</tg-emoji> Безотказная работа </i>\n'
+        '<i><tg-emoji emoji-id="5233346147560465779">🟢</tg-emoji> Отзывчивая техподдержка </i>\n'
 
 
     ), parse_mode='HTML', reply_markup=vpn_sub_duration_ikb_choose)
 
-@dp.callback_query(F.data.startswith('duration_'))
-async def subscription_duration_choose(callback: CallbackQuery):
-    await callback.message.delete()
-    days = int(callback.data.replace('duration_',''))
-    price = SUBSCRIPTION_PLAN_PRICES.get(days)
-    if price is None:
-        await callback.message.answer('❌ Неизвестный тариф. Выберите тариф заново.', parse_mode='HTML', reply_markup=ikb_back)
-        return
-    await callback.message.answer_photo(BUY_VPN_PHOTO, reply_markup=get_vpn_pay_keyboard(price, days))
-
+# @dp.callback_query(F.data.startswith('duration_'))
+# async def subscription_duration_choose(callback: CallbackQuery):
+#     await callback.message.delete()
+#     days = int(callback.data.replace('duration_',''))
+#     price = SUBSCRIPTION_PLAN_PRICES.get(days)
+#     if price is None:
+#         await callback.message.answer('❌ Неизвестный тариф. Выберите тариф заново.', parse_mode='HTML', reply_markup=ikb_back)
+#         return
+#     await callback.message.answer_photo(BUY_VPN_PHOTO, reply_markup=get_vpn_pay_keyboard(price, days))
+#
 
 @dp.callback_query(lambda c: c.data == 'my_subscription')
 async def my_sub_callback(callback: CallbackQuery):
@@ -699,7 +701,7 @@ async def check_payment_yookassa_callback(callback: CallbackQuery): # сюды
                                 renew_json = vpn.renew_subscription(ref_master_id, 7)
                                 renew_json = renew_json['response']['expireAt']
                                 # print(renew_json)
-                                await bot.send_message(ref_master_id,'<tg-emoji emoji-id="5416117059207572332">➡️</tg-emoji> Ваш реферал совершил депозит, вы получили бонусом 7 дней подписки!', parse_mode = 'HTML', reply_markup = ikb_my_sub)
+                                await bot.send_message(ref_master_id,'<tg-emoji emoji-id="5416117059207572332">➡️</tg-emoji> Ваш реферал совершил депозит, вы получили бонусом 30 дней подписки!', parse_mode = 'HTML', reply_markup = ikb_my_sub)
             con.commit()
         url = None
         try:
@@ -1076,9 +1078,23 @@ async def admin_notify_referral_callback(callback: CallbackQuery):
         failed_count = 0
         for user in result:
             try:
-                await bot.send_message(user[0], '<tg-emoji emoji-id="5433895041242246420">🎙</tg-emoji> Поделись нашим VPN-ом с друзьями и получи +7 дней к подписке.', parse_mode = 'HTML', reply_markup=ikb_referral_reminder)
+                await bot.send_photo(
+                    user[0],
+                    LIMITED_OFFER_PHOTO,
+                    caption='<tg-emoji emoji-id="5323308472412950603">🔝</tg-emoji><tg-emoji emoji-id="5323696844830691148">🔝</tg-emoji><tg-emoji emoji-id="5326060794830410224">🔝</tg-emoji> <b>НЕ УПУСТИ ШАНС ПОЛУЧИТЬ МЕСЯЦ БЕСПЛАТНО!</b>\n\n'
+                            'Приведи друга — получи <b>30 дней VPN бесплатно</b> <tg-emoji emoji-id="5458908492687497206">🔥</tg-emoji>\n\n'
+                            '<tg-emoji emoji-id="5309870395917083905">⏳</tg-emoji> <b>До конца акции осталось 3 дня</b>\n\n'
+                            '<b>Как это работает:</b>\n'
+                            '• друг регистрируется по твоей ссылке\n'
+                            '• выполняет условия акции\n'
+                            '• ты получаешь бонус\n\n'
+                            '<i><a href="http://t.me/coffemaniavpn/48">Подробные условия</a></i>',
+                    parse_mode='HTML',
+                    reply_markup=ikb_referral_reminder
+                )
                 sent_count += 1
-            except:
+            except Exception as e:
+                print(e)
                 failed_count += 1
                 pass
     await callback.message.answer(
@@ -1141,6 +1157,7 @@ async def admin_referrals_callback(callback: CallbackQuery):
 async def main():
     asyncio.create_task(check_expired_subscriptions_table(bot))
     asyncio.create_task(check_expiring_tomorrow_subscriptions_table(bot))
+    asyncio.create_task(notify_gbs_ending(bot))
     # Запускаем фоновую задачу для сброса флага runout_notified в 00:01 каждый день
     asyncio.create_task(reset_runout_notified_daily())
     await dp.start_polling(bot) # отправить соединение к серверам телеграмма
