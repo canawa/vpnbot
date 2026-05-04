@@ -36,11 +36,11 @@ class Vpn:
                       },
                       json={
                           "username": f'user_{tg_id}',
-                          "trafficLimitBytes": 322122547200,
+                          "trafficLimitBytes": 26843545600,
                           "expireAt": (datetime.now() + timedelta(days=int(days))).isoformat(),
                           "createdAt": datetime.now().isoformat(),
                           "telegramId": tg_id,
-                          'trafficLimitStrategy': 'MONTH',
+                          'trafficLimitStrategy': 'MONTH_ROLLING',
                           "hwidDeviceLimit": 3,
                           "activeInternalSquads": ["6f11955f-6b95-4f96-bba4-3d866de8ce83"],
                       }
@@ -110,10 +110,11 @@ class Vpn:
             headers={"Content-Type": "application/json", "Authorization": f"Bearer {self.token}"},
             json={
                 "username": f'user_{tg_id}',
-                "trafficLimitBytes": 322122547200 + leftover,
+                "trafficLimitBytes": 26843545600 + leftover,
                 "expireAt": new_expire.isoformat(),
                 "telegramId": tg_id,
                 "hwidDeviceLimit": 3,
+                "trafficLimitStrategy": "MONTH_ROLLING",
                 "activeInternalSquads": ["6f11955f-6b95-4f96-bba4-3d866de8ce83"],
             }
         )
@@ -165,6 +166,7 @@ class Vpn:
                  "telegramId": tg_id,
                  "hwidDeviceLimit": 3,
                  "trafficLimitBytes": 3221225472,
+                 "trafficLimitStrategy": "MONTH_ROLLING",
                  "activeInternalSquads": ["ffa0ca48-bb6e-447b-a404-f1808b09c967", "6f11955f-6b95-4f96-bba4-3d866de8ce83"],
 
              }

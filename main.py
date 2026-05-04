@@ -638,7 +638,6 @@ async def plan_lifetime_callback(callback: CallbackQuery):
 )
 async def check_payment_yookassa_callback(callback: CallbackQuery): # сюды
     # print("CALLBACK DATA:", callback.data)
-    await callback.answer("🔄 Проверка статуса оплаты") # на пол экрана хуйня высветится
     # await callback.message.delete()
     raw = callback.data
     # Формат: yookassa_{amount}_{days}_{payment_id}
@@ -694,10 +693,10 @@ async def check_payment_yookassa_callback(callback: CallbackQuery): # сюды
                         if ref_master_role and ref_master_role[0] == 'refmaster':
                             cur.execute('UPDATE users SET ref_balance = ref_balance + ? WHERE id = ?', (amount_rub // 2, ref_master_id)) # начислить 50% реферального бонуса рефоводу
                         else:
-                            cur.execute('SELECT * FROM users WHERE received_bonus = 0 AND id = ?', (callback.from_user.id))
+                            cur.execute('SELECT * FROM users WHERE received_bonus = 0 AND id = ?', (callback.from_user.id,))
                             result = cur.fetchone()
                             if result is not None:
-                                cur.execute('UPDATE users SET received_bonus = 1 WHERE id = ?', (callback.from_user.id))
+                                cur.execute('UPDATE users SET received_bonus = 1 WHERE id = ?', (callback.from_user.id,))
                                 renew_json = vpn.renew_subscription(ref_master_id, 30)
                                 renew_json = renew_json['response']['expireAt']
                                 # print(renew_json)
