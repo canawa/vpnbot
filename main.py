@@ -823,7 +823,7 @@ async def shout_message(message: Message):
     blocked = 0
     for (uid,) in result:
         try:
-            await bot.send_message(uid, text)
+            await bot.send_message(uid, text, parse_mode='HTML')
             sent += 1
         except Exception as e:
             err_name = type(e).__name__
@@ -831,7 +831,7 @@ async def shout_message(message: Message):
                 wait_s = getattr(e, 'retry_after', 5) or 5
                 await asyncio.sleep(float(wait_s) + 0.5)
                 try:
-                    await bot.send_message(uid, text)
+                    await bot.send_message(uid, text, parse_mode = 'HTML')
                     sent += 1
                     continue
                 except Exception:
