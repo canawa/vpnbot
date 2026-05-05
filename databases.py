@@ -35,6 +35,14 @@ def create_tables():
             'CREATE TABLE IF NOT EXISTS transactions (id INTEGER PRIMARY KEY, user_id INTEGER, amount INTEGER, type TEXT, date TEXT, external_payment_id TEXT)')
         # Добавляем поле role, если его еще нет
         try:
+            cur.execute("""CREATE TABLE IF NOT EXISTS adv_campaigns (
+                campaign_name TEXT NOT NULL,
+                campaign_description TEXT,
+                campaign_link TEXT NOT NULL,
+            )""")
+        except:
+            pass
+        try:
             cur.execute('ALTER TABLE users ADD COLUMN role TEXT DEFAULT NULL')
         except:
             pass  # Поле уже существует
@@ -123,3 +131,11 @@ def create_tables():
             cur.execute('ALTER TABLE subscriptions ADD COLUMN notified_low_traffic INTEGER DEFAULT 0;')
         except:
             pass
+        try:
+            cur.execute("""CREATE TABLE IF NOT EXISTS adv_campaigns (
+                campaign_name TEXT NOT NULL,
+                campaign_description TEXT,
+                campaign_link TEXT NOT NULL
+            )""")
+        except Exception as e:
+            print(e)

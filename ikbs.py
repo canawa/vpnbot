@@ -81,14 +81,22 @@ ikb_admin = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text='👉🏼 Рефералы', callback_data='admin_referrals')],
     [InlineKeyboardButton(text='👑 Роли', callback_data='admin_roles')],
     [InlineKeyboardButton(text='🔊 Напомнить юзерам о бесплатном тестовом периоде', callback_data='admin_notify_trial')],
-    [InlineKeyboardButton(text='⏰ Уведомить ро скидке у кого нет подписки', callback_data='admin_notify_sale')],
+    # [InlineKeyboardButton(text='⏰ Уведомить ро скидке у кого нет подписки', callback_data='admin_notify_sale')],
     [InlineKeyboardButton(text='🤝 Напомнить о рефке', callback_data='admin_notify_referral')],
+    [InlineKeyboardButton(text='Рекламные кампании', callback_data='adv_campaigns')],
 
 
 ])
 
+ikb_adv_campaigns_menu = InlineKeyboardMarkup(inline_keyboard=[
+    [InlineKeyboardButton(text='Создать новую кампанию', callback_data='adv_new_campaign_create')],
+    [InlineKeyboardButton(text='Анализировать кампании', callback_data='adv_get_campaigns')],
+    [InlineKeyboardButton(text='Анализировать кампании', callback_data='adv_campaign_overall_stats')],
+    [InlineKeyboardButton(text=' Назад', callback_data='admin_back', icon_custom_emoji_id=get_emoji('exit'))],
+])
+
 ikb_admin_back = InlineKeyboardMarkup(inline_keyboard=[
-    [InlineKeyboardButton(text=' Назад', callback_data='admin_back', icon_cuadminstom_emoji_id=get_emoji('exit'))],
+    [InlineKeyboardButton(text=' Назад', callback_data='admin_back', icon_custom_emoji_id=get_emoji('exit'))],
 ])
 
 def create_yookassa_payment_keyboard(amount, days, confirmation_url, payment_id): # функция для создания клавиатуры для оплаты через Юкассу

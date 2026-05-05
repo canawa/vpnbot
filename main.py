@@ -13,7 +13,6 @@ import requests
 import dotenv
 import os
 import random
-
 from traitlets import Bool
 from yookassa import Configuration, Payment # для работы с Юкассой
 import uuid
@@ -1200,6 +1199,19 @@ async def admin_referrals_callback(callback: CallbackQuery):
         df = pd.DataFrame(result, columns=['Рефовод Юзернейм', 'Реферал Юзернейм', 'Рефмастер Айди' , 'Реферал айди'])
         df.to_excel('referals.xlsx')
         await callback.message.answer_document(FSInputFile('referals.xlsx'), reply_markup=ikb_admin_back)
+
+@dp.callback_query(F.data == 'adv_campaigns' and (F.from_user.id.in_([7562967579, 1979477416])))
+async def adv_campaigns_callback(callback: CallbackQuery):
+    await callback.message.delete()
+    await callback.message.answer('Выберите:', reply_markup=ikb_adv_campaigns_menu)
+
+@dp.callback_query(F.data == 'adv_new_campaign_create' and (F.from_user.id.in_([7562967579, 1979477416])))
+async def create_adv_campaign(callback: CallbackQuery):
+    await callback.message.delete()
+    with sq.connect('database.db') as con:
+        cur = con.cursor()
+        cur.execute('INSERT INTO adv_campaigns')
+
 
 
 async def main():
