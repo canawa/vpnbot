@@ -1265,7 +1265,8 @@ async def adv_campaigns(callback: CallbackQuery):
         cur = con.cursor()
         cur.execute('SELECT campaign_name, campaign_description, campaign_link FROM adv_campaigns WHERE campaign_name == ?', (campaign_name,))
         result = cur.fetchone()
-        cur.execute('SELECT COUNT(*) FROM referal_users WHERE ref_master_id = ?', (callback.from_user.id,))
+        id = result[-1].replace('https://t.me/coffemaniaVPNbot?start=', '')
+        cur.execute('SELECT COUNT(*) FROM referal_users WHERE ref_master_id = ?', (id,))
         refs_total = (cur.fetchone() or (0,))[0]
         cur.execute(
             """
