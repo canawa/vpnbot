@@ -6,12 +6,14 @@ from aiogram.filters import CommandStart
 from aiogram.types import Message, CallbackQuery, invoice, LabeledPrice, FSInputFile, MessageEntity
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ChatMember
 from texts import *
+from aiogram.fsm.context import FSMContext
 import asyncio # для работы с асинхронными функциями
 import html
 import sqlite3 as sq
 import requests
 import dotenv
 import os
+from aiogram.fsm.state import State, StatesGroup
 import random
 from traitlets import Bool
 from yookassa import Configuration, Payment # для работы с Юкассой
@@ -42,6 +44,9 @@ _SUBSCRIPTION_URL_KEYS = ( # не уверен
     'subscription_link',
 )
 
+class AdvCampaign(StatesGroup):
+    waiting_name = State()
+    waiting_description = State()
 
 def _subscription_url_from_dict(d):
     if not isinstance(d, dict):
@@ -1053,7 +1058,7 @@ async def admin_notify_trial_callback(callback: CallbackQuery):
     await callback.message.delete()
     with sq.connect('database.db') as con:
         cur = con.cursor()
-        cur.execute('SELECT id FROM users WHERE had_trial != 1 AND has_active_subscriptions = 0')
+        cur.execute('SELECT id FROM users WHERE had_trial != 1 AND has_active_subscription = 0')
         result = cur.fetchall()
         success = 0
         fail = 0
@@ -1079,10 +1084,6 @@ async def admin_notify_trial_callback(callback: CallbackQuery):
     await callback.message.answer(f"Итого: \n\n ✅ {success} \n\n ❌ {fail} ", parse_mode='HTML', reply_markup=ikb_admin_back)
 
 
-
-ikb_adv = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text='Подключить', url = 'https://t.me/coffemaniaVPNbot?start=8168364415', icon_custom_emoji_id=get_emoji('shield_emoji'), style='success')],
-    ])
 
 @dp.callback_query(lambda c: c.data == 'admin_test_adv')
 async def admin_test(callback: CallbackQuery):
@@ -1200,18 +1201,101 @@ async def admin_referrals_callback(callback: CallbackQuery):
         df.to_excel('referals.xlsx')
         await callback.message.answer_document(FSInputFile('referals.xlsx'), reply_markup=ikb_admin_back)
 
-@dp.callback_query(F.data == 'adv_campaigns' and (F.from_user.id.in_([7562967579, 1979477416])))
+@dp.callback_query((F.data == 'adv_campaigns') & (F.from_user.id.in_([7562967579, 1979477416])))
 async def adv_campaigns_callback(callback: CallbackQuery):
     await callback.message.delete()
-    await callback.message.answer('Выберите:', reply_markup=ikb_adv_campaigns_menu)
+    await callback.message.answer(text='Выберите:', reply_markup=ikb_adv_campaigns_menu)
 
-@dp.callback_query(F.data == 'adv_new_campaign_create' and (F.from_user.id.in_([7562967579, 1979477416])))
-async def create_adv_campaign(callback: CallbackQuery):
+@dp.callback_query(F.data == 'adv_new_campaign_create')
+async def create_adv_campaign(callback: CallbackQuery, state: FSMContext):
     await callback.message.delete()
+    await state.set_state(AdvCampaign.waiting_name)
+    await callback.message.answer("Введите название кампании:")
+
+@dp.message(AdvCampaign.waiting_name)
+async def get_campaign_name(message: Message,state: FSMContext):
+    name = message.text
+    await state.update_data(campaign_name = name)
+    await state.set_state(AdvCampaign.waiting_description)
+    await message.answer("Введите описание кампании:")
+
+@dp.message(AdvCampaign.waiting_description)
+async def get_campaign_description(message: Message, state: FSMContext):
+    description = message.text
+    data = await state.get_data()
+    name = data["campaign_name"]
+
     with sq.connect('database.db') as con:
         cur = con.cursor()
-        cur.execute('INSERT INTO adv_campaigns')
 
+        cur.execute("""
+            INSERT INTO adv_campaigns (campaign_name, campaign_description, campaign_link)
+            VALUES (?, ?, ?)
+        """, (name, description, ""))
+
+        row_id = cur.lastrowid
+        link = f"https://t.me/coffemaniaVPNbot?start={row_id}"
+
+        cur.execute("""
+            UPDATE adv_campaigns
+            SET campaign_link = ?
+            WHERE rowid = ?
+        """, (link, row_id))
+
+        con.commit()
+
+    await state.clear()
+
+    await message.answer(
+        f"Кампания создана\nID: {row_id}\nСсылка: {link}",
+        reply_markup=ikb_adv_back
+    )
+
+@dp.callback_query(F.data == 'adv_get_campaigns')
+async def get_campaigns(callback : CallbackQuery):
+    await callback.message.delete()
+    await callback.message.answer(text='Список кампаний:',reply_markup=generate_ikb_campaigns_list())
+
+
+@dp.callback_query(F.data.startswith('adv_campaign_'))
+async def adv_campaigns(callback: CallbackQuery):
+    await callback.message.delete()
+    campaign_name = callback.data.replace('adv_campaign_','')
+    with sq.connect('database.db') as con:
+        cur = con.cursor()
+        cur.execute('SELECT campaign_name, campaign_description, campaign_link FROM adv_campaigns WHERE campaign_name == ?', (campaign_name,))
+        result = cur.fetchone()
+        cur.execute('SELECT COUNT(*) FROM referal_users WHERE ref_master_id = ?', (callback.from_user.id,))
+        refs_total = (cur.fetchone() or (0,))[0]
+        cur.execute(
+            """
+            SELECT COUNT(*), COALESCE(SUM(CAST(t.amount AS INTEGER)), 0)
+            FROM transactions t
+            JOIN referal_users r ON r.referral_id = t.user_id
+            WHERE r.ref_master_id = ?
+              AND t.type IN ('CryptoBot', 'yookassa')
+            """,
+            (callback.from_user.id,),
+        )
+        dep_stats = cur.fetchone() or (0, 0)
+        deposits_count = dep_stats[0] or 0
+        deposits_total = int(dep_stats[1] or 0)
+        # "Ваша доля" считаем строго как 50% от депозитов рефералов.
+        # Фиксированные бонусы 50₽ за приглашения сюда не входят.
+    try:
+        await callback.message.answer(
+        "<b>Название: " + str(result[0]) + "</b>\n\n"
+       "Описание: " + str(result[1]) + "\n\n"
+         "Ссылка: " + str(result[2]) + "\n\n"
+         "-------------------------\n"
+         "👥 Количество рефералов: " + str(refs_total) + "\n"
+          "💳 Количество депозитов: " + str(deposits_count) + "\n"
+         "💰 Общая сумма депозитов: " + str(deposits_total) + " ₽",
+            parse_mode="HTML",
+            reply_markup=ikb_adv_back
+        )
+    except Exception as e:
+        await callback.message.answer(e)
 
 
 async def main():

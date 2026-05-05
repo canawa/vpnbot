@@ -88,16 +88,44 @@ ikb_admin = InlineKeyboardMarkup(inline_keyboard=[
 
 ])
 
+
 ikb_adv_campaigns_menu = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text='Создать новую кампанию', callback_data='adv_new_campaign_create')],
     [InlineKeyboardButton(text='Анализировать кампании', callback_data='adv_get_campaigns')],
-    [InlineKeyboardButton(text='Анализировать кампании', callback_data='adv_campaign_overall_stats')],
     [InlineKeyboardButton(text=' Назад', callback_data='admin_back', icon_custom_emoji_id=get_emoji('exit'))],
 ])
+
+def generate_ikb_campaigns_list():
+    with sq.connect('database.db') as con:
+        cur = con.cursor()
+        cur.execute('SELECT * FROM adv_campaigns')
+        result = cur.fetchall()
+
+        keyboard = []
+
+        for row in result:
+            name = row[0]
+            keyboard.append(
+                [InlineKeyboardButton(
+                    text=f'{name}',
+                    callback_data=f'adv_campaign_{name}'
+                )]
+            )
+    keyboard.append([InlineKeyboardButton(
+                    text=f'Назад',
+                    callback_data='adv_campaigns',
+                    icon_custom_emoji_id=get_emoji('exit'),
+        )])
+    return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
 ikb_admin_back = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text=' Назад', callback_data='admin_back', icon_custom_emoji_id=get_emoji('exit'))],
 ])
+
+ikb_adv_back = InlineKeyboardMarkup(inline_keyboard=[
+    [InlineKeyboardButton(text=' Назад', callback_data='adv_campaigns', icon_custom_emoji_id=get_emoji('exit'))],
+])
+
 
 def create_yookassa_payment_keyboard(amount, days, confirmation_url, payment_id): # функция для создания клавиатуры для оплаты через Юкассу
     # Формат callback_data: yookassa_{amount}_{days}_{payment_id}
