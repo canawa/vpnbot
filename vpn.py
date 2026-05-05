@@ -5,6 +5,7 @@ import requests
 import sqlite3 as sq
 from databases import *
 from datetime import datetime, time, timedelta
+from tenacity import retry, stop_after_attempt, wait_exponential
 import uuid
 import secrets
 import string
@@ -133,6 +134,7 @@ class Vpn:
         print(body)
         return body
 
+    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=2, min=2, max=10))
     def get_user_by_tg_id(self, tg_id):
         body = requests.get(
             f"{self.base_url}/api/users/by-telegram-id/{tg_id}",

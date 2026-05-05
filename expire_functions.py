@@ -2,9 +2,9 @@ import sqlite3 as sq
 from datetime import datetime, date
 from datetime import timedelta
 import asyncio
-
+from vpn import Vpn
 from ikbs import *
-
+from aiogram.exceptions import TelegramForbiddenError
 
 async def check_expired_subscriptions_table(bot):
     """Таблица subscriptions: уведомление в день окончания subscription_expires_at (TEXT, сравнение через date())."""

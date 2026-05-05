@@ -628,7 +628,6 @@ async def subscribe_confirmed_callback(callback: CallbackQuery):
 async def plan_lifetime_callback(callback: CallbackQuery):
     await callback.answer('Сейчас доступна только подписка на месяц. «Подключить VPN» → страна → оплата.', show_alert=True)
 
-
 @dp.callback_query(
     lambda c: c.data.startswith('yookassa_')
     or (
@@ -636,19 +635,17 @@ async def plan_lifetime_callback(callback: CallbackQuery):
         and not c.data.startswith('check_payment_')
     )
 )
-async def check_payment_yookassa_callback(callback: CallbackQuery): # сюды
-    # print("CALLBACK DATA:", callback.data)
-    # await callback.message.delete()
+async def check_payment_yookassa_callback(callback: CallbackQuery):
     raw = callback.data
-    # Формат: yookassa_{amount}_{days}_{payment_id}
     parts = raw.split('_', 3)
+
     if len(parts) not in (3, 4):
         await callback.answer('❌ Устарела кнопка оплаты. Создайте платёж заново.', show_alert=True)
         return
+
     if len(parts) == 4:
         _, amount_str, days_str, payment_id = parts
     else:
-        # Обратная совместимость для старых кнопок: yookassa_{amount}_{payment_id}
         _, amount_str, payment_id = parts
         try:
             legacy_amount = int(amount_str)
@@ -660,53 +657,91 @@ async def check_payment_yookassa_callback(callback: CallbackQuery): # сюды
             await callback.answer('❌ Устаревшая кнопка оплаты. Создайте платёж заново.', show_alert=True)
             return
         days_str = str(legacy_days)
+
     try:
         amount_rub = int(amount_str)
         paid_days = int(days_str)
     except ValueError:
         await callback.answer('❌ Неверная сумма в данных кнопки.', show_alert=True)
         return
+
     expected_amount = SUBSCRIPTION_PLAN_PRICES.get(paid_days)
     if expected_amount is None or (
         expected_amount != amount_rub and LEGACY_PRICE_TO_DAYS.get(amount_rub) != paid_days
     ):
         await callback.answer('❌ Сумма не соответствует выбранному тарифу. Создайте платёж заново.', show_alert=True)
         return
-    # Убрали лишний print для экономии памяти
-    payment_state = check_payment_yookassa_status(amount_rub, payment_id, callback.from_user.id)
-    if payment_state == 'paid':
 
-        with sq.connect('database.db') as con:
-            cur = con.cursor()
-            cur.execute('SELECT ref_master_id, registration_date FROM referal_users WHERE referral_id = ?', (callback.from_user.id,))
-            ref_master = cur.fetchone()
-            if ref_master: # если есть рефовод то:
-                ref_master_id = ref_master[0]
-                registration_date_str = ref_master[1]
-                if registration_date_str:
-                    registration_date = date.fromisoformat(registration_date_str)
-                    three_months_later = registration_date + timedelta(days=90)
-                    if date.today() <= three_months_later:
-                        # Проверяем роль рефмастера
-                        cur.execute('SELECT role FROM users WHERE id = ?', (ref_master_id,))
-                        ref_master_role = cur.fetchone()
-                        if ref_master_role and ref_master_role[0] == 'refmaster':
-                            cur.execute('UPDATE users SET ref_balance = ref_balance + ? WHERE id = ?', (amount_rub // 2, ref_master_id)) # начислить 50% реферального бонуса рефоводу
-                        else:
-                            cur.execute('SELECT * FROM users WHERE received_bonus = 0 AND id = ?', (callback.from_user.id,))
-                            result = cur.fetchone()
-                            if result is not None:
-                                cur.execute('UPDATE users SET received_bonus = 1 WHERE id = ?', (callback.from_user.id,))
-                                renew_json = vpn.renew_subscription(ref_master_id, 30)
-                                renew_json = renew_json['response']['expireAt']
-                                # print(renew_json)
-                                await bot.send_message(ref_master_id,'<tg-emoji emoji-id="5416117059207572332">➡️</tg-emoji> Ваш реферал совершил депозит, вы получили бонусом 30 дней подписки!', parse_mode = 'HTML', reply_markup = ikb_my_sub)
-            con.commit()
+    payment_state = check_payment_yookassa_status(amount_rub, payment_id, callback.from_user.id)
+
+    if payment_state == 'paid':
+        # Реферальный блок изолирован — его падение не мешает выдаче подписки
+        try:
+            with sq.connect('database.db') as con:
+                cur = con.cursor()
+                cur.execute(
+                    'SELECT ref_master_id, registration_date FROM referal_users WHERE referral_id = ?',
+                    (callback.from_user.id,),
+                )
+                ref_master = cur.fetchone()
+
+                if ref_master:
+                    ref_master_id = ref_master[0]
+                    registration_date_str = ref_master[1]
+
+                    if registration_date_str:
+                        registration_date = date.fromisoformat(registration_date_str)
+                        three_months_later = registration_date + timedelta(days=90)
+
+                        if date.today() <= three_months_later:
+                            cur.execute('SELECT role FROM users WHERE id = ?', (ref_master_id,))
+                            ref_master_role_row = cur.fetchone()
+                            ref_master_role = ref_master_role_row[0] if ref_master_role_row else None
+
+                            if ref_master_role == 'refmaster':
+                                cur.execute(
+                                    'UPDATE users SET ref_balance = ref_balance + ? WHERE id = ?',
+                                    (amount_rub // 2, ref_master_id),
+                                )
+                            else:
+                                cur.execute(
+                                    'SELECT * FROM users WHERE received_bonus = 0 AND id = ?',
+                                    (callback.from_user.id,),
+                                )
+                                result = cur.fetchone()
+                                if result is not None:
+                                    cur.execute(
+                                        'UPDATE users SET received_bonus = 1 WHERE id = ?',
+                                        (callback.from_user.id,),
+                                    )
+                                    try:
+                                        vpn.renew_subscription(ref_master_id, 30)
+                                        await bot.send_message(
+                                            ref_master_id,
+                                            '<tg-emoji emoji-id="5416117059207572332">➡️</tg-emoji> Ваш реферал совершил депозит, вы получили бонусом 30 дней подписки!',
+                                            parse_mode='HTML',
+                                            reply_markup=ikb_my_sub,
+                                        )
+                                    except Exception as e:
+                                        print(f'Ошибка выдачи реф-бонуса для {ref_master_id}: {e}')
+
+                con.commit()
+
+        except Exception as e:
+            print(f'Ошибка реферального блока для {callback.from_user.id}: {e}')
+
+        # Выдача подписки — выполняется всегда, независимо от рефералов
         url = None
         try:
             url = fetch_vpn_subscription_url_after_purchase(callback.from_user.id, paid_days=paid_days)
         except Exception as e:
-            print(f'Ошибка при выдаче подписки после оплаты: {e}')
+            print(f'Ошибка при выдаче подписки после оплаты для {callback.from_user.id}: {e}')
+
+        try:
+            await callback.message.delete()
+        except Exception:
+            pass
+
         if url:
             try:
                 await callback.message.answer_photo(
@@ -716,8 +751,17 @@ async def check_payment_yookassa_callback(callback: CallbackQuery): # сюды
                     reply_markup=create_ikb_sub_after_buy(url),
                 )
             except Exception as e:
-                print(f'Ошибка отправки сообщения с ключом после оплаты: {e}')
-        await callback.message.delete()
+                print(f'Ошибка отправки сообщения с ключом для {callback.from_user.id}: {e}')
+        else:
+            # Оплата прошла, но ключ не получили — сообщаем пользователю
+            await callback.message.answer(
+                '✅ Оплата прошла успешно!\n\n'
+                '⚠️ Не удалось автоматически выдать ключ. '
+                'Откройте «Моя подписка» — ключ там уже должен быть. '
+                'Если нет — напишите в поддержку.',
+                parse_mode='HTML',
+                reply_markup=ikb_my_sub,
+            )
 
     elif payment_state == 'already_processed':
         await callback.message.answer(
@@ -726,7 +770,10 @@ async def check_payment_yookassa_callback(callback: CallbackQuery): # сюды
             reply_markup=ikb_my_sub,
         )
     else:
-        await callback.message.answer(f'👀 Ожидаем оплату, оплатите и попробуйте снова!', parse_mode='HTML')
+        await callback.message.answer(
+            '👀 Ожидаем оплату, оплатите и попробуйте снова!',
+            parse_mode='HTML',
+        )
 
 @dp.callback_query(lambda c: c.data.startswith('deposit_'))
 async def process_deposit(callback: CallbackQuery):
