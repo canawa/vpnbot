@@ -1232,8 +1232,8 @@ async def adv_campaigns(callback: CallbackQuery):
         cur = con.cursor()
         cur.execute('SELECT campaign_name, campaign_description, campaign_link FROM adv_campaigns WHERE campaign_name == ?', (campaign_name,))
         result = cur.fetchone()
-        id = result[-1].replace('https://t.me/coffemaniaVPNbot?start=', '')
-        cur.execute('SELECT COUNT(*) FROM referal_users WHERE ref_master_id = ?', (id,))
+        campaign_id = result[-1].replace('https://t.me/coffemaniaVPNbot?start=', '')
+        cur.execute('SELECT COUNT(*) FROM referal_users WHERE ref_master_id = ?', (campaign_id,))
         refs_total = (cur.fetchone() or (0,))[0]
         cur.execute(
             """
@@ -1243,7 +1243,7 @@ async def adv_campaigns(callback: CallbackQuery):
             WHERE r.ref_master_id = ?
               AND t.type IN ('CryptoBot', 'yookassa')
             """,
-            (callback.from_user.id,),
+            (campaign_id,),
         )
         dep_stats = cur.fetchone() or (0, 0)
         deposits_count = dep_stats[0] or 0
