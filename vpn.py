@@ -215,7 +215,7 @@ class Vpn:
             }
         )
         user = data.json()['response'][0]
-
+        print(f"[DEBUG] get_leftover_bytes raw response: {data.status_code} {data.text}")
         traffic_limit = user['trafficLimitBytes']
         used_traffic = user['userTraffic']['usedTrafficBytes']
 
@@ -223,7 +223,7 @@ class Vpn:
 
     def give_lte_gbs(self, tg_id, gb_amount):
         bytes_amount = int(gb_amount * 1073741824)
-
+        print(f"[DEBUG] give_lte_gbs | tg_id={tg_id} | добавляем={bytes_amount} байт ({gb_amount} ГБ)")
         traffic_limit, used_traffic = self.get_leftover_bytes(tg_id)
         new_limit = traffic_limit + bytes_amount
 
