@@ -99,3 +99,7 @@ def create_tables():
         """)
 
         con.commit()
+        try:
+            cur.execute('ALTER TABLE users ADD COLUMN is_legacy INTEGER DEFAULT 0;')
+        except Exception as e:
+            print(e)

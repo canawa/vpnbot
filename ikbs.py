@@ -2,7 +2,10 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 import sqlite3 as sq
 from emojis import get_emoji
 from datetime import datetime
+
+from prices import SUBSCRIPTION_PLAN, SUBSCRIPTION_PLAN_LEGACY
 from vpn import *
+
 ikb_subscribe = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text='🔗 Подписаться на канал', url='https://t.me/coffemaniavpn')],
     [InlineKeyboardButton(text='✅ Я подписался', callback_data='subscribe_confirmed')],
@@ -174,12 +177,27 @@ def create_ikb_devices(tg_id):
     ikb_devices.inline_keyboard.append([InlineKeyboardButton(text='Назад', callback_data='back', icon_custom_emoji_id=get_emoji('exit'))])
     return ikb_devices
 
-vpn_sub_duration_ikb_choose = InlineKeyboardMarkup(inline_keyboard = [
-    [InlineKeyboardButton(text='30 дней · 149₽', callback_data='deposit_149_30_card')],
-    [InlineKeyboardButton(text='90 дней · 399₽', callback_data='deposit_399_90_card')],
-    [InlineKeyboardButton(text='180 дней · 599₽', callback_data='deposit_599_180_card')],
-    [InlineKeyboardButton(text='Назад', callback_data='back', icon_custom_emoji_id=get_emoji('exit'))]
-])
+def generate_ikb_duration_choose(tg_id):
+    with sq.connect('database.db') as con:
+        cur = con.cursor()
+        cur.execute('SELECT is_legacy FROM users WHERE id = ?', (tg_id,))
+        result = cur.fetchone()
+        if result[0] == 1:
+            vpn_sub_duration_ikb_choose = InlineKeyboardMarkup(inline_keyboard = [
+                [InlineKeyboardButton(text=f'30 дней · {SUBSCRIPTION_PLAN_LEGACY.get(30)}₽', callback_data=f'deposit_{SUBSCRIPTION_PLAN_LEGACY.get(30)}_30_card')],
+                [InlineKeyboardButton(text=f'90 дней · {SUBSCRIPTION_PLAN_LEGACY.get(90)}₽', callback_data=f'deposit_{SUBSCRIPTION_PLAN_LEGACY.get(90)}_90_card')],
+                [InlineKeyboardButton(text=f'180 дней · {SUBSCRIPTION_PLAN_LEGACY.get(180)}₽', callback_data=f'deposit_{SUBSCRIPTION_PLAN_LEGACY.get(180)}_180_card')],
+                [InlineKeyboardButton(text='Назад', callback_data='back', icon_custom_emoji_id=get_emoji('exit'))]
+            ])
+        else:
+            vpn_sub_duration_ikb_choose = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text=f'30 дней · {SUBSCRIPTION_PLAN.get(30)}₽', callback_data=f'deposit_{SUBSCRIPTION_PLAN.get(30)}_30_card')],
+                [InlineKeyboardButton(text=f'90 дней · {SUBSCRIPTION_PLAN.get(90)}₽', callback_data=f'deposit_{SUBSCRIPTION_PLAN.get(90)}_90_card')],
+                [InlineKeyboardButton(text=f'180 дней · {SUBSCRIPTION_PLAN.get(180)}₽',callback_data=f'deposit_{SUBSCRIPTION_PLAN.get(180)}_180_card')],
+                [InlineKeyboardButton(text='Назад', callback_data='back', icon_custom_emoji_id=get_emoji('exit'))]
+            ])
+        return vpn_sub_duration_ikb_choose
+
 
 def get_vpn_pay_keyboard(price, days) -> InlineKeyboardMarkup:
     rows = []
