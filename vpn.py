@@ -207,16 +207,25 @@ class Vpn:
         except Exception as e:
             return e
 
+    def get_leftover_bytes(self, tg_id):
+        data = requests.get(
+            f"{self.base_url}/api/users/by-telegram-id/{tg_id}",
+            headers={
+                "Authorization": f"Bearer {self.token}"
+            }
+        )
+        user = data.json()['response'][0]
+
+        traffic_limit = user['trafficLimitBytes']
+        used_traffic = user['userTraffic']['usedTrafficBytes']
+
+        return traffic_limit, used_traffic
+
     def give_lte_gbs(self, tg_id, gb_amount):
         bytes_amount = int(gb_amount * 1073741824)
 
-        with sq.connect('database.db') as con:
-            cur = con.cursor()
-            cur.execute('SELECT traffic_leftover_bytes FROM subscriptions WHERE user_id = ?', (tg_id,))
-            row = cur.fetchone()
-            leftover = row[0] if row else 0
-
-        new_limit = bytes_amount + leftover
+        traffic_limit, used_traffic = self.get_leftover_bytes(tg_id)
+        new_limit = traffic_limit + bytes_amount
 
         body = requests.patch(f"{self.base_url}/api/users",
                               headers={"Content-Type": "application/json", "Authorization": f"Bearer {self.token}"},
@@ -243,3 +252,4 @@ class Vpn:
 # remaining_gb = (current_limit - used) / 1073741824
 #
 # print(current_limit, used, remaining_gb)
+print(Vpn().get_leftover_bytes(1979477416))
