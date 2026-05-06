@@ -22,7 +22,7 @@ import pandas as pd
 import openpyxl
 from datetime import datetime
 from check_subscription import is_subscribed
-import locale 
+import locale
 from emojis import get_emoji
 from databases import create_tables, upsert_subscription_days
 from payments import get_pay_link, check_payment_status, check_payment_yookassa_status, rub_to_usdt
@@ -643,43 +643,29 @@ async def check_payment_yookassa_callback(callback: CallbackQuery):
     raw = callback.data
     parts = raw.split('_', 3)
 
-    if len(parts) not in (3, 4):
+    # теперь принимаем только новый формат
+    if len(parts) != 4:
         await callback.answer('❌ Устарела кнопка оплаты. Создайте платёж заново.', show_alert=True)
         return
 
-    if len(parts) == 4:
-        _, amount_str, days_str, payment_id = parts
-    else:
-        _, amount_str, payment_id = parts
-        try:
-            legacy_amount = int(amount_str)
-        except ValueError:
-            await callback.answer('❌ Неверная сумма в данных кнопки.', show_alert=True)
-            return
-        legacy_days = LEGACY_PRICE_TO_DAYS.get(legacy_amount)
-        if legacy_days is None:
-            await callback.answer('❌ Устаревшая кнопка оплаты. Создайте платёж заново.', show_alert=True)
-            return
-        days_str = str(legacy_days)
+    _, amount_str, days_str, payment_id = parts
 
     try:
         amount_rub = int(amount_str)
         paid_days = int(days_str)
     except ValueError:
-        await callback.answer('❌ Неверная сумма в данных кнопки.', show_alert=True)
+        await callback.answer('❌ Неверные данные в кнопке оплаты.', show_alert=True)
         return
 
     expected_amount = SUBSCRIPTION_PLAN_PRICES.get(paid_days)
-    if expected_amount is None or (
-        expected_amount != amount_rub and LEGACY_PRICE_TO_DAYS.get(amount_rub) != paid_days
-    ):
-        await callback.answer('❌ Сумма не соответствует выбранному тарифу. Создайте платёж заново.', show_alert=True)
+    if expected_amount is None or expected_amount != amount_rub:
+        await callback.answer('❌ Сумма не соответствует тарифу. Создайте платёж заново.', show_alert=True)
         return
 
     payment_state = check_payment_yookassa_status(amount_rub, payment_id, callback.from_user.id)
 
     if payment_state == 'paid':
-        # Реферальный блок изолирован — его падение не мешает выдаче подписки
+        # Реферальный блок (оставлен без изменений)
         try:
             with sq.connect('database.db') as con:
                 cur = con.cursor()
@@ -734,7 +720,7 @@ async def check_payment_yookassa_callback(callback: CallbackQuery):
         except Exception as e:
             print(f'Ошибка реферального блока для {callback.from_user.id}: {e}')
 
-        # Выдача подписки — выполняется всегда, независимо от рефералов
+        # Выдача подписки
         url = None
         try:
             url = fetch_vpn_subscription_url_after_purchase(callback.from_user.id, paid_days=paid_days)
@@ -757,7 +743,6 @@ async def check_payment_yookassa_callback(callback: CallbackQuery):
             except Exception as e:
                 print(f'Ошибка отправки сообщения с ключом для {callback.from_user.id}: {e}')
         else:
-            # Оплата прошла, но ключ не получили — сообщаем пользователю
             await callback.message.answer(
                 '✅ Оплата прошла успешно!\n\n'
                 '⚠️ Не удалось автоматически выдать ключ. '
