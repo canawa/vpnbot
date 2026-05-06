@@ -493,7 +493,7 @@ async def referral_callback(callback: CallbackQuery):
                 reply_markup=ikb_referral,
             )
             return
-    await callback.message.answer_photo(INVITE_FRIEND_PHOTO, caption=f"🤝 <b>Пригласить друга</b>\n\nВаша реферальная ссылка:\n<code>https://t.me/coffemaniaVPNbot?start={callback.from_user.id}</code>\n\nВсего приведено друзей: {ref_amount}\n\n<tg-emoji emoji-id='5407064977544583568'>👌</tg-emoji> <b>За каждого приглашенного друга, который пополнит баланс вы получаете 30 дней подписки!</b>", parse_mode='HTML', reply_markup=ikb_referral)
+    await callback.message.answer_photo(INVITE_FRIEND_PHOTO, caption=f"🤝 <b>Пригласить друга</b>\n\nВаша реферальная ссылка:\n<code>https://t.me/coffemaniaVPNbot?start={callback.from_user.id}</code>\n\nВсего приведено друзей: {ref_amount}\n\n<tg-emoji emoji-id='5407064977544583568'>👌</tg-emoji> <b>За каждого приглашенного друга, который пополнит баланс вы получаете 7 дней подписки!</b>", parse_mode='HTML', reply_markup=ikb_referral)
 
 
 @dp.callback_query(lambda c: c.data == 'support')
@@ -678,10 +678,10 @@ async def check_payment_yookassa_callback(callback: CallbackQuery):
                                         (callback.from_user.id,),
                                     )
                                     try:
-                                        vpn.renew_subscription(ref_master_id, 30)
+                                        vpn.renew_subscription(ref_master_id, 7)
                                         await bot.send_message(
                                             ref_master_id,
-                                            '<tg-emoji emoji-id="5416117059207572332">➡️</tg-emoji> Ваш реферал совершил депозит, вы получили бонусом 30 дней подписки!',
+                                            '<tg-emoji emoji-id="5416117059207572332">➡️</tg-emoji> Ваш реферал совершил депозит, вы получили бонусом 7 дней подписки!',
                                             parse_mode='HTML',
                                             reply_markup=ikb_my_sub,
                                         )
@@ -1094,14 +1094,13 @@ async def admin_notify_referral_callback(callback: CallbackQuery):
                 await bot.send_photo(
                     user[0],
                     LIMITED_OFFER_PHOTO,
-                    caption='<tg-emoji emoji-id="5323308472412950603">🔝</tg-emoji><tg-emoji emoji-id="5323696844830691148">🔝</tg-emoji><tg-emoji emoji-id="5326060794830410224">🔝</tg-emoji> <b>НЕ УПУСТИ ШАНС ПОЛУЧИТЬ МЕСЯЦ БЕСПЛАТНО!</b>\n\n'
-                            'Приведи друга — получи <b>30 дней VPN бесплатно</b> <tg-emoji emoji-id="5458908492687497206">🔥</tg-emoji>\n\n'
-                            '<tg-emoji emoji-id="5309870395917083905">⏳</tg-emoji> <b>До конца акции осталось 3 дня</b>\n\n'
+                    caption=(
+                            '<tg-emoji emoji-id="5458908492687497206">🔥</tg-emoji> Приведи друга — получи <b>7 дней VPN бесплатно</b> \n\n'
                             '<b>Как это работает:</b>\n'
                             '• друг регистрируется по твоей ссылке\n'
-                            '• выполняет условия акции\n'
+                            '• покупает подписку\n'
                             '• ты получаешь бонус\n\n'
-                            '<i><a href="http://t.me/coffemaniavpn/49">Подробные условия</a></i>',
+                            ),
                     parse_mode='HTML',
                     reply_markup=ikb_referral_reminder
                 )
