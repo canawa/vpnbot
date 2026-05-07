@@ -27,13 +27,30 @@ import locale
 from emojis import get_emoji
 from databases import create_tables, upsert_subscription_days
 from payments import get_pay_link, check_payment_status, check_payment_yookassa_status, rub_to_usdt
-
+from logging.handlers import RotatingFileHandler
+import logging
 from sync_remna_expire_from_keys_once import get_user_by_tg_id
 from vpn import Vpn
 from ikbs import *
+
+import sys
 from expire_functions import *
 locale.setlocale(locale.LC_TIME, 'ru_RU.UTF-8')
 print('BOT STARTED!!!')
+
+
+
+LOG_PATH = os.getenv("LOG_PATH", "logs/bot.log")  # если нет env — берёт локальный путь
+os.makedirs(os.path.dirname(LOG_PATH), exist_ok=True)
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    handlers=[
+        RotatingFileHandler(LOG_PATH, maxBytes=10*1024*1024, backupCount=5, encoding="utf-8"),
+        logging.StreamHandler(sys.stdout)
+    ]
+)
 
 vpn = Vpn()
 
@@ -731,6 +748,11 @@ async def check_payment_yookassa_callback(callback: CallbackQuery):
             parse_mode='HTML',
             reply_markup=ikb_my_sub,
         )
+    elif payment_state in ('timeout', 'error'):  # 👈 вот сюда, в конец цепочки
+        await callback.answer(
+            "⏳ Сервис оплаты не отвечает. Подождите минуту и нажмите «Я оплатил» снова.",
+            show_alert=True,
+        )
     else:
         await callback.message.answer(
             '👀 Ожидаем оплату, оплатите и попробуйте снова!',
@@ -1049,33 +1071,6 @@ async def admin_notify_trial_callback(callback: CallbackQuery):
                 fail+=1
                 pass
     await callback.message.answer(f"Итого: \n\n ✅ {success} \n\n ❌ {fail} ", parse_mode='HTML', reply_markup=ikb_admin_back)
-
-
-
-@dp.callback_query(lambda c: c.data == 'admin_test_adv')
-async def admin_test(callback: CallbackQuery):
-        await callback.message.delete()
-        success=0
-        fail=0
-        try:
-            # тут логика перебора всех данных
-            await bot.send_message(user[0], (
-                "<tg-emoji emoji-id='5283176435438068447'>⚡️</tg-emoji> ИНТЕРНЕТ — ВСЕ!\n\n"
-                'Наш VPN с обходом глушилок -> <b><a href="https://t.me/coffemaniaVPNbot?start=8168364415">ТУТ</a></b>\n\n'
-                "✅ Тестовая подписка в нём бесплатна\n\n"
-                "Коротко, почему его вообще стоит включить хотя бы раз:\n"
-                "— установка и запуск < 1 минуты\n"
-                "— включил и забыл (работает в фоне)\n"
-                "— ВК и ру-сервисы не ломаются\n"
-                "— быстрый обход блокировок без тормозов\n\n"
-                "<tg-emoji emoji-id='5436070334803485828'>✅</tg-emoji> Можешь просто зайти и проверить — без лишних настроек\n\n"
-                "🎁 Если подключишься сегодня — получишь 3 дня бесплатной подписки\n\n"
-            ), parse_mode='HTML', reply_markup = ikb_adv)
-            success += 1
-        except Exception as e:
-            print(e)
-            fail += 1
-            pass
 
 
 

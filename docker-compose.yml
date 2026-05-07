@@ -10,5 +10,6 @@ services:
 
     volumes:
       - ./database.db:/app/database.db
+      - ./logs:/app/logs
 
     restart: always
