@@ -1159,11 +1159,11 @@ async def admin_referrals_callback(callback: CallbackQuery):
     await callback.message.delete()
     with sq.connect('database.db') as con:
         cur = con.cursor()
-        cur.execute("""SELECT u.username, u2.username, r.ref_master_id,  r.referral_id FROM referal_users as r 
+        cur.execute("""SELECT u.id, u.username, u2.id, u2.username, r.ref_master_id,  r.referral_id FROM referal_users as r 
                     JOIN users as u ON r.ref_master_id = u.id
                     JOIN users as u2 ON r.referral_id = u2.id """)
         result = cur.fetchall()
-        df = pd.DataFrame(result, columns=['Рефовод Юзернейм', 'Реферал Юзернейм', 'Рефмастер Айди' , 'Реферал айди'])
+        df = pd.DataFrame(result, columns=['Рефовод Айди', 'Рефовод Юзернейм', 'Реферал Айди', 'Реферал Юзернейм', 'Рефмастер Айди' , 'Реферал айди'])
         df.to_excel('referals.xlsx')
         await callback.message.answer_document(FSInputFile('referals.xlsx'), reply_markup=ikb_admin_back)
 
