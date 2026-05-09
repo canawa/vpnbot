@@ -159,6 +159,7 @@ try:
     DEVICES_PHOTO = FSInputFile('photos/devices.png')
     BUY_GBS_PHOTO = FSInputFile('photos/buy_gbs.png')
     LIMITED_OFFER_PHOTO = FSInputFile('photos/LIMITED OFFER.png')
+    INVITE_FRIEND_COLORED_PHOTO = FSInputFile('photos/invite_friend_colored.png')
 except FileNotFoundError:
     print("Photo files not found")
     exit()
@@ -1030,7 +1031,7 @@ async def admin_notify_referral_callback(callback: CallbackQuery):
             try:
                 await bot.send_photo(
                     user[0],
-                    LIMITED_OFFER_PHOTO,
+                    INVITE_FRIEND_COLORED_PHOTO,
                     caption=(
                             '<tg-emoji emoji-id="5458908492687497206">🔥</tg-emoji> Приведи друга — получи <b>7 дней VPN бесплатно</b> \n\n'
                             '<b>Как это работает:</b>\n'
