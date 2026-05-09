@@ -742,7 +742,7 @@ async def process_deposit(callback: CallbackQuery):
                     "value": amount,
                     "currency": "RUB"
                 },
-                "description": f"Покупка пользователя id={callback.from_user.id} username={callback.from_user.username} ",
+                "description": f"Покупка подписки на {paid_days} дней id={callback.from_user.id} username={callback.from_user.username} ",
                 "capture": True,
                 "confirmation": {
                     "type": "redirect",
