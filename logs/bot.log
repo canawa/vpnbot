@@ -4,3 +4,40 @@
 2026-05-07 23:28:49,550 [ERROR] Failed to fetch updates - TelegramNetworkError: HTTP Client says - ServerDisconnectedError: Server disconnected
 2026-05-07 23:28:49,550 [WARNING] Sleep for 1.000000 seconds and try again... (tryings = 0, bot id = 8620883378)
 2026-05-07 23:28:49,810 [INFO] Polling stopped for bot @testingcoffffeemaniabot id=8620883378 - 'testin'
+2026-05-08 20:35:24,236 [INFO] Start polling
+2026-05-08 20:35:26,761 [INFO] Run polling for bot @testingcoffffeemaniabot id=8620883378 - 'testin'
+2026-05-08 21:33:01,267 [INFO] Polling stopped
+2026-05-08 21:33:01,268 [ERROR] Failed to fetch updates - TelegramNetworkError: HTTP Client says - Request timeout error
+2026-05-08 21:33:01,268 [WARNING] Sleep for 1.000000 seconds and try again... (tryings = 0, bot id = 8620883378)
+2026-05-08 21:33:01,524 [INFO] Polling stopped for bot @testingcoffffeemaniabot id=8620883378 - 'testin'
+2026-05-08 21:33:09,542 [INFO] Start polling
+2026-05-08 21:33:12,955 [INFO] Run polling for bot @testingcoffffeemaniabot id=8620883378 - 'testin'
+2026-05-08 21:33:18,770 [INFO] Update id=123049353 is handled. Duration 5703 ms by bot id=8620883378
+2026-05-08 21:33:43,635 [INFO] Update id=123049354 is handled. Duration 2375 ms by bot id=8620883378
+2026-05-08 21:33:51,088 [INFO] Update id=123049355 is handled. Duration 1217 ms by bot id=8620883378
+2026-05-08 21:33:56,424 [INFO] Update id=123049356 is handled. Duration 3875 ms by bot id=8620883378
+2026-05-08 21:33:58,716 [INFO] Update id=123049357 is handled. Duration 906 ms by bot id=8620883378
+2026-05-08 21:34:26,608 [INFO] Polling stopped
+2026-05-08 21:34:26,609 [ERROR] Failed to fetch updates - TelegramNetworkError: HTTP Client says - ServerDisconnectedError: Server disconnected
+2026-05-08 21:34:26,609 [WARNING] Sleep for 1.000000 seconds and try again... (tryings = 0, bot id = 8620883378)
+2026-05-08 21:34:27,333 [INFO] Polling stopped for bot @testingcoffffeemaniabot id=8620883378 - 'testin'
+2026-05-08 21:34:33,304 [INFO] Start polling
+2026-05-08 21:34:36,453 [INFO] Run polling for bot @testingcoffffeemaniabot id=8620883378 - 'testin'
+2026-05-08 21:35:49,252 [INFO] Update id=123049358 is handled. Duration 2032 ms by bot id=8620883378
+2026-05-08 21:37:50,902 [INFO] Polling stopped
+2026-05-08 21:37:50,903 [ERROR] Failed to fetch updates - TelegramNetworkError: HTTP Client says - ServerDisconnectedError: Server disconnected
+2026-05-08 21:37:50,903 [WARNING] Sleep for 1.000000 seconds and try again... (tryings = 0, bot id = 8620883378)
+2026-05-08 21:37:51,188 [INFO] Polling stopped for bot @testingcoffffeemaniabot id=8620883378 - 'testin'
+2026-05-08 21:37:59,748 [INFO] Start polling
+2026-05-08 21:38:02,196 [INFO] Run polling for bot @testingcoffffeemaniabot id=8620883378 - 'testin'
+2026-05-08 21:38:03,714 [INFO] Update id=123049359 is handled. Duration 1390 ms by bot id=8620883378
+2026-05-09 11:46:59,086 [ERROR] Failed to fetch updates - TelegramNetworkError: HTTP Client says - Request timeout error
+2026-05-09 11:46:59,134 [WARNING] Sleep for 1.000000 seconds and try again... (tryings = 0, bot id = 8620883378)
+2026-05-09 11:47:23,603 [INFO] Connection established (tryings = 1, bot id = 8620883378)
+2026-05-09 12:08:32,121 [ERROR] Failed to fetch updates - TelegramNetworkError: HTTP Client says - Request timeout error
+2026-05-09 12:08:32,121 [WARNING] Sleep for 1.000000 seconds and try again... (tryings = 0, bot id = 8620883378)
+2026-05-09 12:08:45,154 [INFO] Connection established (tryings = 1, bot id = 8620883378)
+2026-05-09 12:09:33,039 [INFO] Polling stopped
+2026-05-09 12:09:33,044 [ERROR] Failed to fetch updates - TelegramNetworkError: HTTP Client says - ServerDisconnectedError: Server disconnected
+2026-05-09 12:09:33,044 [WARNING] Sleep for 1.000000 seconds and try again... (tryings = 0, bot id = 8620883378)
+2026-05-09 12:09:33,308 [INFO] Polling stopped for bot @testingcoffffeemaniabot id=8620883378 - 'testin'

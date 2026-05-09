@@ -54,6 +54,7 @@ def check_payment_yookassa_status(amount, payment_id, user_id):
     """
     try:
         payment = Payment.find_one(str(payment_id).strip())
+        print(payment.json())
     except ReadTimeout:
         logger.warning(
             f"YooKassa timeout | payment_id={payment_id} | "

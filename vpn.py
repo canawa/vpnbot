@@ -241,15 +241,3 @@ class Vpn:
                 con.execute('UPDATE subscriptions SET traffic_leftover_bytes = 0 WHERE user_id = ?', (tg_id,))
 
         return body
-
-# print(Vpn().get_user_by_tg_id(1979477416))
-# Vpn().give_lte_gbs(1979477416, 2 )
-# print(Vpn().get_user_by_tg_id(1979477416))
-
-# user_data = Vpn().get_user_by_tg_id(1979477416)['response'][0]
-# current_limit = user_data['trafficLimitBytes']
-# used = user_data['userTraffic']['usedTrafficBytes']
-# remaining_gb = (current_limit - used) / 1073741824
-#
-# print(current_limit, used, remaining_gb)
-print(Vpn().get_leftover_bytes(1979477416))

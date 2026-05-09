@@ -245,54 +245,6 @@ async def start_command(message):
         cur.execute("INSERT OR IGNORE INTO users (id, username, balance, had_trial) VALUES (?, ?, ?, ?)", (message.from_user.id, message.from_user.username, 0, 0))
 
     generate_ikb_main(message.from_user.id)
- 
-
-
-@dp.callback_query(lambda c: c.data.startswith('check_payment_'))
-async def check_payment_callback(callback: CallbackQuery):
-    await callback.answer("✅️ Я оплатил") # на пол экрана хуйня высветится
-    # Убрали лишний print для экономии памяти
-    await callback.message.delete()
-    parts = callback.data.split('_')
-    if len(parts) < 3:
-        await callback.message.answer('❌ Ошибка: неверный формат данных', parse_mode='HTML')
-        return
-    invoice_id = int(parts[2])
-    status, amount = check_payment_status(invoice_id)
-    try:
-        # Убрали лишний print для экономии памяти
-        if status == 'paid':
-            with sq.connect('database.db') as con:
-                cur = con.cursor()
-                cur.execute('UPDATE users SET balance = balance + ? WHERE id = ?', (amount, callback.from_user.id))
-                cur.execute('INSERT INTO transactions (user_id, amount, type, date) VALUES (?, ?, ?, ?)', (callback.from_user.id, amount, 'CryptoBot', datetime.now().strftime('%Y-%m-%d %H:%M:%S')))
-                # Проверяем реферала и его роль
-                cur.execute('SELECT ref_master_id, registration_date FROM referal_users WHERE referral_id = ?', (callback.from_user.id,))
-                ref_master = cur.fetchone()
-                if ref_master:
-                    ref_master_id = ref_master[0]
-                    registration_date_str = ref_master[1]
-                    if registration_date_str:
-                        registration_date = date.fromisoformat(registration_date_str)
-                        three_months_later = registration_date + timedelta(days=90)
-                        if date.today() <= three_months_later:
-                            cur.execute('SELECT role FROM users WHERE id = ?', (ref_master_id,))
-                            ref_master_role = cur.fetchone()
-                            if ref_master_role and ref_master_role[0] == 'refmaster':
-                                cur.execute('UPDATE users SET ref_balance = ref_balance + ? WHERE id = ?', (int(amount)/2, ref_master_id))
-                con.commit()
-            await callback.message.answer(f'Спасибо за покупку, ваша подписка: ТУТ ГАЙД', parse_mode='HTML', reply_markup=ikb_back)
-            await callback.message.delete()
-        else:
-            await callback.message.answer('👀 Ожидаем оплату, оплатите и попробуйте снова!', parse_mode='HTML')
-    except Exception as e:
-        await callback.message.answer(
-            '❌ Не удалось проверить оплату. Попробуйте чуть позже или напишите в поддержку.',
-            parse_mode='HTML',
-            reply_markup=ikb_support,
-        )
-        print(f'check_payment_callback error: {type(e).__name__}: {e}')
-        raise e
 
 # ОБРАБОТЧИКИ КОЛЛБЭКОВ
 @dp.callback_query(lambda c: c.data == 'buy_vpn')
@@ -311,16 +263,6 @@ async def buy_vpn_callback(callback: CallbackQuery):
 
     ), parse_mode='HTML', reply_markup=generate_ikb_duration_choose(callback.from_user.id))
 
-# @dp.callback_query(F.data.startswith('duration_'))
-# async def subscription_duration_choose(callback: CallbackQuery):
-#     await callback.message.delete()
-#     days = int(callback.data.replace('duration_',''))
-#     price = SUBSCRIPTION_PLAN_PRICES.get(days)
-#     if price is None:
-#         await callback.message.answer('❌ Неизвестный тариф. Выберите тариф заново.', parse_mode='HTML', reply_markup=ikb_back)
-#         return
-#     await callback.message.answer_photo(BUY_VPN_PHOTO, reply_markup=get_vpn_pay_keyboard(price, days))
-#
 
 @dp.callback_query(lambda c: c.data == 'my_subscription')
 async def my_sub_callback(callback: CallbackQuery):
@@ -800,7 +742,7 @@ async def process_deposit(callback: CallbackQuery):
                     "value": amount,
                     "currency": "RUB"
                 },
-                "description": "Пополнение баланса",
+                "description": f"Покупка пользователя id={callback.from_user.id} username={callback.from_user.username} ",
                 "capture": True,
                 "confirmation": {
                     "type": "redirect",
