@@ -347,7 +347,7 @@ async def buy_gbs(callback: CallbackQuery):
                 "return_url": "https://t.me/coffemaniaVPNbot"
             },
             "capture": True,
-            "description": f"Покупка дополнительных {gb_amount} ГБ",
+            "description": f"Покупка дополнительных {gb_amount} ГБ id={callback.from_user.id} username = {callback.from_user.username}",
             "metadata": {
             "user_id": callback.from_user.id,
         }
