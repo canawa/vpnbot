@@ -1,11 +1,14 @@
+import logging
 import sqlite3 as sq
 from datetime import datetime, date
 from datetime import timedelta
 import asyncio
+
+from main import PING_UNCONNECTED_PHOTO
+from texts import PING_CAPTION
 from vpn import Vpn
 from ikbs import *
 from aiogram.exceptions import TelegramForbiddenError
-
 async def check_expired_subscriptions_table(bot):
     """Таблица subscriptions: уведомление в день окончания subscription_expires_at (TEXT, сравнение через date())."""
     while True:
@@ -181,3 +184,33 @@ async def notify_gbs_ending(bot):
         await asyncio.sleep(3600)
 
 
+async def notify_inactive_trial_users(bot):
+    while True:
+        try:
+            all_users = Vpn().get_unconnected_trial_users_tg_id()
+
+            logging.info(f"[trial_notify] start batch, users={len(all_users)}")
+
+            for user_id in all_users:
+                try:
+                    logging.info(f"[trial_notify] sending to user_id={user_id}")
+
+                    await bot.send_photo(
+                        chat_id=user_id,
+                        photo=PING_UNCONNECTED_PHOTO,
+                        caption=PING_CAPTION,
+                        reply_markup=ikb_my_sub
+                    )
+
+                    logging.info(f"[trial_notify] sent ok user_id={user_id}")
+
+                except Exception as e:
+                    logging.exception(f"[trial_notify] failed user_id={user_id}: {e}")
+
+                await asyncio.sleep(0.05)
+
+        except Exception as e:
+            logging.exception(f"[trial_notify] batch error: {e}")
+
+        logging.info("[trial_notify] sleep 3600s")
+        await asyncio.sleep(3600)

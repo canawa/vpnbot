@@ -169,6 +169,11 @@ ikb_my_sub = InlineKeyboardMarkup(inline_keyboard=[
 ikb_sale = InlineKeyboardMarkup(inline_keyboard = [
         [InlineKeyboardButton(text = 'Оплатить', callback_data = 'deposit_99_card', icon_custom_emoji_id=get_emoji('shield_emoji'), style='success')],
 ])
+def get_ikb_unconnected_reminder(url):
+    ikb_unconnected_reminder = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text='Подключиться', url=url, icon_custom_emoji_id=get_emoji('shield_emoji'), style='success')],
+            [InlineKeyboardButton(text='Назад', callback_data='back', icon_custom_emoji_id=get_emoji('exit'))]
+        ])
 
 def create_ikb_devices(tg_id):
     devices = Vpn().get_hwid_devices(tg_id)

@@ -267,9 +267,3 @@ class Vpn:
                 if user['userTraffic']['firstConnectedAt'] is None
                 and any(squad['name'] == 'trial' for squad in user['activeInternalSquads'])]
 #
-# print(Vpn().get_all_users())
-print(Vpn().get_unconnected_trial_users_tg_id())
-
-users = Vpn().get_unconnected_trial_users_tg_id()
-for user in users:
-    print(user)

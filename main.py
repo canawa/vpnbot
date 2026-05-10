@@ -323,7 +323,7 @@ async def my_sub_callback(callback: CallbackQuery):
         MY_KEYS_PHOTO,
         caption='<b>У тебя еще нет подписки!</b>',
         parse_mode='HTML',
-        reply_markup=get_vpn_pay_keyboard(SUBSCRIPTION_PLAN[VPN_SUBSCRIPTION_DAYS_PAID], VPN_SUBSCRIPTION_DAYS_PAID),
+        reply_markup=generate_ikb_duration_choose(callback.from_user.id),
     )
 
 @dp.callback_query(F.data == 'buy_lte_gigabytes')
@@ -1204,25 +1204,13 @@ async def adv_campaigns(callback: CallbackQuery):
         await callback.message.answer(e)
 
 
-async def notify_inactive_trial_users():
-    while True:
-        try:
-            all_users = vpn.get_unconnected_trial_users_tg_id()
-            for user_id in all_users:
-                try:
-                    await bot.send_photo(chat_id=user_id, photo=PING_UNCONNECTED_PHOTO, caption=PING_CAPTION)
-                except Exception as e:
-                    logging.exception(e)
-                await asyncio.sleep(0.05)
-        except Exception as e:
-            logging.exception(e)
-        await asyncio.sleep(1)
 
 
 async def main():
     asyncio.create_task(check_expired_subscriptions_table(bot))
     asyncio.create_task(check_expiring_tomorrow_subscriptions_table(bot))
     asyncio.create_task(notify_gbs_ending(bot))
+    asyncio.create_task(notify_inactive_trial_users(bot))
     # Запускаем фоновую задачу для сброса флага runout_notified в 00:01 каждый день
     asyncio.create_task(reset_runout_notified_daily())
     await dp.start_polling(bot) # отправить соединение к серверам телеграмма
