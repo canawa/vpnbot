@@ -199,6 +199,7 @@ async def notify_inactive_trial_users(bot):
                         chat_id=user_id,
                         photo=PING_UNCONNECTED_PHOTO,
                         caption=PING_CAPTION,
+                        parse_mode='HTML',
                         reply_markup=ikb_my_sub
                     )
 
@@ -213,4 +214,4 @@ async def notify_inactive_trial_users(bot):
             logging.exception(f"[trial_notify] batch error: {e}")
 
         logging.info("[trial_notify] sleep 3600s")
-        await asyncio.sleep(3600)
+        await asyncio.sleep(24000)
