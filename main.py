@@ -160,6 +160,7 @@ try:
     BUY_GBS_PHOTO = FSInputFile('photos/buy_gbs.png')
     LIMITED_OFFER_PHOTO = FSInputFile('photos/LIMITED OFFER.png')
     INVITE_FRIEND_COLORED_PHOTO = FSInputFile('photos/invite_friend_colored.png')
+    PING_UNCONNECTED_PHOTO = FSInputFile('photos/ping_unconnected.jpg')
 except FileNotFoundError:
     print("Photo files not found")
     exit()
@@ -1201,6 +1202,21 @@ async def adv_campaigns(callback: CallbackQuery):
         )
     except Exception as e:
         await callback.message.answer(e)
+
+
+async def notify_inactive_trial_users():
+    while True:
+        try:
+            all_users = vpn.get_unconnected_trial_users_tg_id()
+            for user_id in all_users:
+                try:
+                    await bot.send_photo(chat_id=user_id, photo=PING_UNCONNECTED_PHOTO, caption=PING_CAPTION)
+                except Exception as e:
+                    logging.exception(e)
+                await asyncio.sleep(0.05)
+        except Exception as e:
+            logging.exception(e)
+        await asyncio.sleep(1)
 
 
 async def main():

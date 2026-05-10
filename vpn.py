@@ -235,3 +235,41 @@ class Vpn:
                 con.execute('UPDATE subscriptions SET traffic_leftover_bytes = 0 WHERE user_id = ?', (tg_id,))
 
         return body
+
+    def get_all_users(self, size: int = 1000) -> list[dict]:
+        all_users = []
+        start = 0
+
+        while True:
+            response = requests.get(
+                f"{self.base_url}/api/users",
+                headers={"Authorization": f"Bearer {self.token}"},
+                params={"size": size, "start": start},
+            )
+            data = response.json()['response']
+
+            users = data.get("users", [])
+            total = data.get("total", 0)
+
+            all_users.extend(users)
+            start += size
+
+            if start >= total:
+                break
+
+        return all_users
+
+    def get_unconnected_trial_users_tg_id(self) -> list[dict]:
+        """Возвращает trial-пользователей без активных нод (usedTraffic == 0)."""
+        all_users = self.get_all_users()
+
+        return [user['telegramId'] for user in all_users
+                if user['userTraffic']['firstConnectedAt'] is None
+                and any(squad['name'] == 'trial' for squad in user['activeInternalSquads'])]
+#
+# print(Vpn().get_all_users())
+print(Vpn().get_unconnected_trial_users_tg_id())
+
+users = Vpn().get_unconnected_trial_users_tg_id()
+for user in users:
+    print(user)
