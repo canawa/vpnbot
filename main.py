@@ -161,6 +161,7 @@ try:
     LIMITED_OFFER_PHOTO = FSInputFile('photos/LIMITED OFFER.png')
     INVITE_FRIEND_COLORED_PHOTO = FSInputFile('photos/invite_friend_colored.png')
     PING_UNCONNECTED_PHOTO = FSInputFile('photos/ping_unconnected.jpg')
+    PING_UNACTIVE_PHOTO=FSInputFile('photos/ping_unactive_photo.jpg')
 except FileNotFoundError:
     print("Photo files not found")
     exit()
@@ -1203,8 +1204,37 @@ async def adv_campaigns(callback: CallbackQuery):
     except Exception as e:
         await callback.message.answer(e)
 
+@dp.callback_query(F.data == 'ping_unactive')
+async def ping_unactive_users(callback: CallbackQuery):
+    users = vpn.get_unactive_users()
 
+    for user in users:
+        try:
+            await bot.send_photo(
+                chat_id=user,
+                photo=PING_UNACTIVE_PHOTO,
+                caption="""
+😂 <b> Всего 6 рублей в день </b> 
 
+Именно столько стоит свободный доступ в интернет с нами: Ютуб, Рилсы, ТикТок, Нейросети. Делает твою жизнь комфортнее, а доступ к контенту и знаниям неограниченным.
+
+<b>Почему это выгодно именно сейчас:</b>
+
+<tg-emoji emoji-id="5208705542226202990">☑️</tg-emoji> Авторский обход белых списков
+<tg-emoji emoji-id="5208705542226202990">☑️</tg-emoji> Триал - 3 дня без платежа, без обязательств
+<tg-emoji emoji-id="5208705542226202990">☑️</tg-emoji> Настроили все за тебя
+
+Присоединяйся к нам. Всё просто.
+""",
+                parse_mode="HTML",
+                reply_markup=ikb_unactive_ping_button,
+
+            )
+
+        except Exception as e:
+            logging.exception(
+                f"Ошибка при отправке сообщения пользователю {user}: {e}"
+            )
 
 async def main():
     asyncio.create_task(check_expired_subscriptions_table(bot))

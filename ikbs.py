@@ -87,6 +87,7 @@ ikb_admin = InlineKeyboardMarkup(inline_keyboard=[
     # [InlineKeyboardButton(text='⏰ Уведомить ро скидке у кого нет подписки', callback_data='admin_notify_sale')],
     [InlineKeyboardButton(text='🤝 Напомнить о рефке', callback_data='admin_notify_referral')],
     [InlineKeyboardButton(text='Рекламные кампании', callback_data='adv_campaigns')],
+    [InlineKeyboardButton(text='Разослать что 6 руб в день', callback_data='ping_unactive')]
 
 
 ])
@@ -177,6 +178,9 @@ def create_ikb_devices(tg_id):
     ikb_devices.inline_keyboard.append([InlineKeyboardButton(text='Назад', callback_data='back', icon_custom_emoji_id=get_emoji('exit'))])
     return ikb_devices
 
+ikb_unactive_ping_button = InlineKeyboardMarkup(inline_keyboard=[
+    [InlineKeyboardButton(text='Подключить VPN', callback_data='buy_vpn', icon_custom_emoji_id=get_emoji('plus'))],
+])
 
 def generate_ikb_duration_choose(tg_id):
     with sq.connect('database.db') as con:
