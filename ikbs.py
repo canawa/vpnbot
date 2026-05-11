@@ -22,7 +22,6 @@ def generate_ikb_main(user_id):
         cur.execute('SELECT subscription_expires_at FROM subscriptions WHERE user_id = ?', (user_id,))
         result = cur.fetchone()
         subscription_expires_at = result[0] if result else None
-        cur.execute('')
         if had_trial != 1 :
             ikb_main.inline_keyboard.append([InlineKeyboardButton(text='🎁 Попробовать бесплатно', callback_data='trial', style = 'success')])
         if subscription_expires_at:
