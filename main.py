@@ -1228,8 +1228,9 @@ async def ping_unactive_users(callback: CallbackQuery):
 """,
                 parse_mode="HTML",
                 reply_markup=ikb_unactive_ping_button,
-
             )
+
+            await asyncio.sleep(0.1)
 
         except Exception as e:
             logging.exception(
