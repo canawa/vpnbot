@@ -335,6 +335,7 @@ async def lte_gigabytes(callback: CallbackQuery):
 
 @dp.callback_query(F.data.startswith('gbs_'))
 async def buy_gbs(callback: CallbackQuery):
+    await callback.message.delete()
     gb_amount = int(callback.data.replace('gbs_', ''))
     price = GBS_PRICES.get(gb_amount)
     if price is None:
