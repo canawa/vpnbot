@@ -213,5 +213,5 @@ async def notify_inactive_trial_users(bot):
         except Exception as e:
             logging.exception(f"[trial_notify] batch error: {e}")
 
-        logging.info("[trial_notify] sleep 3600s")
+        logging.info("[trial_notify] sleep 24000s")
         await asyncio.sleep(24000)

@@ -478,7 +478,7 @@ def welcome_back_caption(has_active: bool, subscription_expires_at=None) -> str:
         "👋 Добро пожаловать в Кофеманию\n"
         "\n"
         "📦 Информация о подписке\n"
-        "├ 4 региона + обход LTE\n" 
+        "├ Множество серверов + обход LTE\n" 
         "├ До 3-х устройств\n"
         f"└ Подписка: {sub_line}\n" # sub_line - это строка с информацией о подписке
         
