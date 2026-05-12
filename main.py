@@ -65,6 +65,7 @@ _SUBSCRIPTION_URL_KEYS = ( # не уверен
 class AdvCampaign(StatesGroup):
     waiting_name = State()
     waiting_description = State()
+    waiting_custom_link = State()
 
 def _subscription_url_from_dict(d):
     if not isinstance(d, dict):
