@@ -1,3 +1,4 @@
+import logging
 import sqlite3 as sq
 from datetime import datetime, timedelta
 
@@ -102,4 +103,9 @@ def create_tables():
         try:
             cur.execute('ALTER TABLE users ADD COLUMN is_legacy INTEGER DEFAULT 0;')
         except Exception as e:
-            print(e)
+            logging.exception(e)
+
+        try:
+            cur.execute('ALTER TABLE adv_campaigns ADD COLUMN custom_link TEXT DEFAULT NULL')
+        except Exception as e:
+            logging.exception(e)

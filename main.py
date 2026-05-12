@@ -38,7 +38,19 @@ from expire_functions import *
 locale.setlocale(locale.LC_TIME, 'ru_RU.UTF-8')
 print('BOT STARTED!!!')
 
+loop = asyncio.get_event_loop()
 
+def handle_exception(loop, context):
+    logging.error(f"ASYNC ERROR: {context.get('message')}")
+    logging.error(context.get('exception'))
+
+loop.set_exception_handler(handle_exception)
+
+async def safe_task(coro, name: str = "task"):
+    try:
+        await coro
+    except Exception:
+        logging.exception(f"[BACKGROUND TASK CRASH] {name}")
 
 LOG_PATH = os.getenv("LOG_PATH", "logs/bot.log")  # если нет env — берёт локальный путь
 os.makedirs(os.path.dirname(LOG_PATH), exist_ok=True)
@@ -61,6 +73,9 @@ _SUBSCRIPTION_URL_KEYS = ( # не уверен
     'subscriptionLink',
     'subscription_link',
 )
+
+class RefMasterStatements(StatesGroup):
+    waiting_id = State()
 
 class AdvCampaign(StatesGroup):
     waiting_name = State()
@@ -568,218 +583,146 @@ async def subscribe_confirmed_callback(callback: CallbackQuery):
 async def plan_lifetime_callback(callback: CallbackQuery):
     await callback.answer('Сейчас доступна только подписка на месяц. «Подключить VPN» → страна → оплата.', show_alert=True)
 
-@dp.callback_query(
-    lambda c: c.data.startswith('yookassa_')
-    or (
-        c.data.startswith('check_')
-        and not c.data.startswith('check_payment_')
-    )
-)
+@dp.callback_query(lambda c: c.data.startswith('yookassa_') or c.data.startswith('check_'))
 async def check_payment_yookassa_callback(callback: CallbackQuery):
-    raw = callback.data
-    parts = raw.split('_', 3)
-
-    # теперь принимаем только новый формат
-    if len(parts) != 4:
-        await callback.answer('❌ Устарела кнопка оплаты. Создайте платёж заново.', show_alert=True)
-        return
-
-    _, amount_str, days_str, payment_id = parts
-
     try:
+        raw = callback.data
+        parts = raw.split('_', 3)
+
+        if len(parts) != 4:
+            await callback.answer("❌ Устаревшая кнопка", show_alert=True)
+            return
+
+        _, amount_str, days_str, payment_id = parts
+
         amount_rub = int(amount_str)
         paid_days = int(days_str)
-    except ValueError:
-        await callback.answer('❌ Неверные данные в кнопке оплаты.', show_alert=True)
-        return
-
-    # expected_amount = SUBSCRIPTION_PLAN_PRICES.get(paid_days)
-    # if expected_amount is None or expected_amount != amount_rub:
-    #     await callback.answer('❌ Сумма не соответствует тарифу. Создайте платёж заново.', show_alert=True)
-    #     return
-
-    payment_state = check_payment_yookassa_status(amount_rub, payment_id, callback.from_user.id)
-
-    if payment_state == 'paid':
-        # Реферальный блок (оставлен без изменений)
-        try:
-            with sq.connect('database.db') as con:
-                cur = con.cursor()
-                cur.execute(
-                    'SELECT ref_master_id, registration_date FROM referal_users WHERE referral_id = ?',
-                    (callback.from_user.id,),
-                )
-                ref_master = cur.fetchone()
-
-                if ref_master:
-                    ref_master_id = ref_master[0]
-                    registration_date_str = ref_master[1]
-
-                    if registration_date_str:
-                        registration_date = date.fromisoformat(registration_date_str)
-                        three_months_later = registration_date + timedelta(days=90)
-
-                        if date.today() <= three_months_later:
-                            cur.execute('SELECT role FROM users WHERE id = ?', (ref_master_id,))
-                            ref_master_role_row = cur.fetchone()
-                            ref_master_role = ref_master_role_row[0] if ref_master_role_row else None
-
-                            if ref_master_role == 'refmaster':
-                                cur.execute(
-                                    'UPDATE users SET ref_balance = ref_balance + ? WHERE id = ?',
-                                    (amount_rub // 2, ref_master_id),
-                                )
-                            else:
-                                cur.execute(
-                                    'SELECT * FROM users WHERE received_bonus = 0 AND id = ?',
-                                    (callback.from_user.id,),
-                                )
-                                result = cur.fetchone()
-                                if result is not None:
-                                    cur.execute(
-                                        'UPDATE users SET received_bonus = 1 WHERE id = ?',
-                                        (callback.from_user.id,),
-                                    )
-                                    try:
-                                        vpn.renew_subscription(ref_master_id, 7)
-                                        await bot.send_message(
-                                            ref_master_id,
-                                            '<tg-emoji emoji-id="5416117059207572332">➡️</tg-emoji> Ваш реферал совершил депозит, вы получили бонусом 7 дней подписки!',
-                                            parse_mode='HTML',
-                                            reply_markup=ikb_my_sub,
-                                        )
-                                    except Exception as e:
-                                        print(f'Ошибка выдачи реф-бонуса для {ref_master_id}: {e}')
-
-                con.commit()
-
-        except Exception as e:
-            print(f'Ошибка реферального блока для {callback.from_user.id}: {e}')
-
-        # Выдача подписки
-        url = None
-        try:
-            url = fetch_vpn_subscription_url_after_purchase(callback.from_user.id, paid_days=paid_days)
-        except Exception as e:
-            print(f'Ошибка при выдаче подписки после оплаты для {callback.from_user.id}: {e}')
 
         try:
-            await callback.message.delete()
+            payment_state = check_payment_yookassa_status(
+                amount_rub,
+                payment_id,
+                callback.from_user.id
+            )
         except Exception:
-            pass
+            logging.exception("YooKassa status check failed")
+            await callback.answer("⏳ Ошибка проверки оплаты", show_alert=True)
+            return
 
-        if url:
+        if payment_state == 'paid':
+            url = None
             try:
+                url = fetch_vpn_subscription_url_after_purchase(
+                    callback.from_user.id,
+                    paid_days=paid_days
+                )
+            except Exception:
+                logging.exception("VPN subscription creation failed")
+
+            await callback.message.delete()
+
+            if url:
                 await callback.message.answer_photo(
                     MY_KEYS_PHOTO,
                     caption=vpn_subscription_message_html(url),
                     parse_mode='HTML',
                     reply_markup=create_ikb_sub_after_buy(url),
                 )
-            except Exception as e:
-                print(f'Ошибка отправки сообщения с ключом для {callback.from_user.id}: {e}')
+            else:
+                await callback.message.answer(
+                    "✅ Оплата прошла, но ключ не выдан. Напишите в поддержку.",
+                    reply_markup=ikb_my_sub
+                )
+
+        elif payment_state == 'already_processed':
+            await callback.answer("Уже обработано", show_alert=True)
+
         else:
-            await callback.message.answer(
-                '✅ Оплата прошла успешно!\n\n'
-                '⚠️ Не удалось автоматически выдать ключ. '
-                'Откройте «Моя подписка» — ключ там уже должен быть. '
-                'Если нет — напишите в поддержку.',
-                parse_mode='HTML',
-                reply_markup=ikb_my_sub,
-            )
+            await callback.answer("⏳ Ожидание оплаты", show_alert=True)
 
-    elif payment_state == 'already_processed':
-        await callback.message.answer(
-            '✅ Этот платёж уже обработан ранее. Если доступ не появился, откройте «Моя подписка».',
-            parse_mode='HTML',
-            reply_markup=ikb_my_sub,
-        )
-    elif payment_state in ('timeout', 'error'):  # 👈 вот сюда, в конец цепочки
-        await callback.answer(
-            "⏳ Сервис оплаты не отвечает. Подождите минуту и нажмите «Я оплатил» снова.",
-            show_alert=True,
-        )
-    else:
-        await callback.message.answer(
-            '👀 Ожидаем оплату, оплатите и попробуйте снова!',
-            parse_mode='HTML',
-        )
-
+    except Exception:
+        logging.exception("check_payment_yookassa_callback crashed")
+        try:
+            await callback.answer("❌ Ошибка", show_alert=True)
+        except:
+            pass
 
 @dp.callback_query(lambda c: c.data.startswith('deposit_'))
 async def process_deposit(callback: CallbackQuery):
-    parts = callback.data.split('_')
-
-    if len(parts) != 4:
-        await callback.message.answer(
-            '❌ Неверные данные платежа. Выберите тариф заново.',
-            reply_markup=ikb_back
-        )
-        return
-
-    _, price, days_str, method = parts
-
     try:
-        amount = int(price)
-        paid_days = int(days_str)
-    except ValueError:
-        await callback.message.answer(
-            '❌ Неверные данные суммы/тарифа. Выберите тариф заново.',
-            reply_markup=ikb_back
-        )
-        return
+        parts = callback.data.split('_')
 
-    # expected_amount = SUBSCRIPTION_PLAN.get(paid_days)
-    # if expected_amount is None or expected_amount != amount:
-    #     await callback.message.answer(
-    #         '❌ Сумма не соответствует тарифу. Выберите тариф заново.',
-    #         reply_markup=ikb_back
-    #     )
-    #     return
+        if len(parts) != 4:
+            await callback.message.answer(
+                '❌ Неверные данные платежа. Выберите тариф заново.',
+                reply_markup=ikb_back
+            )
+            return
 
-    await callback.message.delete()
+        _, price, days_str, method = parts
 
-    if method == 'card':
         try:
-            payment = Payment.create({
-                "amount": {
-                    "value": amount,
-                    "currency": "RUB"
-                },
-                "description": f"Покупка подписки на {paid_days} дней id={callback.from_user.id} username={callback.from_user.username} ",
-                "capture": True,
-                "confirmation": {
-                    "type": "redirect",
-                    "return_url": "https://t.me/coffemaniaVPNbot",
-                },
-                "metadata": {
-                    "user_id": callback.from_user.id,
-                }
-            }, uuid.uuid4())
-
-            payment_id = payment.id
-            confirmation_url = payment.confirmation.confirmation_url
-
+            amount = int(price)
+            paid_days = int(days_str)
+        except ValueError:
             await callback.message.answer(
-                '👉 Создали заявку на оплату, переходите по ссылке и оплатите.\n\n'
-                '<b>❗ После оплаты нажмите на кнопку "Я оплатил"</b>',
-                parse_mode='HTML',
-                reply_markup=create_yookassa_payment_keyboard(
-                    amount,
-                    paid_days,
-                    confirmation_url,
-                    payment_id
+                '❌ Неверные данные суммы/тарифа.',
+                reply_markup=ikb_back
+            )
+            return
+
+        await callback.message.delete()
+
+        if method == 'card':
+            try:
+                payment = Payment.create({
+                    "amount": {
+                        "value": str(amount),
+                        "currency": "RUB"
+                    },
+                    "description": (
+                        f"Покупка подписки {paid_days} дней "
+                        f"id={callback.from_user.id} "
+                        f"username={callback.from_user.username}"
+                    ),
+                    "capture": True,
+                    "confirmation": {
+                        "type": "redirect",
+                        "return_url": "https://t.me/coffemaniaVPNbot",
+                    },
+                    "metadata": {
+                        "user_id": callback.from_user.id,
+                    }
+                }, uuid.uuid4())
+
+                await callback.message.answer(
+                    '👉 Ссылка на оплату создана.\n\n'
+                    '<b>После оплаты нажмите "Я оплатил"</b>',
+                    parse_mode='HTML',
+                    reply_markup=create_yookassa_payment_keyboard(
+                        amount,
+                        paid_days,
+                        payment.confirmation.confirmation_url,
+                        payment.id
+                    )
                 )
-            )
 
-        except Exception as e:
+            except Exception:
+                logging.exception("YooKassa payment creation failed")
+                await callback.message.answer(
+                    '❌ Ошибка создания платежа. Попробуйте позже.',
+                    reply_markup=ikb_support
+                )
+
+    except Exception:
+        logging.exception("process_deposit crashed completely")
+        try:
             await callback.message.answer(
-                '❌ Не удалось создать заявку. Напишите в техподдержку, мы обязательно поможем!',
-                reply_markup=ikb_support,
+                '❌ Критическая ошибка. Попробуйте позже.',
+                reply_markup=ikb_back
             )
-            print(f'process_deposit error: {type(e).__name__}: {e}')
-            raise
-
+        except:
+            pass
 @dp.callback_query(lambda c: c.data == 'bug_report')
 async def bug_report_callback(callback: CallbackQuery):
     await callback.answer("⚠️ Баг репорт") # на пол экрана хуйня высветится
@@ -1072,13 +1015,16 @@ async def admin_roles_callback(callback: CallbackQuery):
     await callback.message.answer("👑 <b>Управление ролями</b>\n\nВыберите действие:", parse_mode='HTML', reply_markup=ikb_admin_roles)
 
 @dp.callback_query(lambda c: c.data == 'admin_give_refmaster')
-async def admin_give_refmaster_callback(callback: CallbackQuery):
+async def admin_give_refmaster_callback(callback: CallbackQuery, state: FSMContext):
     await callback.answer("👑 Выдать роль Refmaster") # на пол экрана хуйня высветится
     await callback.message.delete()
+    await state.set_state(RefMasterStatements.waiting_id)
     await callback.message.answer("👑 <b>Выдача роли Refmaster</b>\n\nОтправьте ID пользователя, которому нужно выдать роль Refmaster:", parse_mode='HTML', reply_markup=ikb_admin_back)
 
-@dp.message(F.text.isdigit(), (F.from_user.id.in_([1979477416, 7562967579])))
-async def admin_set_role_message(message: Message):
+
+
+@dp.message(RefMasterStatements.waiting_id, F.text.isdigit())
+async def admin_set_role_message(message: Message, state: FSMContext):
     # Обработчик для выдачи роли Refmaster по ID пользователя
     user_id = int(message.text)
     with sq.connect('database.db') as con:
@@ -1093,6 +1039,8 @@ async def admin_set_role_message(message: Message):
             await message.answer(f"✅ Роль Refmaster успешно выдана пользователю:\n\n🆔 ID: {user_id}\n👤 Username: {user[1] if user[1] else 'Не указан'}", parse_mode='HTML', reply_markup=ikb_admin_back)
         else:
             await message.answer(f"❌ Пользователь с ID {user_id} не найден в базе данных.", parse_mode='HTML', reply_markup=ikb_admin_back)
+            return
+    await state.clear()
 
 @dp.callback_query(lambda c: c.data == 'admin_referrals')
 async def admin_referrals_callback(callback: CallbackQuery):
@@ -1113,34 +1061,67 @@ async def adv_campaigns_callback(callback: CallbackQuery):
     await callback.message.delete()
     await callback.message.answer(text='Выберите:', reply_markup=ikb_adv_campaigns_menu)
 
+
 @dp.callback_query(F.data == 'adv_new_campaign_create')
 async def create_adv_campaign(callback: CallbackQuery, state: FSMContext):
     await callback.message.delete()
     await state.set_state(AdvCampaign.waiting_name)
     await callback.message.answer("Введите название кампании:")
 
+
 @dp.message(AdvCampaign.waiting_name)
-async def get_campaign_name(message: Message,state: FSMContext):
+async def get_campaign_name(message: Message, state: FSMContext):
     name = message.text
-    await state.update_data(campaign_name = name)
+
+    await state.update_data(campaign_name=name)
     await state.set_state(AdvCampaign.waiting_description)
+
     await message.answer("Введите описание кампании:")
+
 
 @dp.message(AdvCampaign.waiting_description)
 async def get_campaign_description(message: Message, state: FSMContext):
     description = message.text
+
+    await state.update_data(campaign_description=description)
+    await state.set_state(AdvCampaign.waiting_custom_link)
+
+    await message.answer(
+        "Введите параметр для ссылки или отправьте '-' чтобы пропустить:"
+    )
+
+
+@dp.message(AdvCampaign.waiting_custom_link)
+async def get_campaign_custom_link(message: Message, state: FSMContext):
+    custom_link = message.text.strip()
+
+    # если пропуск
+    if custom_link == '-':
+        custom_link = None
+    else:
+        # автоматически собираем ссылку
+        custom_link = f"https://t.me/coffemaniaVPNbot?start={custom_link}"
+
     data = await state.get_data()
+
     name = data["campaign_name"]
+    description = data["campaign_description"]
 
     with sq.connect('database.db') as con:
         cur = con.cursor()
 
         cur.execute("""
-            INSERT INTO adv_campaigns (campaign_name, campaign_description, campaign_link)
-            VALUES (?, ?, ?)
-        """, (name, description, ""))
+            INSERT INTO adv_campaigns (
+                campaign_name,
+                campaign_description,
+                campaign_link,
+                custom_link
+            )
+            VALUES (?, ?, ?, ?)
+        """, (name, description, "", custom_link))
 
         row_id = cur.lastrowid
+
         link = f"https://t.me/coffemaniaVPNbot?start={row_id}"
 
         cur.execute("""
@@ -1154,27 +1135,54 @@ async def get_campaign_description(message: Message, state: FSMContext):
     await state.clear()
 
     await message.answer(
-        f"Кампания создана\nID: {row_id}\nСсылка: {link}",
+        f"Кампания создана\n"
+        f"ID: {row_id}\n"
+        f"Ссылка: {link}\n"
+        f"Доп. ссылка: {custom_link if custom_link else 'не указана'}",
         reply_markup=ikb_adv_back
     )
 
 @dp.callback_query(F.data == 'adv_get_campaigns')
-async def get_campaigns(callback : CallbackQuery):
+async def get_campaigns(callback: CallbackQuery):
     await callback.message.delete()
-    await callback.message.answer(text='Список кампаний:',reply_markup=generate_ikb_campaigns_list())
+    await callback.message.answer(
+        text='Список кампаний:',
+        reply_markup=generate_ikb_campaigns_list()
+    )
 
 
 @dp.callback_query(F.data.startswith('adv_campaign_'))
 async def adv_campaigns(callback: CallbackQuery):
     await callback.message.delete()
-    campaign_name = callback.data.replace('adv_campaign_','')
+
+    campaign_name = callback.data.replace('adv_campaign_', '')
+
     with sq.connect('database.db') as con:
         cur = con.cursor()
-        cur.execute('SELECT campaign_name, campaign_description, campaign_link FROM adv_campaigns WHERE campaign_name == ?', (campaign_name,))
+
+        cur.execute('''
+            SELECT campaign_name,
+                   campaign_description,
+                   campaign_link,
+                   custom_link
+            FROM adv_campaigns
+            WHERE campaign_name == ?
+        ''', (campaign_name,))
+
         result = cur.fetchone()
-        campaign_id = result[-1].replace('https://t.me/coffemaniaVPNbot?start=', '')
-        cur.execute('SELECT COUNT(*) FROM referal_users WHERE ref_master_id = ?', (campaign_id,))
+
+        campaign_id = result[2].replace(
+            'https://t.me/coffemaniaVPNbot?start=',
+            ''
+        )
+
+        cur.execute(
+            'SELECT COUNT(*) FROM referal_users WHERE ref_master_id = ?',
+            (campaign_id,)
+        )
+
         refs_total = (cur.fetchone() or (0,))[0]
+
         cur.execute(
             """
             SELECT COUNT(*), COALESCE(SUM(CAST(t.amount AS INTEGER)), 0)
@@ -1185,26 +1193,37 @@ async def adv_campaigns(callback: CallbackQuery):
             """,
             (campaign_id,),
         )
+
         dep_stats = cur.fetchone() or (0, 0)
+
         deposits_count = dep_stats[0] or 0
         deposits_total = int(dep_stats[1] or 0)
-        # "Ваша доля" считаем строго как 50% от депозитов рефералов.
-        # Фиксированные бонусы 50₽ за приглашения сюда не входят.
+
     try:
+        text = (
+            "<b>Название: " + str(result[0]) + "</b>\n\n"
+            "Описание: " + str(result[1]) + "\n\n"
+            "Ссылка: " + str(result[2]) + "\n\n"
+        )
+
+        if result[3]:
+            text += f"❤️ Доп. ссылка: {result[3]}\n\n"
+
+        text += (
+            "-------------------------\n"
+            "👥 Количество рефералов: " + str(refs_total) + "\n"
+            "💳 Количество депозитов: " + str(deposits_count) + "\n"
+            "💰 Общая сумма депозитов: " + str(deposits_total) + " ₽"
+        )
+
         await callback.message.answer(
-        "<b>Название: " + str(result[0]) + "</b>\n\n"
-       "Описание: " + str(result[1]) + "\n\n"
-         "Ссылка: " + str(result[2]) + "\n\n"
-         "-------------------------\n"
-         "👥 Количество рефералов: " + str(refs_total) + "\n"
-          "💳 Количество депозитов: " + str(deposits_count) + "\n"
-         "💰 Общая сумма депозитов: " + str(deposits_total) + " ₽",
+            text,
             parse_mode="HTML",
             reply_markup=ikb_adv_back
         )
-    except Exception as e:
-        await callback.message.answer(e)
 
+    except Exception as e:
+        await callback.message.answer(str(e))
 @dp.callback_query(F.data == 'ping_unactive')
 async def ping_unactive_users(callback: CallbackQuery):
     users = vpn.get_unactive_users()
@@ -1239,12 +1258,10 @@ async def ping_unactive_users(callback: CallbackQuery):
             )
 
 async def main():
-    asyncio.create_task(check_expired_subscriptions_table(bot))
-    asyncio.create_task(check_expiring_tomorrow_subscriptions_table(bot))
-    asyncio.create_task(notify_gbs_ending(bot))
-    asyncio.create_task(notify_inactive_trial_users(bot))
-    # Запускаем фоновую задачу для сброса флага runout_notified в 00:01 каждый день
-    asyncio.create_task(reset_runout_notified_daily())
+    asyncio.create_task(safe_task(check_expired_subscriptions_table(bot), "expired_subs"))
+    asyncio.create_task(safe_task(check_expiring_tomorrow_subscriptions_table(bot), "expiring_tomorrow"))
+    asyncio.create_task(safe_task(notify_gbs_ending(bot), "gbs_ending"))
+    asyncio.create_task(safe_task(notify_inactive_trial_users(bot), "inactive_trial"))
     await dp.start_polling(bot) # отправить соединение к серверам телеграмма
 
 if __name__ == "__main__": # если файл запускается напрямую, то запустить главную функцию (подключение к серверам телеграмма)

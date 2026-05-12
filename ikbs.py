@@ -102,24 +102,38 @@ ikb_adv_campaigns_menu = InlineKeyboardMarkup(inline_keyboard=[
 def generate_ikb_campaigns_list():
     with sq.connect('database.db') as con:
         cur = con.cursor()
-        cur.execute('SELECT * FROM adv_campaigns')
+
+        cur.execute('''
+            SELECT campaign_name, custom_link
+            FROM adv_campaigns
+        ''')
+
         result = cur.fetchall()
 
         keyboard = []
 
         for row in result:
             name = row[0]
+            custom_link = row[1]
+
+            # если есть ссылка — добавляем сердечко
+            button_text = f'❤️ {name}' if custom_link else name
+
             keyboard.append(
                 [InlineKeyboardButton(
-                    text=f'{name}',
+                    text=button_text,
                     callback_data=f'adv_campaign_{name}'
                 )]
             )
-    keyboard.append([InlineKeyboardButton(
-                    text=f'Назад',
-                    callback_data='adv_campaigns',
-                    icon_custom_emoji_id=get_emoji('exit'),
-        )])
+
+    keyboard.append([
+        InlineKeyboardButton(
+            text='Назад',
+            callback_data='adv_campaigns',
+            icon_custom_emoji_id=get_emoji('exit'),
+        )
+    ])
+
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
 ikb_admin_back = InlineKeyboardMarkup(inline_keyboard=[
