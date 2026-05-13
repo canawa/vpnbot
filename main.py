@@ -134,11 +134,11 @@ def fetch_vpn_subscription_url_after_purchase(tg_id: int, paid_days: int | None 
 def vpn_subscription_message_html(url: str) -> str:
     return (
         "🔑 <b>Твоя подписка КОФЕМАНИЯ VPN:</b>\n"
-        '- Доступ для 3-х устройств'
-        '\n'
-        '- Обход белых списков'
-        "\n"
-        '- Безлимитный трафик* (Трафик расходуется только на LTE-серверах)\n\n'
+        '- Доступ для 3-х устройств\n'
+        '- Обход белых списков\n'
+        '- Безлимитный трафик* (Трафик расходуется только на LTE-серверах)\n'
+        '- В пробном периоде доступно 3 ГБ трафика\n'
+        '- В обычной подписке — 25 ГБ трафика\n\n'
         "☕️ Мы автоматически установим ключ в приложении HAPP\n"
         "\n"
         "🚀 Нажми кнопку ниже — и всё настроится за тебя\n"
@@ -146,6 +146,7 @@ def vpn_subscription_message_html(url: str) -> str:
         "Если хочешь воспользоваться другим клиентом, то копируй ссылку:\n"
         "\n"
         f"<pre>{url}</pre>"
+
     )
 
 
@@ -342,7 +343,7 @@ async def buy_gbs(callback: CallbackQuery):
         await callback.message.answer("❌ Неверный тариф")
         return
     try:
-        payment = Payment.create({
+        payment = await asyncio.to_thread(Payment.create, {
             "amount": {
                 "value": f"{price}",
                 "currency": "RUB"
@@ -357,6 +358,7 @@ async def buy_gbs(callback: CallbackQuery):
             "user_id": callback.from_user.id,
         }
         }, uuid.uuid4())
+
         payment_id = payment.id
         confirmation_url = payment.confirmation.confirmation_url
         await callback.message.answer(
@@ -372,19 +374,59 @@ async def buy_gbs(callback: CallbackQuery):
 
 @dp.callback_query(F.data.startswith('gb_yookassa_'))
 async def process_gb_addition(callback: CallbackQuery):
-    pid = callback.data.replace('gb_yookassa_','').split('_')[0]
-    gb_amount = int(callback.data.replace('gb_yookassa_', '').split('_')[1])
-    price = int(callback.data.replace('gb_yookassa_', '').split('_')[2])
-    status = check_payment_yookassa_status(price,pid, callback.from_user.id)
-    if status == 'paid':
-        body = Vpn().give_lte_gbs(callback.from_user.id, gb_amount)
-        print(body)
-        await callback.message.delete()
-        await callback.message.answer(text=f' Успешно добавили вам +{gb_amount} ГБ к LTE трафику!', parse_mode='HTML', reply_markup=ikb_back)
-    else:
-        await callback.message.answer(text=f' Ваша оплата не прошла. Попробуйте еще раз!', parse_mode='HTML', reply_markup=ikb_back)
 
+    try:
 
+        data = callback.data.replace('gb_yookassa_', '').split('_')
+
+        pid = data[0]
+        gb_amount = int(data[1])
+        price = int(data[2])
+
+        status = await asyncio.to_thread(
+            check_payment_yookassa_status,
+            price,
+            pid,
+            callback.from_user.id
+        )
+
+        if status == 'paid':
+
+            body = await asyncio.to_thread(
+                Vpn().give_lte_gbs,
+                callback.from_user.id,
+                gb_amount
+            )
+
+            print(body)
+
+            try:
+                await callback.message.delete()
+            except:
+                pass
+
+            await callback.message.answer(
+                text=f'Успешно добавили вам +{gb_amount} ГБ к LTE трафику!',
+                parse_mode='HTML',
+                reply_markup=ikb_back
+            )
+
+        else:
+
+            await callback.message.answer(
+                text='Ваша оплата не прошла. Попробуйте еще раз!',
+                parse_mode='HTML',
+                reply_markup=ikb_back
+            )
+
+    except Exception as e:
+
+        print(f'process_gb_addition error: {type(e).__name__}: {e}')
+
+        await callback.message.answer(
+            '❌ Ошибка проверки оплаты',
+            reply_markup=ikb_back
+        )
 
 @dp.callback_query(F.data == 'device_list')
 async def devices_list_callback(callback: CallbackQuery):
@@ -599,7 +641,7 @@ async def check_payment_yookassa_callback(callback: CallbackQuery):
     #     await callback.answer('❌ Сумма не соответствует тарифу. Создайте платёж заново.', show_alert=True)
     #     return
 
-    payment_state = check_payment_yookassa_status(amount_rub, payment_id, callback.from_user.id)
+    payment_state = await asyncio.to_thread(check_payment_yookassa_status,amount_rub, payment_id, callback.from_user.id )
 
     if payment_state == 'paid':
         # Реферальный блок (оставлен без изменений)
@@ -642,7 +684,7 @@ async def check_payment_yookassa_callback(callback: CallbackQuery):
                                         (callback.from_user.id,),
                                     )
                                     try:
-                                        vpn.renew_subscription(ref_master_id, 7)
+                                        await asyncio.to_thread(vpn.renew_subscription, ref_master_id, 7)
                                         await bot.send_message(
                                             ref_master_id,
                                             '<tg-emoji emoji-id="5416117059207572332">➡️</tg-emoji> Ваш реферал совершил депозит, вы получили бонусом 7 дней подписки!',
@@ -730,19 +772,14 @@ async def process_deposit(callback: CallbackQuery):
         )
         return
 
-    # expected_amount = SUBSCRIPTION_PLAN.get(paid_days)
-    # if expected_amount is None or expected_amount != amount:
-    #     await callback.message.answer(
-    #         '❌ Сумма не соответствует тарифу. Выберите тариф заново.',
-    #         reply_markup=ikb_back
-    #     )
-    #     return
-
-    await callback.message.delete()
+    try:
+        await callback.message.delete()
+    except:
+        pass
 
     if method == 'card':
         try:
-            payment = Payment.create({
+            payment = await asyncio.to_thread(Payment.create,{
                 "amount": {
                     "value": amount,
                     "currency": "RUB"
