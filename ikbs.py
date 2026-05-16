@@ -87,7 +87,8 @@ ikb_admin = InlineKeyboardMarkup(inline_keyboard=[
     # [InlineKeyboardButton(text='⏰ Уведомить ро скидке у кого нет подписки', callback_data='admin_notify_sale')],
     [InlineKeyboardButton(text='🤝 Напомнить о рефке', callback_data='admin_notify_referral')],
     [InlineKeyboardButton(text='Рекламные кампании', callback_data='adv_campaigns')],
-    [InlineKeyboardButton(text='Разослать что 6 руб в день', callback_data='ping_unactive')]
+    [InlineKeyboardButton(text='Разослать что 6 руб в день', callback_data='ping_unactive')],
+    [InlineKeyboardButton(text='оповесть бомжей о снижении', callback_data='ping_brokes')]
 
 
 ])
@@ -179,7 +180,11 @@ def create_ikb_devices(tg_id):
     return ikb_devices
 
 ikb_unactive_ping_button = InlineKeyboardMarkup(inline_keyboard=[
-    [InlineKeyboardButton(text='Подключить VPN', callback_data='buy_vpn', icon_custom_emoji_id=get_emoji('plus'))],
+    [InlineKeyboardButton(text='Подключить VPN', callback_data='buy_vpn', icon_custom_emoji_id=get_emoji('plus'), style='success')],
+])
+
+ikb_ping_brokes = InlineKeyboardMarkup(inline_keyboard=[
+    [InlineKeyboardButton(text='Подключиться сейчас (-25%)', callback_data='buy_vpn', icon_custom_emoji_id=get_emoji('plus'), style='success')],
 ])
 
 def generate_ikb_duration_choose(tg_id):

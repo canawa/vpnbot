@@ -54,7 +54,6 @@ logging.basicConfig(
 
 vpn = Vpn()
 
-
 _SUBSCRIPTION_URL_KEYS = ( # не уверен
     'subscriptionUrl',
     'subscription_url',
@@ -1238,6 +1237,37 @@ async def adv_campaigns(callback: CallbackQuery):
         )
     except Exception as e:
         await callback.message.answer(e)
+
+@dp.callback_query(F.data == 'ping_brokes')
+async def ping_broke_users(callback: CallbackQuery): # оповестить нищеебов ебаных
+    await callback.message.delete()
+
+    with sq.connect('database.db') as con:
+        cur = con.cursor()
+        cur.execute('SELECT id FROM users WHERE is_legacy == 0')
+        users = cur.fetchall()
+
+    text = (
+        "<tg-emoji emoji-id='5389038097860144794'>🔥</tg-emoji> <b>СНИЖЕНИЕ ЦЕНЫ!</b>\n\n"
+        "Теперь подписка стоит всего <b>149₽</b> вместо <s>199₽</s>.\n\n"
+        "Успей подключиться по выгодной цене <tg-emoji emoji-id='5307965711065292927'>🚀</tg-emoji>"
+    )
+
+    success = 0
+
+    for user in users:
+        user_id = user[0]
+
+        try:
+            await bot.send_message(user_id, text, parse_mode='HTML', reply_markup=ikb_ping_brokes)
+            success += 1
+        except:
+            pass
+
+    await callback.message.answer(
+        f"✅ Рассылка завершена.\n"
+        f"Отправлено: {success}"
+    )
 
 @dp.callback_query(F.data == 'ping_unactive')
 async def ping_unactive_users(callback: CallbackQuery):

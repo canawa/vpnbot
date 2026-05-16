@@ -274,5 +274,5 @@ class Vpn:
             if user['status']!='ACTIVE':
                 unactive_users.append(user['telegramId'])
         return unactive_users
-# print(Vpn().get_all_users())
+print(Vpn().get_all_users())
 # print(Vpn().get_unactive_users())
