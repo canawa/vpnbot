@@ -160,7 +160,7 @@ try:
     PING_UNCONNECTED_PHOTO = FSInputFile('photos/ping_unconnected.jpg')
     PING_UNACTIVE_PHOTO=FSInputFile('photos/ping_unactive_photo.jpg')
     INVITE_MAX_COLORED_PHOTO=FSInputFile('photos/INVITE_MAX_COLORED.jpg')
-
+    DECISION_PHOTO=FSInputFile('photos/decision.jpg')
 
 except FileNotFoundError:
     print("Photo files not found")
@@ -1287,20 +1287,20 @@ async def ping_unactive_users(callback: CallbackQuery):
         try:
             await bot.send_photo(
                 chat_id=user,
-                photo=PING_UNACTIVE_PHOTO,
-                caption="""
-😂 <b> Всего 6 рублей в день </b> 
+                photo=DECISION_PHOTO,
+                caption=(
+                    "<tg-emoji emoji-id=\"5467389807556579005\">🙂</tg-emoji> Платить 150₽ за кофе — норм.\n"
+                    "Но 5 рублей в день за свободный интернет — «дорого»?\n\n"
 
-Именно столько стоит свободный доступ в интернет с нами: Ютуб, Рилсы, ТикТок, Нейросети. Делает твою жизнь комфортнее, а доступ к контенту и знаниям неограниченным.
+                    "За эти деньги у тебя:\n\n"
 
-<b>Почему это выгодно именно сейчас:</b>
+                    "<tg-emoji emoji-id=\"5233346147560465779\">🟢</tg-emoji> YouTube без вечной загрузки\n"
+                    "<tg-emoji emoji-id=\"5233346147560465779\">🟢</tg-emoji> TikTok, Reels и нейросети без ограничений\n"
+                    "<tg-emoji emoji-id=\"5233346147560465779\">🟢</tg-emoji> Рабочий обход белых списков\n"
+                    "<tg-emoji emoji-id=\"5233346147560465779\">🟢</tg-emoji> 3 дня бесплатно, чтобы проверить самому\n\n"
 
-<tg-emoji emoji-id="5208705542226202990">☑️</tg-emoji> Авторский обход белых списков
-<tg-emoji emoji-id="5208705542226202990">☑️</tg-emoji> Триал - 3 дня без платежа, без обязательств
-<tg-emoji emoji-id="5208705542226202990">☑️</tg-emoji> Настроили все за тебя
-
-Присоединяйся к нам. Всё просто.
-""",
+                    "Пока кто-то ищет «новый способ», наши пользователи просто открывают интернет и живут спокойно."
+                ),
                 parse_mode="HTML",
                 reply_markup=ikb_unactive_ping_button,
             )

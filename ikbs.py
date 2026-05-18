@@ -87,7 +87,7 @@ ikb_admin = InlineKeyboardMarkup(inline_keyboard=[
     # [InlineKeyboardButton(text='⏰ Уведомить ро скидке у кого нет подписки', callback_data='admin_notify_sale')],
     [InlineKeyboardButton(text='🤝 Напомнить о рефке', callback_data='admin_notify_referral')],
     [InlineKeyboardButton(text='Рекламные кампании', callback_data='adv_campaigns')],
-    [InlineKeyboardButton(text='Рассказать челам без подписки о скидке до 149р', callback_data='ping_brokes')],
+    [InlineKeyboardButton(text='Рассказать челам что 5р в день', callback_data='ping_unactive')],
     # [InlineKeyboardButton(text='оповесть бомжей о снижении', callback_data='ping_brokes')]
 
 
@@ -204,10 +204,9 @@ def generate_ikb_duration_choose(tg_id):
         plan = SUBSCRIPTION_PLAN_LEGACY if is_legacy == 1 else SUBSCRIPTION_PLAN
 
         return InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text=f'30 дней · {plan.get(30)}₽', callback_data=f'deposit_{plan.get(30)}_30_card')],
-            [InlineKeyboardButton(text=f'90 дней · {plan.get(90)}₽', callback_data=f'deposit_{plan.get(90)}_90_card')],
-            [InlineKeyboardButton(text=f'180 дней · {plan.get(180)}₽',
-                                  callback_data=f'deposit_{plan.get(180)}_180_card')],
+            [InlineKeyboardButton(text=f'1 месяц · {plan.get(30)}₽', callback_data=f'deposit_{plan.get(30)}_30_card')],
+            [InlineKeyboardButton(text=f'3 месяца · {plan.get(90)}₽', callback_data=f'deposit_{plan.get(90)}_90_card')],
+            [InlineKeyboardButton(text=f'12 месяцев · {plan.get(360)}₽', callback_data=f'deposit_{plan.get(360)}_360_card')],
             [InlineKeyboardButton(text='Назад', callback_data='back', icon_custom_emoji_id=get_emoji('exit'))]
         ])
 
