@@ -159,6 +159,9 @@ try:
     INVITE_FRIEND_COLORED_PHOTO = FSInputFile('photos/invite_friend_colored.png')
     PING_UNCONNECTED_PHOTO = FSInputFile('photos/ping_unconnected.jpg')
     PING_UNACTIVE_PHOTO=FSInputFile('photos/ping_unactive_photo.jpg')
+    INVITE_MAX_COLORED_PHOTO=FSInputFile('photos/INVITE_MAX_COLORED.jpg')
+
+
 except FileNotFoundError:
     print("Photo files not found")
     exit()
@@ -1067,13 +1070,20 @@ async def admin_notify_referral_callback(callback: CallbackQuery):
             try:
                 await bot.send_photo(
                     user[0],
-                    INVITE_FRIEND_COLORED_PHOTO,
+                    INVITE_MAX_COLORED_PHOTO,
                     caption=(
-                            '<tg-emoji emoji-id="5458908492687497206">🔥</tg-emoji> Приведи друга — получи <b>7 дней VPN бесплатно</b> \n\n'
-                            '<b>Как это работает:</b>\n'
-                            '• друг регистрируется по твоей ссылке\n'
-                            '• покупает подписку\n'
-                            '• ты получаешь бонус\n\n'
+                        'Один из наших пользователей — назовём его Макс — не платил за подписку <b>3 месяца</b>.\n\n'
+                        'Он просто каждую неделю отправлял ссылку одному другу в Telegram. '
+                        'Тому, кому это реально было нужно.\n\n'
+                        '🎁 '
+                        '<b>Итог:</b> 13 рефералов, купивших подписку = <b>91 день бесплатно</b>.\n\n'
+
+                        'Ты можешь так же. Даже лучше.\n\n'
+
+                        'Отправь ссылку прямо сейчас одному человеку — '
+                        'тому, кому очень нужен VPN с обходом.\n\n'
+
+                        'Это займёт <b>15 секунд</b>.'
                             ),
                     parse_mode='HTML',
                     reply_markup=ikb_referral_reminder
