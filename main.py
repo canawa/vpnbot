@@ -254,7 +254,7 @@ async def start_command(message):
 async def buy_vpn_callback(callback: CallbackQuery):
     await callback.message.delete()
     await callback.answer("🛒 Раздел покупки VPN") # на пол экрана хуйня высветится
-    await callback.message.answer_photo(FSInputFile("photos/buy_vpn.png"), caption= (
+    await callback.message.answer_photo(BUY_VPN_PHOTO, caption= (
         '<b>В подписку входит:</b>\n  \n'
         '<i><tg-emoji emoji-id="5233346147560465779">🟢</tg-emoji> Неограниченная скорость</i> \n'
         '<i><tg-emoji emoji-id="5233346147560465779">🟢</tg-emoji> Обход белых списков</i> \n'
