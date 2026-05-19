@@ -25,7 +25,13 @@ from datetime import datetime
 from check_subscription import is_subscribed
 import locale
 from emojis import get_emoji
-from databases import create_tables, upsert_subscription_days
+from databases import (
+    create_tables,
+    upsert_subscription_days,
+    referral_link,
+    resolve_ref_master_id,
+    set_custom_ref_code,
+)
 from payments import get_pay_link, check_payment_status, check_payment_yookassa_status, rub_to_usdt
 from logging.handlers import RotatingFileHandler
 import logging
@@ -53,6 +59,8 @@ logging.basicConfig(
 )
 
 vpn = Vpn()
+
+ADMIN_IDS = (1979477416, 7562967579)
 
 _SUBSCRIPTION_URL_KEYS = ( # не уверен
     'subscriptionUrl',
@@ -179,48 +187,51 @@ def format_date_ru(dt) -> str:
 
 
 
+async def _register_referral(referral_id: int, ref_master_id: int, referral_username: str | None):
+    if referral_id == ref_master_id:
+        return
+    with sq.connect('database.db') as con:
+        cur = con.cursor()
+        cur.execute('SELECT 1 FROM users WHERE id = ?', (referral_id,))
+        if cur.fetchone() is not None:
+            return
+        cur.execute('SELECT * FROM referal_users WHERE referral_id = ?', (referral_id,))
+        if cur.fetchone():
+            return
+        try:
+            await bot.send_message(
+                ref_master_id,
+                f' <b>🎉 У вас новый реферал - {referral_username}!</b>',
+                parse_mode='HTML',
+            )
+        except Exception:
+            pass
+        registration_date = date.today().isoformat()
+        cur.execute('SELECT username FROM users WHERE id = ?', (ref_master_id,))
+        ref_master_username_row = cur.fetchone()
+        ref_master_username = ref_master_username_row[0] if ref_master_username_row else None
+        cur.execute(
+            'INSERT OR IGNORE INTO referal_users (referral_id, ref_master_id, registration_date, referral_username, ref_master_username) VALUES (?, ?, ?, ?, ?)',
+            (referral_id, ref_master_id, registration_date, referral_username, ref_master_username),
+        )
+        con.commit()
+        cur.execute('UPDATE users SET ref_amount = ref_amount + 1 WHERE id = ?', (ref_master_id,))
+        con.commit()
+
+
 @dp.message(CommandStart())
 async def start_command(message):
-    
-    try:
-        ref = message.text.split()[1] # получить реферальный код
-        ref = int(ref)
-    except:
-        ref = None
-    if ref:
-        with sq.connect('database.db') as con:
-            cur = con.cursor()
-            # Проверяем, что referral_id != ref_master_id перед вставкой
-            if message.from_user.id != ref:
-                cur.execute("SELECT 1 FROM users WHERE id = ?", (message.from_user.id,))
-                already_used_bot = cur.fetchone() is not None
-                # Бонус только за нового пользователя; возвращаться по реф-ссылке после первого /start — без выплаты
-                if not already_used_bot:
-                    cur.execute("SELECT * FROM referal_users WHERE referral_id = ?", (message.from_user.id,))
-                    result = cur.fetchone()
-                    if not result:
-                        try:
-                            await bot.send_message(ref, f' <b>🎉 У вас новый реферал - {message.from_user.username}! </b>', parse_mode='HTML')
-                        except:
-                            pass
-                        registration_date = date.today().isoformat()
-                        cur.execute("SELECT username FROM users WHERE id = ?", (ref,))
-                        ref_master_username_row = cur.fetchone()
-                        ref_master_username = ref_master_username_row[0] if ref_master_username_row else None
-                        cur.execute(
-                            "INSERT OR IGNORE INTO referal_users (referral_id, ref_master_id, registration_date, referral_username, ref_master_username) VALUES (?, ?, ?, ?, ?)",
-                            (message.from_user.id, ref, registration_date, message.from_user.username, ref_master_username),
-                        )
-                        con.commit()
-                        cur.execute('SELECT role FROM users WHERE id = ?', (ref,))
-                        ref_role_row = cur.fetchone()
-                        ref_role = (ref_role_row[0] if ref_role_row else None) or ''
-                        # Для refmaster отключен старый фиксированный бонус +50 за нового друга.
-                        if ref_role.lower() != 'refmaster':
-                            pass
-                        cur.execute('UPDATE users SET ref_amount = ref_amount + 1 WHERE id = ?', (ref,))
-                con.commit()
 
+    ref_master_id = None
+    parts = (message.text or '').split(maxsplit=1)
+    if len(parts) > 1:
+        ref_master_id = resolve_ref_master_id(parts[1])
+    if ref_master_id:
+        await _register_referral(
+            message.from_user.id,
+            ref_master_id,
+            message.from_user.username,
+        )
 
     # print(user)
     try:
@@ -485,7 +496,7 @@ async def referral_callback(callback: CallbackQuery):
                 caption=(
                     "🤝 <b>Реферальная программа</b>\n\n"
                     "Ваша реферальная ссылка:\n"
-                    f"<code>https://t.me/coffemaniaVPNbot?start={callback.from_user.id}</code>\n\n"
+                    f"<code>{referral_link(callback.from_user.id)}</code>\n\n"
                     f"👥 Количество рефералов: {refs_total}\n"
                     f"💳 Количество депозитов: {deposits_count}\n"
                     f"💰 Общая сумма депозитов: {deposits_total} ₽\n"
@@ -497,7 +508,7 @@ async def referral_callback(callback: CallbackQuery):
                 reply_markup=ikb_referral,
             )
             return
-    await callback.message.answer_photo(INVITE_FRIEND_PHOTO, caption=f"🤝 <b>Пригласить друга</b>\n\nВаша реферальная ссылка:\n<code>https://t.me/coffemaniaVPNbot?start={callback.from_user.id}</code>\n\nВсего приведено друзей: {ref_amount}\n\n<tg-emoji emoji-id='5407064977544583568'>👌</tg-emoji> <b>За каждого приглашенного друга, который пополнит баланс вы получаете 7 дней подписки!</b>", parse_mode='HTML', reply_markup=ikb_referral)
+    await callback.message.answer_photo(INVITE_FRIEND_PHOTO, caption=f"🤝 <b>Пригласить друга</b>\n\nВаша реферальная ссылка:\n<code>{referral_link(callback.from_user.id)}</code>\n\nВсего приведено друзей: {ref_amount}\n\n<tg-emoji emoji-id='5407064977544583568'>👌</tg-emoji> <b>За каждого приглашенного друга, который пополнит баланс вы получаете 7 дней подписки!</b>", parse_mode='HTML', reply_markup=ikb_referral)
 
 
 @dp.callback_query(lambda c: c.data == 'support')
@@ -828,7 +839,44 @@ async def admin_back_callback(callback: CallbackQuery):
     await callback.message.delete()
     await callback.message.answer("👤 Админ панель", parse_mode='HTML', reply_markup=ikb_admin)
 
-@dp.message(F.text.startswith('shout '), (F.from_user.id.in_([1979477416, 7562967579])))
+@dp.message(F.text.startswith('setref '), F.from_user.id.in_(ADMIN_IDS))
+async def admin_setref_command(message: Message):
+    parts = message.text.split(maxsplit=2)
+    if len(parts) < 3:
+        await message.answer(
+            'Формат: <code>setref USER_ID код</code>\n'
+            'Пример: <code>setref 123456789 author_ivan</code>\n'
+            'Код: латиница, цифры, _ и -, до 64 символов.',
+            parse_mode='HTML',
+        )
+        return
+    try:
+        user_id = int(parts[1])
+    except ValueError:
+        await message.answer('USER_ID должен быть числом.', parse_mode='HTML')
+        return
+    ok, text = set_custom_ref_code(user_id, parts[2])
+    prefix = '✅ ' if ok else '❌ '
+    await message.answer(prefix + text, parse_mode='HTML')
+
+
+@dp.message(F.text.startswith('delref '), F.from_user.id.in_(ADMIN_IDS))
+async def admin_delref_command(message: Message):
+    parts = message.text.split(maxsplit=1)
+    if len(parts) < 2:
+        await message.answer('Формат: <code>delref USER_ID</code>', parse_mode='HTML')
+        return
+    try:
+        user_id = int(parts[1])
+    except ValueError:
+        await message.answer('USER_ID должен быть числом.', parse_mode='HTML')
+        return
+    ok, text = set_custom_ref_code(user_id, None)
+    prefix = '✅ ' if ok else '❌ '
+    await message.answer(prefix + text, parse_mode='HTML')
+
+
+@dp.message(F.text.startswith('shout '), (F.from_user.id.in_(ADMIN_IDS)))
 async def shout_message(message: Message):
     text = (message.text or '')[6:].strip()
     if not text:
@@ -878,7 +926,7 @@ async def shout_message(message: Message):
         pass
 
 
-@dp.message(F.text == 'admin' , (F.from_user.id.in_([1979477416, 7562967579])))
+@dp.message(F.text == 'admin', F.from_user.id.in_(ADMIN_IDS))
 async def admin_message (message: Message):
     await message.answer("👤 Админ панель", parse_mode='HTML', reply_markup=ikb_admin)
 
@@ -1120,7 +1168,7 @@ async def admin_give_refmaster_callback(callback: CallbackQuery):
     await callback.message.delete()
     await callback.message.answer("👑 <b>Выдача роли Refmaster</b>\n\nОтправьте ID пользователя, которому нужно выдать роль Refmaster:", parse_mode='HTML', reply_markup=ikb_admin_back)
 
-@dp.message(F.text.isdigit(), (F.from_user.id.in_([1979477416, 7562967579])))
+@dp.message(F.text.isdigit(), F.from_user.id.in_(ADMIN_IDS))
 async def admin_set_role_message(message: Message):
     # Обработчик для выдачи роли Refmaster по ID пользователя
     user_id = int(message.text)
@@ -1151,7 +1199,7 @@ async def admin_referrals_callback(callback: CallbackQuery):
         df.to_excel('referals.xlsx')
         await callback.message.answer_document(FSInputFile('referals.xlsx'), reply_markup=ikb_admin_back)
 
-@dp.callback_query((F.data == 'adv_campaigns') & (F.from_user.id.in_([7562967579, 1979477416])))
+@dp.callback_query((F.data == 'adv_campaigns') & F.from_user.id.in_(ADMIN_IDS))
 async def adv_campaigns_callback(callback: CallbackQuery):
     await callback.message.delete()
     await callback.message.answer(text='Выберите:', reply_markup=ikb_adv_campaigns_menu)

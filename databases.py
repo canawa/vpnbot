@@ -1,5 +1,9 @@
+import re
 import sqlite3 as sq
 from datetime import datetime, timedelta
+
+BOT_USERNAME = 'coffemaniaVPNbot'
+_REF_CODE_RE = re.compile(r'^[A-Za-z0-9_-]{1,64}$')
 
 
 def upsert_subscription_days(user_id: int, duration_days: int = None, expires_at: str = None) -> str:
@@ -103,3 +107,78 @@ def create_tables():
             cur.execute('ALTER TABLE users ADD COLUMN is_legacy INTEGER DEFAULT 0;')
         except Exception as e:
             print(e)
+        try:
+            cur.execute('ALTER TABLE users ADD COLUMN custom_ref_code TEXT;')
+        except Exception as e:
+            print(e)
+        cur.execute(
+            """
+            CREATE UNIQUE INDEX IF NOT EXISTS ux_users_custom_ref_code
+            ON users(custom_ref_code) WHERE custom_ref_code IS NOT NULL
+            """
+        )
+        con.commit()
+
+
+def normalize_ref_code(code: str) -> str | None:
+    if code is None:
+        return None
+    code = str(code).strip()
+    if not code or not _REF_CODE_RE.fullmatch(code):
+        return None
+    return code
+
+
+def resolve_ref_master_id(start_payload: str) -> int | None:
+    """Код автора в start=… или числовой Telegram ID."""
+    payload = (start_payload or '').strip()
+    if not payload:
+        return None
+    with sq.connect('database.db') as con:
+        cur = con.cursor()
+        cur.execute('SELECT id FROM users WHERE custom_ref_code = ?', (payload,))
+        row = cur.fetchone()
+        if row:
+            return int(row[0])
+    try:
+        return int(payload)
+    except ValueError:
+        return None
+
+
+def get_referral_start_param(user_id: int) -> str:
+    with sq.connect('database.db') as con:
+        cur = con.cursor()
+        cur.execute('SELECT custom_ref_code FROM users WHERE id = ?', (user_id,))
+        row = cur.fetchone()
+        if row and row[0]:
+            return row[0]
+    return str(user_id)
+
+
+def referral_link(user_id: int) -> str:
+    return f'https://t.me/{BOT_USERNAME}?start={get_referral_start_param(user_id)}'
+
+
+def set_custom_ref_code(user_id: int, code: str | None) -> tuple[bool, str]:
+    normalized = normalize_ref_code(code) if code else None
+    with sq.connect('database.db') as con:
+        cur = con.cursor()
+        cur.execute('SELECT 1 FROM users WHERE id = ?', (user_id,))
+        if not cur.fetchone():
+            return False, f'Пользователь {user_id} не найден в users'
+        if normalized:
+            cur.execute(
+                'SELECT id FROM users WHERE custom_ref_code = ? AND id != ?',
+                (normalized, user_id),
+            )
+            if cur.fetchone():
+                return False, f'Код «{normalized}» уже занят другим пользователем'
+        cur.execute(
+            'UPDATE users SET custom_ref_code = ? WHERE id = ?',
+            (normalized, user_id),
+        )
+        con.commit()
+    if normalized:
+        return True, f'OK: {referral_link(user_id)}'
+    return True, f'Код снят. Ссылка снова: {referral_link(user_id)}'
