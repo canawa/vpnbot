@@ -182,3 +182,32 @@ def set_custom_ref_code(user_id: int, code: str | None) -> tuple[bool, str]:
     if normalized:
         return True, f'OK: {referral_link(user_id)}'
     return True, f'Код снят. Ссылка снова: {referral_link(user_id)}'
+
+
+def fetch_all_referrers_progress() -> list[tuple]:
+    """Статистика по каждому ref_master_id из referal_users (как в экране refmaster)."""
+    with sq.connect('database.db') as con:
+        cur = con.cursor()
+        cur.execute(
+            """
+            SELECT
+                r.ref_master_id,
+                u.username,
+                COALESCE(u.role, ''),
+                u.custom_ref_code,
+                COALESCE(u.ref_amount, 0),
+                COALESCE(u.ref_balance, 0),
+                COALESCE(u.ref_withdraw, 0),
+                COUNT(DISTINCT r.referral_id) AS refs_count,
+                COUNT(DISTINCT CASE WHEN t.id IS NOT NULL THEN r.referral_id END) AS paying_refs,
+                COUNT(t.id) AS deposits_count,
+                COALESCE(SUM(CAST(t.amount AS INTEGER)), 0) AS deposits_total
+            FROM referal_users r
+            LEFT JOIN users u ON u.id = r.ref_master_id
+            LEFT JOIN transactions t ON t.user_id = r.referral_id
+                AND t.type IN ('CryptoBot', 'yookassa')
+            GROUP BY r.ref_master_id
+            ORDER BY refs_count DESC, deposits_total DESC
+            """
+        )
+        return cur.fetchall()

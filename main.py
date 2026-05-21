@@ -31,6 +31,7 @@ from databases import (
     referral_link,
     resolve_ref_master_id,
     set_custom_ref_code,
+    fetch_all_referrers_progress,
 )
 from payments import get_pay_link, check_payment_status, check_payment_yookassa_status, rub_to_usdt
 from logging.handlers import RotatingFileHandler
@@ -1253,6 +1254,104 @@ async def get_campaign_description(message: Message, state: FSMContext):
 async def get_campaigns(callback : CallbackQuery):
     await callback.message.delete()
     await callback.message.answer(text='Список кампаний:',reply_markup=generate_ikb_campaigns_list())
+
+
+@dp.callback_query((F.data == 'adv_referrers_progress') & F.from_user.id.in_(ADMIN_IDS))
+async def adv_referrers_progress_callback(callback: CallbackQuery):
+    await callback.answer('Собираем статистику рефоводов…')
+    await callback.message.delete()
+
+    rows = fetch_all_referrers_progress()
+    if not rows:
+        await callback.message.answer(
+            'Пока нет привязок в referal_users — рефоводов для отчёта нет.',
+            reply_markup=ikb_adv_back,
+        )
+        return
+
+    excel_rows = []
+    total_refs = 0
+    total_deposits_count = 0
+    total_deposits_sum = 0
+
+    for row in rows:
+        (
+            ref_master_id,
+            username,
+            role,
+            custom_ref_code,
+            ref_amount,
+            ref_balance,
+            ref_withdraw,
+            refs_count,
+            paying_refs,
+            deposits_count,
+            deposits_total,
+        ) = row
+        refs_count = int(refs_count or 0)
+        paying_refs = int(paying_refs or 0)
+        deposits_count = int(deposits_count or 0)
+        deposits_total = int(deposits_total or 0)
+        total_refs += refs_count
+        total_deposits_count += deposits_count
+        total_deposits_sum += deposits_total
+
+        role_l = (role or '').lower()
+        ref_share = deposits_total // 2 if role_l == 'refmaster' else ''
+        in_users = username is not None
+
+        excel_rows.append({
+            'ID рефовода': ref_master_id,
+            'Username': username or '',
+            'В users': 'да' if in_users else 'нет (кампания?)',
+            'Роль': role or '',
+            'Авторский код': custom_ref_code or '',
+            'ref_amount': int(ref_amount or 0),
+            'Рефералов': refs_count,
+            'Рефералов с оплатой': paying_refs,
+            'Депозитов': deposits_count,
+            'Сумма депозитов ₽': deposits_total,
+            'Доля 50% ₽': ref_share if ref_share != '' else '',
+            'ref_balance ₽': int(ref_balance or 0),
+            'Выведено ₽': int(ref_withdraw or 0),
+        })
+
+    df = pd.DataFrame(excel_rows)
+    out_path = 'referrers_progress.xlsx'
+    df.to_excel(out_path, index=False)
+
+    top_lines = []
+    for i, item in enumerate(excel_rows[:12], start=1):
+        uname = item['Username']
+        who = f"@{html.escape(uname)}" if uname else f"id {item['ID рефовода']}"
+        top_lines.append(
+            f"{i}. <code>{item['ID рефовода']}</code> {who} — "
+            f"реф. {item['Рефералов']}, оплат {item['Рефералов с оплатой']}, "
+            f"{item['Сумма депозитов ₽']} ₽"
+        )
+
+    summary = (
+        f'<b>Прогресс рефоводов</b>\n\n'
+        f'Рефоводов: <b>{len(excel_rows)}</b>\n'
+        f'Всего привлечено: <b>{total_refs}</b>\n'
+        f'Депозитов рефералов: <b>{total_deposits_count}</b> на <b>{total_deposits_sum} ₽</b>\n\n'
+        f'<b>Топ-12:</b>\n' + '\n'.join(top_lines)
+    )
+    if len(excel_rows) > 12:
+        summary += f'\n\n…ещё {len(excel_rows) - 12} в файле ниже.'
+
+    try:
+        await callback.message.answer(summary, parse_mode='HTML', reply_markup=ikb_adv_back)
+        await callback.message.answer_document(
+            FSInputFile(out_path),
+            caption='Полная таблица по всем рефоводам',
+            reply_markup=ikb_adv_back,
+        )
+    finally:
+        try:
+            os.remove(out_path)
+        except OSError:
+            pass
 
 
 @dp.callback_query(F.data.startswith('adv_campaign_'))

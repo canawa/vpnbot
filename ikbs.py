@@ -97,6 +97,7 @@ ikb_admin = InlineKeyboardMarkup(inline_keyboard=[
 ikb_adv_campaigns_menu = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text='Создать новую кампанию', callback_data='adv_new_campaign_create')],
     [InlineKeyboardButton(text='Анализировать кампании', callback_data='adv_get_campaigns')],
+    [InlineKeyboardButton(text='Прогресс всех рефоводов', callback_data='adv_referrers_progress')],
     [InlineKeyboardButton(text=' Назад', callback_data='admin_back', icon_custom_emoji_id=get_emoji('exit'))],
 ])
 
