@@ -50,8 +50,8 @@ ikb_referral_reminder = InlineKeyboardMarkup(inline_keyboard=[ # клава ко
 ])
 
 ikb_documents = InlineKeyboardMarkup(inline_keyboard=[
-    [InlineKeyboardButton(text='Пользовательское соглашение', url='https://telegra.ph/Polzovatelskoe-soglashenie-12-22-25', icon_custom_emoji_id=get_emoji('documents'))],
-    [InlineKeyboardButton(text='Политика конфиденциальности', url='https://telegra.ph/POLITIKA-KONFIDENCIALNOSTI-03-29-41', icon_custom_emoji_id=get_emoji('lock'))],
+    [InlineKeyboardButton(text='Пользовательское соглашение', url='https://telegra.ph/Polzovatelskoe-soglashenie-05-21-30', icon_custom_emoji_id=get_emoji('documents'))],
+    [InlineKeyboardButton(text='Политика конфиденциальности', url='https://telegra.ph/Politika-konfidencialnosti-05-21-29', icon_custom_emoji_id=get_emoji('lock'))],
     [InlineKeyboardButton(text='Назад', callback_data='back', icon_custom_emoji_id=get_emoji('exit'))],
 ])
 
