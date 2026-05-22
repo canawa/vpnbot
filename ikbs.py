@@ -204,12 +204,20 @@ def generate_ikb_duration_choose(tg_id):
 
         plan = SUBSCRIPTION_PLAN_LEGACY if is_legacy == 1 else SUBSCRIPTION_PLAN
 
-        return InlineKeyboardMarkup(inline_keyboard=[
+        w7 = plan.get(7)
+        rows = []
+        if w7:
+            rows.append([InlineKeyboardButton(
+                text=f'1 неделя · {w7}₽',
+                callback_data=f'deposit_{w7}_7_card',
+            )])
+        rows.extend([
             [InlineKeyboardButton(text=f'1 месяц · {plan.get(30)}₽ ', callback_data=f'deposit_{plan.get(30)}_30_card')],
             [InlineKeyboardButton(text=f'3 месяца · {plan.get(90)}₽ | Скидка 15%', callback_data=f'deposit_{plan.get(90)}_90_card')],
             [InlineKeyboardButton(text=f'12 месяцев · {plan.get(360)}₽ | Скидка 50%', callback_data=f'deposit_{plan.get(360)}_360_card')],
-            [InlineKeyboardButton(text='Назад', callback_data='back', icon_custom_emoji_id=get_emoji('exit'))]
+            [InlineKeyboardButton(text='Назад', callback_data='back', icon_custom_emoji_id=get_emoji('exit'))],
         ])
+        return InlineKeyboardMarkup(inline_keyboard=rows)
 
 def get_vpn_pay_keyboard(price, days) -> InlineKeyboardMarkup:
     rows = []

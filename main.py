@@ -42,6 +42,15 @@ from ikbs import *
 
 import sys
 from expire_functions import *
+from funnel import (
+    funnel_on_first_seen,
+    funnel_on_trial_started,
+    funnel_on_paid,
+    run_funnel_worker,
+    setup_funnel,
+    reset_funnel_for_test,
+    FUNNEL_SLEEP_SEC,
+)
 locale.setlocale(locale.LC_TIME, 'ru_RU.UTF-8')
 print('BOT STARTED!!!')
 
@@ -188,6 +197,43 @@ def format_date_ru(dt) -> str:
 
 
 
+async def _activate_trial_for_user(callback: CallbackQuery) -> bool:
+    """Выдача триала после проверки канала. True — ключ отправлен."""
+    uid = callback.from_user.id
+    if not await is_subscribed(bot, uid):
+        await callback.message.answer(
+            '❌ Вы не подписаны на канал!',
+            parse_mode='HTML',
+            reply_markup=ikb_subscribe,
+        )
+        return False
+    result = vpn.deliver_trial_vpn(uid)
+    url = _vpn_response_subscription_url(result) if isinstance(result, dict) else None
+    if not url:
+        await callback.message.answer(
+            'Не удалось выдать ключ. Попробуйте ещё раз или напишите в поддержку.',
+            parse_mode='HTML',
+            reply_markup=ikb_support,
+        )
+        return False
+    upsert_subscription_days(uid, VPN_SUBSCRIPTION_DAYS_TRIAL)
+    with sq.connect('database.db') as con:
+        cur = con.cursor()
+        cur.execute('UPDATE users SET had_trial = 1 WHERE id = ?', (uid,))
+        con.commit()
+    funnel_on_trial_started(uid)
+    try:
+        await callback.message.answer_photo(
+            MY_KEYS_PHOTO,
+            caption=vpn_subscription_message_html(url) + '\n\n✅ <b>Бесплатный тестовый период выдан!</b>',
+            parse_mode='HTML',
+            reply_markup=create_ikb_sub_after_buy(url),
+        )
+    except Exception as e:
+        print(f'Ошибка отправки trial-ключа: {e}')
+    return True
+
+
 async def _register_referral(referral_id: int, ref_master_id: int, referral_username: str | None):
     if referral_id == ref_master_id:
         return
@@ -259,6 +305,7 @@ async def start_command(message):
         cur = con.cursor()
         cur.execute("INSERT OR IGNORE INTO users (id, username, balance, had_trial) VALUES (?, ?, ?, ?)", (message.from_user.id, message.from_user.username, 0, 0))
 
+    funnel_on_first_seen(message.from_user.id)
     generate_ikb_main(message.from_user.id)
 
 # ОБРАБОТЧИКИ КОЛЛБЭКОВ
@@ -566,56 +613,26 @@ async def back_callback(callback: CallbackQuery):
 @dp.callback_query(lambda c: c.data == 'trial')
 async def plan_trial(callback: CallbackQuery):
     await callback.message.delete()
-    if await is_subscribed(bot, callback.from_user.id):
-        result = vpn.deliver_trial_vpn(callback.from_user.id)
-        url = _vpn_response_subscription_url(result) if isinstance(result, dict) else None
-        if url:
-            upsert_subscription_days(callback.from_user.id, VPN_SUBSCRIPTION_DAYS_TRIAL)  # 3 дня
-            with sq.connect('database.db') as con:
-                cur = con.cursor()
-                cur.execute('UPDATE users SET had_trial = 1 WHERE id = ?', (callback.from_user.id,))
-            try:
-                await callback.message.answer_photo(
-                    MY_KEYS_PHOTO,
-                    caption=vpn_subscription_message_html(url),
-                    parse_mode='HTML',
-                    reply_markup=create_ikb_sub_after_buy(url),
-                )
-            except Exception as e:
-                print(f'Ошибка отправки сообщения с ключом (trial): {e}')
-    else:
-        await callback.message.answer('❌ Вы не подписаны на канал!', parse_mode='HTML', reply_markup=ikb_subscribe)
+    await _activate_trial_for_user(callback)
 
 @dp.callback_query(lambda c: c.data == 'subscribe_confirmed')
 async def subscribe_confirmed_callback(callback: CallbackQuery):
     await callback.answer("✅ Я подписался") # на пол экрана хуйня высветится
     await callback.message.delete()
-    if await is_subscribed(bot, callback.from_user.id):
-        result = vpn.deliver_trial_vpn(callback.from_user.id)
-        trial_url = _vpn_response_subscription_url(result) if isinstance(result, dict) else None
-        if trial_url:
-            upsert_subscription_days(callback.from_user.id, VPN_SUBSCRIPTION_DAYS_TRIAL)
-            with sq.connect('database.db') as con:
-                cur = con.cursor()
-                cur.execute('UPDATE users SET had_trial = 1 WHERE id = ?', (callback.from_user.id,))
-            try:
-                await callback.message.answer_photo(
-                    MY_KEYS_PHOTO,
-                    caption=vpn_subscription_message_html(trial_url)
-                    + '\n\n✅ <b>Бесплатный тестовый период выдан!</b>',
-                    parse_mode='HTML',
-                    reply_markup=create_ikb_sub_after_buy(trial_url),
-                )
-            except Exception as e:
-                print(f'Ошибка отправки trial-ключа: {e}')
-        else:
-            await callback.message.answer(
-                '✅ Подписка на канал подтверждена. Если ключ не пришёл — нажми «Попробовать бесплатно» ещё раз или напиши в поддержку.',
-                parse_mode='HTML',
-                reply_markup=ikb_back,
-            )
-    else:
-        await callback.message.answer('❌ Вы не подписаны на канал! Подпишитесь на канал, чтобы получить бесплатный тестовый период!', parse_mode='HTML', reply_markup=ikb_subscribe)
+    if not await is_subscribed(bot, callback.from_user.id):
+        await callback.message.answer(
+            '❌ Вы не подписаны на канал! Подпишитесь на канал, чтобы получить бесплатный тестовый период!',
+            parse_mode='HTML',
+            reply_markup=ikb_subscribe,
+        )
+        return
+    ok = await _activate_trial_for_user(callback)
+    if not ok:
+        await callback.message.answer(
+            '✅ Подписка на канал подтверждена. Если ключ не пришёл — нажми «Попробовать бесплатно» ещё раз или напиши в поддержку.',
+            parse_mode='HTML',
+            reply_markup=ikb_back,
+        )
 
 @dp.callback_query(lambda c: c.data.startswith('plan_lifetime'))
 async def plan_lifetime_callback(callback: CallbackQuery):
@@ -654,6 +671,7 @@ async def check_payment_yookassa_callback(callback: CallbackQuery):
     payment_state = await asyncio.to_thread(check_payment_yookassa_status,amount_rub, payment_id, callback.from_user.id )
 
     if payment_state == 'paid':
+        funnel_on_paid(callback.from_user.id)
         # Реферальный блок (оставлен без изменений)
         try:
             with sq.connect('database.db') as con:
@@ -839,6 +857,26 @@ async def admin_back_callback(callback: CallbackQuery):
     await callback.answer("Назад") # на пол экрана хуйня высветится
     await callback.message.delete()
     await callback.message.answer("👤 Админ панель", parse_mode='HTML', reply_markup=ikb_admin)
+
+@dp.message(F.text == 'funnel_reset', F.from_user.id.in_(ADMIN_IDS))
+async def admin_funnel_reset(message: Message):
+    """Сброс своей воронки для теста no_trial."""
+    text = reset_funnel_for_test(message.from_user.id)
+    await message.answer(
+        text + f'\n\nНе бери триал. Жди до {FUNNEL_SLEEP_SEC} с + 1 мин (TD_30M).',
+        parse_mode='HTML',
+    )
+
+
+@dp.message(F.text.startswith('funnel_reset '), F.from_user.id.in_(ADMIN_IDS))
+async def admin_funnel_reset_user(message: Message):
+    try:
+        uid = int(message.text.split(maxsplit=1)[1])
+    except (IndexError, ValueError):
+        await message.answer('Формат: <code>funnel_reset USER_ID</code>', parse_mode='HTML')
+        return
+    await message.answer(reset_funnel_for_test(uid), parse_mode='HTML')
+
 
 @dp.message(F.text.startswith('setref '), F.from_user.id.in_(ADMIN_IDS))
 async def admin_setref_command(message: Message):
@@ -1460,10 +1498,12 @@ async def ping_unactive_users(callback: CallbackQuery):
             )
 
 async def main():
+    setup_funnel(dp, bot, vpn, trial_flow_cb=_activate_trial_for_user)
     asyncio.create_task(check_expired_subscriptions_table(bot))
     asyncio.create_task(check_expiring_tomorrow_subscriptions_table(bot))
     asyncio.create_task(notify_gbs_ending(bot))
     asyncio.create_task(notify_inactive_trial_users(bot))
+    asyncio.create_task(run_funnel_worker(bot))
     # Запускаем фоновую задачу для сброса флага runout_notified в 00:01 каждый день
     asyncio.create_task(reset_runout_notified_daily())
     await dp.start_polling(bot) # отправить соединение к серверам телеграмма

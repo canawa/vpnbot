@@ -102,6 +102,27 @@ def create_tables():
         )
         """)
 
+        # Воронка на покупку
+        cur.execute("""
+        CREATE TABLE IF NOT EXISTS user_funnel (
+            user_id INTEGER PRIMARY KEY,
+            branch TEXT NOT NULL DEFAULT 'no_trial',
+            first_seen_at TEXT NOT NULL,
+            trial_started_at TEXT,
+            trial_ended_at TEXT,
+            last_paid_at TEXT,
+            nt_30m INTEGER DEFAULT 0,
+            nt_24h INTEGER DEFAULT 0,
+            nt_48h INTEGER DEFAULT 0,
+            nt_72h INTEGER DEFAULT 0,
+            pt_1h INTEGER DEFAULT 0,
+            pt_24h INTEGER DEFAULT 0,
+            pt_3d INTEGER DEFAULT 0,
+            pt_7d INTEGER DEFAULT 0,
+            extra_trial_once INTEGER DEFAULT 0
+        )
+        """)
+
         con.commit()
         try:
             cur.execute('ALTER TABLE users ADD COLUMN is_legacy INTEGER DEFAULT 0;')
@@ -115,6 +136,31 @@ def create_tables():
             """
             CREATE UNIQUE INDEX IF NOT EXISTS ux_users_custom_ref_code
             ON users(custom_ref_code) WHERE custom_ref_code IS NOT NULL
+            """
+        )
+        con.commit()
+        cur.execute(
+            """
+            INSERT OR IGNORE INTO user_funnel (user_id, branch, first_seen_at)
+            SELECT
+                u.id,
+                CASE
+                    WHEN EXISTS (
+                        SELECT 1 FROM subscriptions s
+                        WHERE s.user_id = u.id
+                          AND date(s.subscription_expires_at) >= date('now')
+                    ) AND COALESCE(u.had_trial, 0) = 0 THEN 'paid'
+                    WHEN EXISTS (
+                        SELECT 1 FROM subscriptions s
+                        WHERE s.user_id = u.id
+                          AND date(s.subscription_expires_at) >= date('now')
+                    ) THEN 'trial_active'
+                    WHEN COALESCE(u.had_trial, 0) = 1 THEN 'post_trial'
+                    ELSE 'no_trial'
+                END,
+                datetime('now')
+            FROM users u
+            WHERE u.id NOT IN (SELECT user_id FROM user_funnel)
             """
         )
         con.commit()
