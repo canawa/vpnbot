@@ -50,6 +50,7 @@ from funnel import (
     setup_funnel,
     reset_funnel_for_test,
     FUNNEL_SLEEP_SEC,
+    fetch_funnel_stats,
 )
 locale.setlocale(locale.LC_TIME, 'ru_RU.UTF-8')
 print('BOT STARTED!!!')
@@ -968,6 +969,39 @@ async def shout_message(message: Message):
 @dp.message(F.text == 'admin', F.from_user.id.in_(ADMIN_IDS))
 async def admin_message (message: Message):
     await message.answer("👤 Админ панель", parse_mode='HTML', reply_markup=ikb_admin)
+
+
+@dp.callback_query((F.data == 'admin_funnel_stats') & F.from_user.id.in_(ADMIN_IDS))
+async def admin_funnel_stats_callback(callback: CallbackQuery):
+    await callback.answer('Собираем статистику воронки…')
+    await callback.message.delete()
+
+    summary, users_rows, events_rows = fetch_funnel_stats()
+    if not users_rows:
+        await callback.message.answer(
+            'В воронке пока никого нет. Пользователи попадают после /start.',
+            parse_mode='HTML',
+            reply_markup=ikb_admin_back,
+        )
+        return
+
+    out_path = 'funnel_stats.xlsx'
+    try:
+        with pd.ExcelWriter(out_path, engine='openpyxl') as writer:
+            pd.DataFrame(users_rows).to_excel(writer, sheet_name='Пользователи', index=False)
+            pd.DataFrame(events_rows).to_excel(writer, sheet_name='События', index=False)
+        await callback.message.answer(summary, parse_mode='HTML', reply_markup=ikb_admin_back)
+        await callback.message.answer_document(
+            FSInputFile(out_path),
+            caption='Воронка: пользователи и журнал событий',
+            reply_markup=ikb_admin_back,
+        )
+    finally:
+        try:
+            os.remove(out_path)
+        except OSError:
+            pass
+
 
 @dp.callback_query(F.data == 'admin_users')
 async def admin_users_callback(callback: CallbackQuery):

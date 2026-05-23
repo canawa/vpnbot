@@ -34,6 +34,17 @@ TD_7D = timedelta(days=7)
 # Для теста с TD_* в минутах поставь FUNNEL_SLEEP_SEC=20 в .env
 FUNNEL_SLEEP_SEC = int(os.getenv('FUNNEL_SLEEP_SEC', '30'))
 
+_FLAG_EVENT = {
+    'nt_30m': 'msg_nt_30m',
+    'nt_24h': 'msg_nt_24h',
+    'nt_48h': 'msg_nt_48h',
+    'nt_72h': 'msg_nt_72h',
+    'pt_1h': 'msg_pt_1h',
+    'pt_24h': 'msg_pt_24h',
+    'pt_3d': 'msg_pt_3d',
+    'pt_7d': 'msg_pt_7d',
+}
+
 
 
 def _parse_dt(value: str | None) -> datetime | None:
@@ -55,6 +66,26 @@ def _connect():
     return sq.connect('database.db')
 
 
+def log_funnel_event(user_id: int, event_type: str, meta: str | None = None) -> None:
+    with _connect() as con:
+        con.execute(
+            'INSERT INTO funnel_events (user_id, event_type, meta, created_at) VALUES (?, ?, ?, ?)',
+            (user_id, event_type, meta, datetime.now().isoformat()),
+        )
+        con.commit()
+
+
+def _set_survey_answer(user_id: int, answer: str) -> None:
+    _ensure_row(user_id)
+    with _connect() as con:
+        con.execute(
+            'UPDATE user_funnel SET survey_answer = ? WHERE user_id = ?',
+            (answer, user_id),
+        )
+        con.commit()
+    log_funnel_event(user_id, f'click_survey_{answer}')
+
+
 def _ensure_row(user_id: int) -> None:
     now = datetime.now().isoformat()
     with _connect() as con:
@@ -69,7 +100,15 @@ def _ensure_row(user_id: int) -> None:
 
 
 def funnel_on_first_seen(user_id: int) -> None:
+    existed = False
+    with _connect() as con:
+        cur = con.cursor()
+        cur.execute('SELECT 1 FROM user_funnel WHERE user_id = ?', (user_id,))
+        existed = cur.fetchone() is not None
     _ensure_row(user_id)
+    if not existed:
+        log_funnel_event(user_id, 'funnel_entered')
+        log_funnel_event(user_id, 'branch_no_trial')
 
 
 def funnel_on_trial_started(user_id: int) -> None:
@@ -88,6 +127,8 @@ def funnel_on_trial_started(user_id: int) -> None:
             (now, user_id),
         )
         con.commit()
+    log_funnel_event(user_id, 'trial_started')
+    log_funnel_event(user_id, 'branch_trial_active')
 
 
 def funnel_on_paid(user_id: int) -> None:
@@ -105,6 +146,8 @@ def funnel_on_paid(user_id: int) -> None:
             (now, user_id),
         )
         con.commit()
+    log_funnel_event(user_id, 'paid')
+    log_funnel_event(user_id, 'branch_paid')
 
 
 def _had_trial(user_id: int) -> bool:
@@ -150,6 +193,9 @@ def _mark_flag(user_id: int, column: str) -> None:
     with _connect() as con:
         con.execute(f'UPDATE user_funnel SET {column} = 1 WHERE user_id = ?', (user_id,))
         con.commit()
+    ev = _FLAG_EVENT.get(column)
+    if ev:
+        log_funnel_event(user_id, ev)
 
 
 def _set_branch(user_id: int, branch: str, trial_ended_at: str | None = None) -> None:
@@ -166,6 +212,7 @@ def _set_branch(user_id: int, branch: str, trial_ended_at: str | None = None) ->
                 (branch, user_id),
             )
         con.commit()
+    log_funnel_event(user_id, f'branch_{branch}')
 
 
 def _fetch_funnel_rows() -> list[tuple]:
@@ -180,6 +227,132 @@ def _fetch_funnel_rows() -> list[tuple]:
             """
         )
         return cur.fetchall()
+
+
+def fetch_funnel_stats() -> tuple[str, list[dict], list[dict]]:
+    """Сводка HTML, строки пользователей и агрегат событий для Excel."""
+    with _connect() as con:
+        cur = con.cursor()
+        cur.execute(
+            """
+            SELECT
+                uf.user_id,
+                u.username,
+                uf.branch,
+                uf.first_seen_at,
+                uf.trial_started_at,
+                uf.trial_ended_at,
+                uf.last_paid_at,
+                uf.survey_answer,
+                uf.nt_30m, uf.nt_24h, uf.nt_48h, uf.nt_72h,
+                uf.pt_1h, uf.pt_24h, uf.pt_3d, uf.pt_7d,
+                uf.extra_trial_once,
+                (SELECT COUNT(*) FROM funnel_events fe WHERE fe.user_id = uf.user_id) AS events_count
+            FROM user_funnel uf
+            LEFT JOIN users u ON u.id = uf.user_id
+            ORDER BY uf.first_seen_at DESC
+            """
+        )
+        user_rows = cur.fetchall()
+
+        cur.execute(
+            """
+            SELECT event_type, COUNT(*) AS cnt
+            FROM funnel_events
+            GROUP BY event_type
+            ORDER BY cnt DESC
+            """
+        )
+        event_agg = [{'Событие': r[0], 'Количество': r[1]} for r in cur.fetchall()]
+
+    total = len(user_rows)
+    by_branch: dict[str, int] = {}
+    trial_started = 0
+    paid_count = 0
+    paid_after_trial_end = 0
+    survey_counts: dict[str, int] = {}
+    msg_sent = {k: 0 for k in _FLAG_EVENT.values()}
+
+    users_excel: list[dict] = []
+    for r in user_rows:
+        (
+            uid, username, branch, first_seen, trial_start, trial_end, last_paid,
+            survey_answer,
+            nt_30m, nt_24h, nt_48h, nt_72h,
+            pt_1h, pt_24h, pt_3d, pt_7d,
+            extra_once, events_count,
+        ) = r
+        branch = branch or 'no_trial'
+        by_branch[branch] = by_branch.get(branch, 0) + 1
+        if trial_start:
+            trial_started += 1
+        if last_paid:
+            paid_count += 1
+            if trial_end and last_paid > trial_end:
+                paid_after_trial_end += 1
+        if survey_answer:
+            survey_counts[survey_answer] = survey_counts.get(survey_answer, 0) + 1
+
+        flags = {
+            'nt_30m': nt_30m, 'nt_24h': nt_24h, 'nt_48h': nt_48h, 'nt_72h': nt_72h,
+            'pt_1h': pt_1h, 'pt_24h': pt_24h, 'pt_3d': pt_3d, 'pt_7d': pt_7d,
+        }
+        for col, ev in _FLAG_EVENT.items():
+            if flags.get(col):
+                msg_sent[ev] = msg_sent.get(ev, 0) + 1
+
+        users_excel.append({
+            'user_id': uid,
+            'username': username or '',
+            'branch': branch,
+            'first_seen_at': first_seen or '',
+            'trial_started_at': trial_start or '',
+            'trial_ended_at': trial_end or '',
+            'last_paid_at': last_paid or '',
+            'survey_answer': survey_answer or '',
+            'nt_30m': nt_30m or 0,
+            'nt_24h': nt_24h or 0,
+            'nt_48h': nt_48h or 0,
+            'nt_72h': nt_72h or 0,
+            'pt_1h': pt_1h or 0,
+            'pt_24h': pt_24h or 0,
+            'pt_3d': pt_3d or 0,
+            'pt_7d': pt_7d or 0,
+            'extra_trial_once': extra_once or 0,
+            'events_count': events_count or 0,
+        })
+
+    def pct(part: int, whole: int) -> str:
+        if not whole:
+            return '0%'
+        return f'{round(part * 100 / whole, 1)}%'
+
+    survey_lines = '\n'.join(
+        f'• {k}: <b>{v}</b>' for k, v in sorted(survey_counts.items())
+    ) or '• пока нет'
+
+    msg_lines = '\n'.join(
+        f'• {k}: <b>{v}</b>' for k, v in sorted(msg_sent.items()) if v
+    ) or '• пока нет'
+
+    branch_lines = '\n'.join(
+        f'• {k}: <b>{v}</b>' for k, v in sorted(by_branch.items())
+    )
+
+    summary = (
+        '<b>📊 Статистика воронки</b>\n\n'
+        f'Всего в воронке: <b>{total}</b>\n\n'
+        f'<b>Ветки:</b>\n{branch_lines}\n\n'
+        f'<b>Воронка:</b>\n'
+        f'• Взяли триал: <b>{trial_started}</b> ({pct(trial_started, total)})\n'
+        f'• Оплатили (last_paid_at): <b>{paid_count}</b> ({pct(paid_count, total)})\n'
+        f'• Оплата после конца триала: <b>{paid_after_trial_end}</b>\n'
+        f'• Бонус +1 день: <b>{sum(1 for u in users_excel if u["extra_trial_once"])}</b>\n\n'
+        f'<b>Ответы опроса:</b>\n{survey_lines}\n\n'
+        f'<b>Отправлено писем (флаги):</b>\n{msg_lines}\n\n'
+        '<i>Подробности — в файле (листы «Пользователи» и «События»).</i>'
+    )
+    return summary, users_excel, event_agg
 
 
 # --- Клавиатуры ---
@@ -445,7 +618,8 @@ def reset_funnel_for_test(user_id: int) -> str:
                 last_paid_at = NULL,
                 nt_30m = 0, nt_24h = 0, nt_48h = 0, nt_72h = 0,
                 pt_1h = 0, pt_24h = 0, pt_3d = 0, pt_7d = 0,
-                extra_trial_once = 0
+                extra_trial_once = 0,
+                survey_answer = NULL
             WHERE user_id = ?
             """,
             (now, user_id),
@@ -483,6 +657,7 @@ async def grant_extra_trial_day(vpn, user_id: int) -> tuple[bool, str]:
         row = cur.fetchone()
         if row and row[0]:
             return False, 'Продление уже использовано.'
+    log_funnel_event(user_id, 'click_extend_trial')
     try:
         panel_user = await asyncio.to_thread(vpn.get_user_by_tg_id, user_id)
         has_panel_user = (
@@ -512,10 +687,12 @@ async def grant_extra_trial_day(vpn, user_id: int) -> tuple[bool, str]:
                 )
                 con.commit()
             funnel_on_trial_started(user_id)
+            log_funnel_event(user_id, 'extend_trial_ok')
             return True, '✅ Добавили +1 день доступа. Открой «Моя подписка».'
         upsert_subscription_days(user_id, 1)
     except Exception as e:
         logger.exception('grant_extra_trial_day %s: %s', user_id, e)
+        log_funnel_event(user_id, 'extend_trial_fail', str(e)[:200])
         return False, 'Не удалось продлить доступ. Напишите в поддержку.'
     with _connect() as con:
         cur = con.cursor()
@@ -528,6 +705,7 @@ async def grant_extra_trial_day(vpn, user_id: int) -> tuple[bool, str]:
             (user_id,),
         )
         con.commit()
+    log_funnel_event(user_id, 'extend_trial_ok')
     return True, '✅ Добавили +1 день доступа. Открой «Моя подписка».'
 
 
@@ -539,6 +717,7 @@ def setup_funnel(dp, bot, vpn, *, trial_flow_cb):
     @dp.callback_query(F.data == 'funnel_trial')
     async def funnel_trial_callback(callback: CallbackQuery):
         await callback.answer()
+        log_funnel_event(callback.from_user.id, 'click_funnel_trial')
         try:
             await callback.message.delete()
         except Exception:
@@ -553,6 +732,7 @@ def setup_funnel(dp, bot, vpn, *, trial_flow_cb):
 
     @dp.callback_query(F.data == 'funnel_survey_expensive')
     async def funnel_survey_expensive(callback: CallbackQuery):
+        _set_survey_answer(callback.from_user.id, 'expensive')
         await callback.message.delete()
         await callback.message.answer(
             MSG_SURVEY_EXPENSIVE,
@@ -562,6 +742,7 @@ def setup_funnel(dp, bot, vpn, *, trial_flow_cb):
 
     @dp.callback_query(F.data == 'funnel_survey_no_time')
     async def funnel_survey_no_time(callback: CallbackQuery):
+        _set_survey_answer(callback.from_user.id, 'no_time')
         await callback.message.delete()
         await callback.message.answer(
             MSG_SURVEY_NO_TIME,
@@ -571,6 +752,7 @@ def setup_funnel(dp, bot, vpn, *, trial_flow_cb):
 
     @dp.callback_query(F.data == 'funnel_survey_confused')
     async def funnel_survey_confused(callback: CallbackQuery):
+        _set_survey_answer(callback.from_user.id, 'confused')
         await callback.message.delete()
         with _connect() as con:
             cur = con.cursor()

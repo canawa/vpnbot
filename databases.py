@@ -119,9 +119,26 @@ def create_tables():
             pt_24h INTEGER DEFAULT 0,
             pt_3d INTEGER DEFAULT 0,
             pt_7d INTEGER DEFAULT 0,
-            extra_trial_once INTEGER DEFAULT 0
+            extra_trial_once INTEGER DEFAULT 0,
+            survey_answer TEXT
         )
         """)
+
+        cur.execute("""
+        CREATE TABLE IF NOT EXISTS funnel_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            event_type TEXT NOT NULL,
+            meta TEXT,
+            created_at TEXT NOT NULL
+        )
+        """)
+        cur.execute(
+            'CREATE INDEX IF NOT EXISTS ix_funnel_events_user ON funnel_events(user_id)'
+        )
+        cur.execute(
+            'CREATE INDEX IF NOT EXISTS ix_funnel_events_type ON funnel_events(event_type)'
+        )
 
         con.commit()
         try:
@@ -130,6 +147,10 @@ def create_tables():
             print(e)
         try:
             cur.execute('ALTER TABLE users ADD COLUMN custom_ref_code TEXT;')
+        except Exception as e:
+            print(e)
+        try:
+            cur.execute('ALTER TABLE user_funnel ADD COLUMN survey_answer TEXT;')
         except Exception as e:
             print(e)
         cur.execute(

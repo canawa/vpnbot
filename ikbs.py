@@ -87,6 +87,7 @@ ikb_admin = InlineKeyboardMarkup(inline_keyboard=[
     # [InlineKeyboardButton(text='⏰ Уведомить ро скидке у кого нет подписки', callback_data='admin_notify_sale')],
     [InlineKeyboardButton(text='🤝 Напомнить о рефке', callback_data='admin_notify_referral')],
     [InlineKeyboardButton(text='Рекламные кампании', callback_data='adv_campaigns')],
+    [InlineKeyboardButton(text='📊 Статистика воронки', callback_data='admin_funnel_stats')],
     [InlineKeyboardButton(text='Рассказать челам что 5р в день', callback_data='ping_unactive')],
     # [InlineKeyboardButton(text='оповесть бомжей о снижении', callback_data='ping_brokes')]
 
