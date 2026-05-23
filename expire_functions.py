@@ -9,6 +9,9 @@ from texts import PING_CAPTION
 from vpn import Vpn
 from ikbs import *
 from aiogram.exceptions import TelegramForbiddenError
+from renewal_funnel import renewal_funnel_handles_notifications
+
+
 async def check_expired_subscriptions_table(bot):
     """Таблица subscriptions: уведомление в день окончания subscription_expires_at (TEXT, сравнение через date())."""
     while True:
@@ -28,6 +31,13 @@ async def check_expired_subscriptions_table(bot):
                 rows = cur.fetchall()
 
                 for (user_id,) in rows:
+                    if renewal_funnel_handles_notifications(user_id):
+                        cur.execute(
+                            'UPDATE subscriptions SET runout_notified = 1 WHERE user_id = ?',
+                            (user_id,),
+                        )
+                        con.commit()
+                        continue
                     try:
 
                         await bot.send_message(
@@ -74,6 +84,13 @@ async def check_expiring_tomorrow_subscriptions_table(bot):
                 rows = cur.fetchall()
 
                 for (user_id,) in rows:
+                    if renewal_funnel_handles_notifications(user_id):
+                        cur.execute(
+                            'UPDATE subscriptions SET expiring_tomorrow_notified = 1 WHERE user_id = ?',
+                            (user_id,),
+                        )
+                        con.commit()
+                        continue
                     try:
                         await bot.send_message(
                             user_id,

@@ -140,6 +140,23 @@ def create_tables():
             'CREATE INDEX IF NOT EXISTS ix_funnel_events_type ON funnel_events(event_type)'
         )
 
+        cur.execute("""
+        CREATE TABLE IF NOT EXISTS user_renewal_funnel (
+            user_id INTEGER PRIMARY KEY,
+            subscription_expires_at TEXT,
+            entered_at TEXT,
+            stopped INTEGER DEFAULT 0,
+            stopped_at TEXT,
+            rn_m7 INTEGER DEFAULT 0,
+            rn_m3 INTEGER DEFAULT 0,
+            rn_d0 INTEGER DEFAULT 0,
+            rn_p1d INTEGER DEFAULT 0,
+            rn_p3d INTEGER DEFAULT 0,
+            rn_p7d INTEGER DEFAULT 0,
+            rn_p30d INTEGER DEFAULT 0
+        )
+        """)
+
         con.commit()
         try:
             cur.execute('ALTER TABLE users ADD COLUMN is_legacy INTEGER DEFAULT 0;')

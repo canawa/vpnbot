@@ -52,6 +52,7 @@ from funnel import (
     FUNNEL_SLEEP_SEC,
     fetch_funnel_stats,
 )
+from renewal_funnel import renewal_on_paid, run_renewal_funnel_worker, fetch_renewal_stats
 locale.setlocale(locale.LC_TIME, 'ru_RU.UTF-8')
 print('BOT STARTED!!!')
 
@@ -673,6 +674,7 @@ async def check_payment_yookassa_callback(callback: CallbackQuery):
 
     if payment_state == 'paid':
         funnel_on_paid(callback.from_user.id)
+        renewal_on_paid(callback.from_user.id)
         # Реферальный блок (оставлен без изменений)
         try:
             with sq.connect('database.db') as con:
@@ -977,7 +979,8 @@ async def admin_funnel_stats_callback(callback: CallbackQuery):
     await callback.message.delete()
 
     summary, users_rows, events_rows = fetch_funnel_stats()
-    if not users_rows:
+    renewal_summary, renewal_rows = fetch_renewal_stats()
+    if not users_rows and not renewal_rows:
         await callback.message.answer(
             'В воронке пока никого нет. Пользователи попадают после /start.',
             parse_mode='HTML',
@@ -988,12 +991,19 @@ async def admin_funnel_stats_callback(callback: CallbackQuery):
     out_path = 'funnel_stats.xlsx'
     try:
         with pd.ExcelWriter(out_path, engine='openpyxl') as writer:
-            pd.DataFrame(users_rows).to_excel(writer, sheet_name='Пользователи', index=False)
-            pd.DataFrame(events_rows).to_excel(writer, sheet_name='События', index=False)
-        await callback.message.answer(summary, parse_mode='HTML', reply_markup=ikb_admin_back)
+            if users_rows:
+                pd.DataFrame(users_rows).to_excel(writer, sheet_name='Покупка', index=False)
+            if events_rows:
+                pd.DataFrame(events_rows).to_excel(writer, sheet_name='События', index=False)
+            if renewal_rows:
+                pd.DataFrame(renewal_rows).to_excel(writer, sheet_name='Продление', index=False)
+        parts = [summary] if users_rows else []
+        parts.append(renewal_summary)
+        full_summary = '\n\n'.join(parts)
+        await callback.message.answer(full_summary, parse_mode='HTML', reply_markup=ikb_admin_back)
         await callback.message.answer_document(
             FSInputFile(out_path),
-            caption='Воронка: пользователи и журнал событий',
+            caption='Воронки: покупка, продление, события',
             reply_markup=ikb_admin_back,
         )
     finally:
@@ -1538,6 +1548,7 @@ async def main():
     asyncio.create_task(notify_gbs_ending(bot))
     asyncio.create_task(notify_inactive_trial_users(bot))
     asyncio.create_task(run_funnel_worker(bot))
+    asyncio.create_task(run_renewal_funnel_worker(bot))
     # Запускаем фоновую задачу для сброса флага runout_notified в 00:01 каждый день
     asyncio.create_task(reset_runout_notified_daily())
     await dp.start_polling(bot) # отправить соединение к серверам телеграмма
