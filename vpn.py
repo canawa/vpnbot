@@ -108,7 +108,7 @@ class Vpn:
             headers={"Content-Type": "application/json", "Authorization": f"Bearer {self.token}"},
             json={
                 "username": f'user_{tg_id}',
-                "trafficLimitBytes": 26843545600 + leftover,
+                "trafficLimitBytes": 26843545600 + leftover if days!=7 else 7516192768 + leftover,
                 "expireAt": new_expire.isoformat(),
                 "telegramId": tg_id,
                 "hwidDeviceLimit": 3,
