@@ -1,4 +1,5 @@
 import logging
+import os
 import sqlite3 as sq
 from datetime import datetime, date
 from datetime import timedelta
@@ -10,6 +11,8 @@ from vpn import Vpn
 from ikbs import *
 from aiogram.exceptions import TelegramForbiddenError
 from renewal_funnel import renewal_funnel_handles_notifications
+
+TRIAL_UNCONNECTED_SLEEP_SEC = int(os.getenv('TRIAL_UNCONNECTED_SLEEP_SEC', '86400'))
 
 
 async def check_expired_subscriptions_table(bot):
@@ -230,5 +233,5 @@ async def notify_inactive_trial_users(bot):
         except Exception as e:
             logging.exception(f"[trial_notify] batch error: {e}")
 
-        logging.info("[trial_notify] sleep 24000s")
-        await asyncio.sleep(24000)
+        logging.info("[trial_notify] sleep %ss", TRIAL_UNCONNECTED_SLEEP_SEC)
+        await asyncio.sleep(TRIAL_UNCONNECTED_SLEEP_SEC)
