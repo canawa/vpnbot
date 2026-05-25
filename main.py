@@ -1512,7 +1512,7 @@ async def adv_campaigns(callback: CallbackQuery):
             "-------------------------\n"
             f"<tg-emoji emoji-id=\"5474417568053745249\">🌱</tg-emoji> Всего заработано: {ref_share} ₽\n"
             f"<tg-emoji emoji-id=\"5463424023734014980\">🛫</tg-emoji> Выведено: {ref_withdraw} ₽\n"
-            f"<tg-emoji emoji-id=\"5238132025323444613\">🏦</tg-emoji> ❤️ Баланс доступный для вывода: {ref_share - ref_withdraw} ₽\n",
+            f"<tg-emoji emoji-id=\"5238132025323444613\">🏦</tg-emoji> Баланс доступный для вывода: {ref_share - ref_withdraw} ₽\n",
             parse_mode="HTML",
             reply_markup=ikb_adv_back
         )
