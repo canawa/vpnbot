@@ -1481,12 +1481,12 @@ async def adv_campaigns(callback: CallbackQuery):
          "-------------------------\n"
             f"🧮 Всего заработано: {ref_share} ₽\n"
             f"🏦 Выведено: {ref_withdraw} ₽\n"
-            f'❤️ Баланс доступный для вывода: {ref_share - ref_withdraw}\n',
+            f'❤️ Баланс доступный для вывода: {ref_share - ref_withdraw} ₽\n',
             parse_mode="HTML",
             reply_markup=ikb_adv_back
         )
     except Exception as e:
-        await callback.message.answer(str(e))
+        logging.error(e)
 
 
 @dp.callback_query(F.data == 'ping_brokes')
