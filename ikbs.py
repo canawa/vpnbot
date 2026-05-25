@@ -97,32 +97,42 @@ ikb_admin = InlineKeyboardMarkup(inline_keyboard=[
 
 ikb_adv_campaigns_menu = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text='Создать новую кампанию', callback_data='adv_new_campaign_create')],
-    [InlineKeyboardButton(text='Анализировать кампании', callback_data='adv_get_campaigns')],
+    [InlineKeyboardButton(text='Список кампаний', callback_data='adv_get_campaigns')],
+    [InlineKeyboardButton(text='Смотреть по ID (выплаты 2.0)', callback_data='adv_lookup_by_id')],
     [InlineKeyboardButton(text='Прогресс всех рефоводов', callback_data='adv_referrers_progress')],
     [InlineKeyboardButton(text=' Назад', callback_data='admin_back', icon_custom_emoji_id=get_emoji('exit'))],
 ])
 
 def generate_ikb_campaigns_list():
-    with sq.connect('database.db') as con:
-        cur = con.cursor()
-        cur.execute('SELECT * FROM adv_campaigns')
-        result = cur.fetchall()
+    from databases import list_adv_campaigns
 
-        keyboard = []
-
-        for row in result:
-            name = row[0]
-            keyboard.append(
-                [InlineKeyboardButton(
-                    text=f'{name}',
-                    callback_data=f'adv_campaign_{name}'
-                )]
+    campaigns = list_adv_campaigns()
+    keyboard = []
+    for rowid, name, _desc, _link in campaigns:
+        label = name if len(name) <= 28 else f'{name[:25]}…'
+        keyboard.append([
+            InlineKeyboardButton(
+                text=f'#{rowid} · {label}',
+                callback_data=f'adv_cid_{rowid}',
             )
-    keyboard.append([InlineKeyboardButton(
-                    text=f'Назад',
-                    callback_data='adv_campaigns',
-                    icon_custom_emoji_id=get_emoji('exit'),
-        )])
+        ])
+    if not campaigns:
+        keyboard.append([
+            InlineKeyboardButton(text='(кампаний пока нет)', callback_data='adv_campaigns'),
+        ])
+    keyboard.append([
+        InlineKeyboardButton(
+            text='Найти по ID',
+            callback_data='adv_lookup_by_id',
+        ),
+    ])
+    keyboard.append([
+        InlineKeyboardButton(
+            text='Назад',
+            callback_data='adv_campaigns',
+            icon_custom_emoji_id=get_emoji('exit'),
+        ),
+    ])
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
 ikb_admin_back = InlineKeyboardMarkup(inline_keyboard=[

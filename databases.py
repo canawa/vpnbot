@@ -295,3 +295,181 @@ def fetch_all_referrers_progress() -> list[tuple]:
             """
         )
         return cur.fetchall()
+
+
+def list_adv_campaigns() -> list[tuple]:
+    """rowid, campaign_name, campaign_description, campaign_link — новые сверху."""
+    with sq.connect('database.db') as con:
+        cur = con.cursor()
+        cur.execute(
+            """
+            SELECT rowid, campaign_name, campaign_description, campaign_link
+            FROM adv_campaigns
+            ORDER BY rowid DESC
+            """
+        )
+        return cur.fetchall()
+
+
+def get_adv_campaign(campaign_id: int) -> tuple | None:
+    """rowid, campaign_name, campaign_description, campaign_link."""
+    with sq.connect('database.db') as con:
+        cur = con.cursor()
+        cur.execute(
+            """
+            SELECT rowid, campaign_name, campaign_description, campaign_link
+            FROM adv_campaigns
+            WHERE rowid = ?
+            """,
+            (campaign_id,),
+        )
+        return cur.fetchone()
+
+
+def get_ref_partner_dashboard(ref_master_id: int) -> dict | None:
+    """
+    Сводка по ref_master_id: кампания (adv_campaigns rowid) и/или пользователь-рефовод.
+    ID в ?start=… совпадает с ref_master_id в referal_users.
+    """
+    ref_master_id = int(ref_master_id)
+    campaign = get_adv_campaign(ref_master_id)
+
+    if campaign:
+        _rowid, name, description, link = campaign
+        campaign_name = name
+        campaign_description = description or ''
+        campaign_link = link
+        is_campaign = True
+    else:
+        campaign_name = f'Рефовод #{ref_master_id}'
+        campaign_description = ''
+        campaign_link = referral_link(ref_master_id)
+        is_campaign = False
+
+    with sq.connect('database.db') as con:
+        cur = con.cursor()
+        cur.execute(
+            'SELECT username, role, COALESCE(ref_balance, 0), COALESCE(ref_withdraw, 0), '
+            'COALESCE(ref_amount, 0), custom_ref_code '
+            'FROM users WHERE id = ?',
+            (ref_master_id,),
+        )
+        user_row = cur.fetchone()
+        username = user_row[0] if user_row else None
+        role = user_row[1] if user_row else None
+        ref_balance = int(user_row[2]) if user_row else 0
+        ref_withdraw = int(user_row[3]) if user_row else 0
+        ref_amount = int(user_row[4]) if user_row else 0
+        custom_ref_code = user_row[5] if user_row else None
+
+        cur.execute(
+            'SELECT COUNT(*) FROM referal_users WHERE ref_master_id = ?',
+            (ref_master_id,),
+        )
+        refs_total = int((cur.fetchone() or (0,))[0])
+
+        cur.execute(
+            """
+            SELECT COUNT(DISTINCT r.referral_id)
+            FROM referal_users r
+            INNER JOIN transactions t ON t.user_id = r.referral_id
+                AND t.type IN ('CryptoBot', 'yookassa')
+            WHERE r.ref_master_id = ?
+            """,
+            (ref_master_id,),
+        )
+        paying_refs = int((cur.fetchone() or (0,))[0])
+
+        cur.execute(
+            """
+            SELECT COUNT(*), COALESCE(SUM(CAST(t.amount AS INTEGER)), 0)
+            FROM transactions t
+            JOIN referal_users r ON r.referral_id = t.user_id
+            WHERE r.ref_master_id = ?
+              AND t.type IN ('CryptoBot', 'yookassa')
+            """,
+            (ref_master_id,),
+        )
+        dep_row = cur.fetchone() or (0, 0)
+        deposits_count = int(dep_row[0] or 0)
+        deposits_total = int(dep_row[1] or 0)
+
+        cur.execute(
+            """
+            SELECT COUNT(*), COALESCE(SUM(CAST(t.amount AS INTEGER)), 0)
+            FROM transactions t
+            JOIN referal_users r ON r.referral_id = t.user_id
+            WHERE r.ref_master_id = ?
+              AND t.type IN ('CryptoBot', 'yookassa')
+              AND date(t.date) >= date(r.registration_date)
+              AND date(t.date) <= date(r.registration_date, '+90 days')
+            """,
+            (ref_master_id,),
+        )
+        qual_row = cur.fetchone() or (0, 0)
+        qualified_deposits_count = int(qual_row[0] or 0)
+        qualified_deposits_total = int(qual_row[1] or 0)
+
+        cur.execute(
+            """
+            SELECT
+                r.referral_id,
+                COALESCE(r.referral_username, u.username, ''),
+                CAST(t.amount AS INTEGER),
+                t.type,
+                t.date,
+                CASE
+                    WHEN date(t.date) >= date(r.registration_date)
+                     AND date(t.date) <= date(r.registration_date, '+90 days')
+                    THEN 1 ELSE 0
+                END AS in_commission_window
+            FROM transactions t
+            JOIN referal_users r ON r.referral_id = t.user_id
+            LEFT JOIN users u ON u.id = r.referral_id
+            WHERE r.ref_master_id = ?
+              AND t.type IN ('CryptoBot', 'yookassa')
+            ORDER BY t.date DESC
+            LIMIT 20
+            """,
+            (ref_master_id,),
+        )
+        deposit_rows = [
+            {
+                'referral_id': row[0],
+                'referral_username': row[1] or '',
+                'amount': int(row[2] or 0),
+                'pay_type': row[3],
+                'date': row[4],
+                'in_window': bool(row[5]),
+            }
+            for row in cur.fetchall()
+        ]
+
+    if not campaign and not user_row and refs_total == 0:
+        return None
+
+    return {
+        'ref_master_id': ref_master_id,
+        'is_campaign': is_campaign,
+        'campaign_name': campaign_name,
+        'campaign_description': campaign_description,
+        'campaign_link': campaign_link,
+        'username': username,
+        'role': role,
+        'ref_balance': ref_balance,
+        'ref_withdraw': ref_withdraw,
+        'ref_amount': ref_amount,
+        'custom_ref_code': custom_ref_code,
+        'refs_total': refs_total,
+        'paying_refs': paying_refs,
+        'deposits_count': deposits_count,
+        'deposits_total': deposits_total,
+        'qualified_deposits_count': qualified_deposits_count,
+        'qualified_deposits_total': qualified_deposits_total,
+        'deposit_rows': deposit_rows,
+    }
+
+
+def get_adv_campaign_dashboard(campaign_id: int) -> dict | None:
+    """Обратная совместимость: сводка по ID кампании / рефовода."""
+    return get_ref_partner_dashboard(campaign_id)

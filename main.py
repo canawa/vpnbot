@@ -23,6 +23,20 @@ import pandas as pd
 import openpyxl
 from datetime import datetime
 from check_subscription import is_subscribed
+from referrals import (
+    REFMASTER_ROLE,
+    REFMASTER_20_ROLE,
+    REFMASTER_20_DEPOSIT_BONUS_RUB,
+    role_has_refmaster_ui,
+    role_uses_deposit_share,
+    role_uses_fixed_deposit_bonus,
+    role_display_name,
+    apply_deposit_reward_to_ref_partner,
+    should_grant_subscription_referral_bonus,
+    mark_subscription_referral_bonus_used,
+    estimated_earnings_from_deposits,
+    format_admin_campaign_stats,
+)
 import locale
 from emojis import get_emoji
 from databases import (
@@ -32,6 +46,9 @@ from databases import (
     resolve_ref_master_id,
     set_custom_ref_code,
     fetch_all_referrers_progress,
+    get_adv_campaign_dashboard,
+    get_ref_partner_dashboard,
+    list_adv_campaigns,
 )
 from payments import get_pay_link, check_payment_status, check_payment_yookassa_status, rub_to_usdt
 from logging.handlers import RotatingFileHandler
@@ -85,6 +102,11 @@ class AdvCampaign(StatesGroup):
     waiting_name = State()
     waiting_description = State()
     waiting_custom_link = State()
+    waiting_campaign_id = State()
+
+
+class AdminRefmaster(StatesGroup):
+    waiting_user_id = State()
 
 def _subscription_url_from_dict(d):
     if not isinstance(d, dict):
@@ -522,7 +544,10 @@ async def referral_callback(callback: CallbackQuery):
         cur.execute('SELECT ref_withdraw FROM users WHERE id = ?', (callback.from_user.id,))
         result = cur.fetchone()
         ref_withdraw = result[0]
-        if role.lower() == 'refmaster':
+        if role_has_refmaster_ui(role):
+            cur.execute('SELECT ref_balance FROM users WHERE id = ?', (callback.from_user.id,))
+            ref_balance_row = cur.fetchone()
+            ref_balance = int(ref_balance_row[0] or 0) if ref_balance_row else 0
             cur.execute('SELECT COUNT(*) FROM referal_users WHERE ref_master_id = ?', (callback.from_user.id,))
             refs_total = (cur.fetchone() or (0,))[0]
             cur.execute(
@@ -538,22 +563,33 @@ async def referral_callback(callback: CallbackQuery):
             dep_stats = cur.fetchone() or (0, 0)
             deposits_count = dep_stats[0] or 0
             deposits_total = int(dep_stats[1] or 0)
-            # "Ваша доля" считаем строго как 50% от депозитов рефералов.
-            # Фиксированные бонусы 50₽ за приглашения сюда не входят.
-            ref_share = int(deposits_total * 0.5)
-            ref_withdraw=int(ref_withdraw)
+            ref_withdraw = int(ref_withdraw or 0)
+            available = ref_balance - ref_withdraw
+
+            if role_uses_deposit_share(role):
+                model_line = (
+                    '<tg-emoji emoji-id="5474417568053745249">🌱</tg-emoji> '
+                    f'Ваша доля (50% от депозитов): {int(deposits_total * 0.5)} ₽\n'
+                )
+            else:
+                model_line = (
+                    '<tg-emoji emoji-id="5474417568053745249">🌱</tg-emoji> '
+                    f'Бонус: +{REFMASTER_20_DEPOSIT_BONUS_RUB} ₽ за каждый депозит реферала (90 дней)\n'
+                )
+
             await callback.message.answer_photo(
                 INVITE_FRIEND_PHOTO,
                 caption=(
-                    "🤝 <b>Реферальная программа</b>\n\n"
+                    f"🤝 <b>Реферальная программа</b> ({role_display_name(role)})\n\n"
                     "Ваша реферальная ссылка:\n"
                     f"<code>{referral_link(callback.from_user.id)}</code>\n\n"
                     f"<tg-emoji emoji-id=\"5429278861932124623\">🪧</tg-emoji> Количество рефералов: {refs_total}\n"
                     f"<tg-emoji emoji-id=\"5472250091332993630\">💳</tg-emoji> Количество депозитов: {deposits_count}\n"
                     f"<tg-emoji emoji-id=\"5298614648138919107\">📈</tg-emoji> Общая сумма депозитов: {deposits_total} ₽\n"
-                    f"<tg-emoji emoji-id=\"5474417568053745249\">🌱</tg-emoji> Всего заработано: {ref_share} ₽\n"
+                    f"{model_line}"
+                    f"<tg-emoji emoji-id=\"5474417568053745249\">💰</tg-emoji> На реф. балансе: {ref_balance} ₽\n"
                     f"<tg-emoji emoji-id=\"5463424023734014980\">🛫</tg-emoji> Выведено: {ref_withdraw} ₽\n"
-                    f'<tg-emoji emoji-id=\"5238132025323444613\">🏦</tg-emoji> Баланс доступный для вывода: {ref_share-ref_withdraw} ₽\n'
+                    f'<tg-emoji emoji-id=\"5238132025323444613\">🏦</tg-emoji> Доступно к выводу: {available} ₽\n'
                     '\nДля вывода обращаться @yatogotsirka'
                 ),
                 parse_mode='HTML',
@@ -677,58 +713,46 @@ async def check_payment_yookassa_callback(callback: CallbackQuery):
     if payment_state == 'paid':
         funnel_on_paid(callback.from_user.id)
         renewal_on_paid(callback.from_user.id)
-        # Реферальный блок (оставлен без изменений)
         try:
             with sq.connect('database.db') as con:
                 cur = con.cursor()
-                cur.execute(
-                    'SELECT ref_master_id, registration_date FROM referal_users WHERE referral_id = ?',
-                    (callback.from_user.id,),
+                reward = apply_deposit_reward_to_ref_partner(
+                    cur, callback.from_user.id, amount_rub,
                 )
-                ref_master = cur.fetchone()
+                if reward:
+                    ref_master_id, reward_kind = reward
+                    if reward_kind == 'share':
+                        bonus_text = f'+{amount_rub // 2} ₽ (50% от депозита)'
+                    else:
+                        bonus_text = f'+{REFMASTER_20_DEPOSIT_BONUS_RUB} ₽ на реф. баланс'
+                    try:
+                        await bot.send_message(
+                            ref_master_id,
+                            f'<tg-emoji emoji-id="5416117059207572332">➡️</tg-emoji> '
+                            f'Ваш реферал совершил депозит. Начислено {bonus_text}.',
+                            parse_mode='HTML',
+                        )
+                    except Exception as e:
+                        print(f'Не удалось уведомить рефовода {ref_master_id}: {e}')
 
-                if ref_master:
-                    ref_master_id = ref_master[0]
-                    registration_date_str = ref_master[1]
-
-                    if registration_date_str:
-                        registration_date = date.fromisoformat(registration_date_str)
-                        three_months_later = registration_date + timedelta(days=90)
-
-                        if date.today() <= three_months_later:
-                            cur.execute('SELECT role FROM users WHERE id = ?', (ref_master_id,))
-                            ref_master_role_row = cur.fetchone()
-                            ref_master_role = ref_master_role_row[0] if ref_master_role_row else None
-
-                            if ref_master_role == 'refmaster':
-                                cur.execute(
-                                    'UPDATE users SET ref_balance = ref_balance + ? WHERE id = ?',
-                                    (amount_rub // 2, ref_master_id),
-                                )
-                            else:
-                                cur.execute(
-                                    'SELECT * FROM users WHERE received_bonus = 0 AND id = ?',
-                                    (callback.from_user.id,),
-                                )
-                                result = cur.fetchone()
-                                if result is not None:
-                                    cur.execute(
-                                        'UPDATE users SET received_bonus = 1 WHERE id = ?',
-                                        (callback.from_user.id,),
-                                    )
-                                    try:
-                                        await asyncio.to_thread(vpn.renew_subscription, ref_master_id, 7)
-                                        await bot.send_message(
-                                            ref_master_id,
-                                            '<tg-emoji emoji-id="5416117059207572332">➡️</tg-emoji> Ваш реферал совершил депозит, вы получили бонусом 7 дней подписки!',
-                                            parse_mode='HTML',
-                                            reply_markup=ikb_my_sub,
-                                        )
-                                    except Exception as e:
-                                        print(f'Ошибка выдачи реф-бонуса для {ref_master_id}: {e}')
+                ref_master_id_sub = should_grant_subscription_referral_bonus(
+                    cur, callback.from_user.id,
+                )
+                if ref_master_id_sub is not None:
+                    mark_subscription_referral_bonus_used(cur, callback.from_user.id)
+                    try:
+                        await asyncio.to_thread(vpn.renew_subscription, ref_master_id_sub, 7)
+                        await bot.send_message(
+                            ref_master_id_sub,
+                            '<tg-emoji emoji-id="5416117059207572332">➡️</tg-emoji> '
+                            'Ваш реферал совершил депозит, вы получили бонусом 7 дней подписки!',
+                            parse_mode='HTML',
+                            reply_markup=ikb_my_sub,
+                        )
+                    except Exception as e:
+                        print(f'Ошибка выдачи реф-бонуса для {ref_master_id_sub}: {e}')
 
                 con.commit()
-
         except Exception as e:
             print(f'Ошибка реферального блока для {callback.from_user.id}: {e}')
 
@@ -858,8 +882,9 @@ async def bug_report_callback(callback: CallbackQuery):
     await callback.message.answer("⚠️ <b>Баг репорт</b>\n\nhttps://forms.gle/Pwdm8uzAgtu9T2296!", parse_mode='HTML', reply_markup=ikb_back)
 
 @dp.callback_query(lambda c: c.data == 'admin_back')
-async def admin_back_callback(callback: CallbackQuery):
-    await callback.answer("Назад") # на пол экрана хуйня высветится
+async def admin_back_callback(callback: CallbackQuery, state: FSMContext):
+    await state.clear()
+    await callback.answer("Назад")
     await callback.message.delete()
     await callback.message.answer("👤 Админ панель", parse_mode='HTML', reply_markup=ikb_admin)
 
@@ -1242,33 +1267,75 @@ async def admin_roles_callback(callback: CallbackQuery):
     await callback.answer("👑 Роли") # на пол экрана хуйня высветится
     await callback.message.delete()
     ikb_admin_roles = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text='👑 Выдать роль Refmaster', callback_data='admin_give_refmaster')],
+        [InlineKeyboardButton(text='👑 Refmaster (50% с депозитов)', callback_data='admin_give_refmaster')],
+        [InlineKeyboardButton(text='👑 Refmaster 2.0 (+50₽ за депозит)', callback_data='admin_give_refmaster_20')],
         [InlineKeyboardButton(text='Назад', callback_data='admin_back')],
     ])
     await callback.message.answer("👑 <b>Управление ролями</b>\n\nВыберите действие:", parse_mode='HTML', reply_markup=ikb_admin_roles)
 
 @dp.callback_query(lambda c: c.data == 'admin_give_refmaster')
-async def admin_give_refmaster_callback(callback: CallbackQuery):
-    await callback.answer("👑 Выдать роль Refmaster") # на пол экрана хуйня высветится
+async def admin_give_refmaster_callback(callback: CallbackQuery, state: FSMContext):
+    await state.set_state(AdminRefmaster.waiting_user_id)
+    await state.update_data(assign_role=REFMASTER_ROLE)
+    await callback.answer("👑 Refmaster")
     await callback.message.delete()
-    await callback.message.answer("👑 <b>Выдача роли Refmaster</b>\n\nОтправьте ID пользователя, которому нужно выдать роль Refmaster:", parse_mode='HTML', reply_markup=ikb_admin_back)
+    await callback.message.answer(
+        "👑 <b>Выдача роли Refmaster</b>\n"
+        "Модель: <b>50% от каждого депозита реферала</b> (90 дней) на реф. баланс.\n\n"
+        "Отправьте ID пользователя:",
+        parse_mode='HTML',
+        reply_markup=ikb_admin_back,
+    )
 
-@dp.message(F.text.isdigit(), F.from_user.id.in_(ADMIN_IDS))
-async def admin_set_role_message(message: Message):
-    # Обработчик для выдачи роли Refmaster по ID пользователя
+@dp.callback_query(lambda c: c.data == 'admin_give_refmaster_20')
+async def admin_give_refmaster_20_callback(callback: CallbackQuery, state: FSMContext):
+    await state.set_state(AdminRefmaster.waiting_user_id)
+    await state.update_data(assign_role=REFMASTER_20_ROLE)
+    await callback.answer("👑 Refmaster 2.0")
+    await callback.message.delete()
+    await callback.message.answer(
+        "👑 <b>Выдача роли Refmaster 2.0</b>\n"
+        f"Модель: <b>+{REFMASTER_20_DEPOSIT_BONUS_RUB} ₽</b> на реф. баланс за каждый депозит реферала "
+        "(90 дней), <b>без</b> доли 50%.\n\n"
+        "Отправьте ID пользователя:",
+        parse_mode='HTML',
+        reply_markup=ikb_admin_back,
+    )
+
+@dp.message(AdminRefmaster.waiting_user_id, F.text.isdigit(), F.from_user.id.in_(ADMIN_IDS))
+async def admin_set_role_message(message: Message, state: FSMContext):
+    data = await state.get_data()
+    assign_role = data.get('assign_role')
+    if assign_role not in (REFMASTER_ROLE, REFMASTER_20_ROLE):
+        await message.answer(
+            '❌ Сессия устарела. Снова выберите роль в админке → Роли.',
+            reply_markup=ikb_admin_back,
+        )
+        await state.clear()
+        return
+
     user_id = int(message.text)
+    role_label = role_display_name(assign_role)
     with sq.connect('database.db') as con:
         cur = con.cursor()
-        # Проверяем, существует ли пользователь
         cur.execute('SELECT id, username FROM users WHERE id = ?', (user_id,))
         user = cur.fetchone()
         if user:
-            # Выдаем роль Refmaster
-            cur.execute('UPDATE users SET role = ? WHERE id = ?', ('refmaster', user_id))
+            cur.execute('UPDATE users SET role = ? WHERE id = ?', (assign_role, user_id))
             con.commit()
-            await message.answer(f"✅ Роль Refmaster успешно выдана пользователю:\n\n🆔 ID: {user_id}\n👤 Username: {user[1] if user[1] else 'Не указан'}", parse_mode='HTML', reply_markup=ikb_admin_back)
+            await message.answer(
+                f"✅ Роль {role_label} выдана:\n\n🆔 ID: {user_id}\n"
+                f"👤 Username: {user[1] if user[1] else 'Не указан'}",
+                parse_mode='HTML',
+                reply_markup=ikb_admin_back,
+            )
         else:
-            await message.answer(f"❌ Пользователь с ID {user_id} не найден в базе данных.", parse_mode='HTML', reply_markup=ikb_admin_back)
+            await message.answer(
+                f"❌ Пользователь с ID {user_id} не найден в базе данных.",
+                parse_mode='HTML',
+                reply_markup=ikb_admin_back,
+            )
+    await state.clear()
 
 @dp.callback_query(lambda c: c.data == 'admin_referrals')
 async def admin_referrals_callback(callback: CallbackQuery):
@@ -1285,9 +1352,39 @@ async def admin_referrals_callback(callback: CallbackQuery):
         await callback.message.answer_document(FSInputFile('referals.xlsx'), reply_markup=ikb_admin_back)
 
 @dp.callback_query((F.data == 'adv_campaigns') & F.from_user.id.in_(ADMIN_IDS))
-async def adv_campaigns_callback(callback: CallbackQuery):
+async def adv_campaigns_callback(callback: CallbackQuery, state: FSMContext):
+    await state.clear()
     await callback.message.delete()
-    await callback.message.answer(text='Выберите:', reply_markup=ikb_adv_campaigns_menu)
+    count = len(list_adv_campaigns())
+    await callback.message.answer(
+        f'<b>Рекламные кампании</b>\n\nВсего в базе: <b>{count}</b>\n'
+        'Поиск по ID: кампания (<code>?start=ID</code>) или Telegram ID рефовода.\n'
+        'Для <b>Refmaster 2.0</b> — блок «К выплате сейчас» и список депозитов.',
+        parse_mode='HTML',
+        reply_markup=ikb_adv_campaigns_menu,
+    )
+
+
+async def _send_ref_partner_dashboard(message: Message, lookup_id: int, reply_markup):
+    dashboard = get_ref_partner_dashboard(lookup_id)
+    if not dashboard:
+        await message.answer(
+            f'❌ По ID <b>{lookup_id}</b> ничего не найдено '
+            '(нет кампании, пользователя и рефералов).',
+            parse_mode='HTML',
+            reply_markup=reply_markup,
+        )
+        return
+    text = format_admin_campaign_stats(dashboard)
+    if len(text) > 4000:
+        await message.answer(text[:4000] + '\n…', parse_mode='HTML', reply_markup=reply_markup)
+        await message.answer(text[4000:], parse_mode='HTML')
+    else:
+        await message.answer(text, parse_mode='HTML', reply_markup=reply_markup)
+
+
+async def _send_campaign_dashboard(message: Message, campaign_id: int, reply_markup):
+    await _send_ref_partner_dashboard(message, campaign_id, reply_markup)
 
 @dp.callback_query(F.data == 'adv_new_campaign_create')
 async def create_adv_campaign(callback: CallbackQuery, state: FSMContext):
@@ -1330,14 +1427,56 @@ async def get_campaign_description(message: Message, state: FSMContext):
     await state.clear()
 
     await message.answer(
-        f"Кампания создана\nID: {row_id}\nСсылка: {link}",
-        reply_markup=ikb_adv_back
+        f'✅ <b>Кампания создана</b>\n\n'
+        f'ID: <code>{row_id}</code>\n'
+        f'Ссылка: <code>{link}</code>\n\n'
+        f'Отслеживание: админка → Рекламные кампании → «Найти по ID» → <code>{row_id}</code>',
+        parse_mode='HTML',
+        reply_markup=ikb_adv_back,
     )
 
 @dp.callback_query(F.data == 'adv_get_campaigns')
-async def get_campaigns(callback : CallbackQuery):
+async def get_campaigns(callback: CallbackQuery):
     await callback.message.delete()
-    await callback.message.answer(text='Список кампаний:',reply_markup=generate_ikb_campaigns_list())
+    campaigns = list_adv_campaigns()
+    if not campaigns:
+        await callback.message.answer(
+            'Кампаний пока нет. Создайте первую.',
+            reply_markup=ikb_adv_campaigns_menu,
+        )
+        return
+    await callback.message.answer(
+        'Выберите кампанию (ID в кнопке):',
+        reply_markup=generate_ikb_campaigns_list(),
+    )
+
+@dp.callback_query((F.data == 'adv_lookup_by_id') & F.from_user.id.in_(ADMIN_IDS))
+async def adv_lookup_by_id_callback(callback: CallbackQuery, state: FSMContext):
+    await state.set_state(AdvCampaign.waiting_campaign_id)
+    await callback.message.delete()
+    await callback.message.answer(
+        '🔎 <b>Поиск по ID</b>\n\n'
+        'Отправьте число:\n'
+        '• ID кампании из <code>?start=ID</code>\n'
+        '• или Telegram ID рефовода (Refmaster / 2.0)\n\n'
+        'Для Refmaster 2.0 увидите: <b>к выплате сейчас</b>, начисления +50₽/депозит, депозиты.',
+        parse_mode='HTML',
+        reply_markup=ikb_adv_back,
+    )
+
+@dp.message(AdvCampaign.waiting_campaign_id, F.from_user.id.in_(ADMIN_IDS))
+async def adv_campaign_id_lookup_message(message: Message, state: FSMContext):
+    raw = (message.text or '').strip()
+    if not raw.isdigit():
+        await message.answer(
+            '❌ ID должен быть числом. Пример: <code>12</code>',
+            parse_mode='HTML',
+            reply_markup=ikb_adv_back,
+        )
+        return
+    campaign_id = int(raw)
+    await _send_campaign_dashboard(message, campaign_id, ikb_adv_back)
+    await state.clear()
 
 
 @dp.callback_query((F.data == 'adv_referrers_progress') & F.from_user.id.in_(ADMIN_IDS))
@@ -1380,22 +1519,35 @@ async def adv_referrers_progress_callback(callback: CallbackQuery):
         total_deposits_count += deposits_count
         total_deposits_sum += deposits_total
 
-        role_l = (role or '').lower()
-        ref_share = deposits_total // 2 if role_l == 'refmaster' else ''
+        ref_share_est = estimated_earnings_from_deposits(role, deposits_total, deposits_count)
+        if role_uses_deposit_share(role):
+            model_note = '50% с депозитов'
+            share_col = ref_share_est if ref_share_est is not None else ''
+            fixed_col = ''
+        elif role_uses_fixed_deposit_bonus(role):
+            model_note = f'+{REFMASTER_20_DEPOSIT_BONUS_RUB}₽/депозит'
+            share_col = ''
+            fixed_col = ref_share_est if ref_share_est is not None else ''
+        else:
+            model_note = '7 дней за 1-й депозит'
+            share_col = ''
+            fixed_col = ''
         in_users = username is not None
 
         excel_rows.append({
             'ID рефовода': ref_master_id,
             'Username': username or '',
             'В users': 'да' if in_users else 'нет (кампания?)',
-            'Роль': role or '',
+            'Роль': role_display_name(role) if role else '',
+            'Модель': model_note,
             'Авторский код': custom_ref_code or '',
             'ref_amount': int(ref_amount or 0),
             'Рефералов': refs_count,
             'Рефералов с оплатой': paying_refs,
             'Депозитов': deposits_count,
             'Сумма депозитов ₽': deposits_total,
-            'Доля 50% ₽': ref_share if ref_share != '' else '',
+            'Оценка 50% ₽': share_col,
+            f'Оценка +{REFMASTER_20_DEPOSIT_BONUS_RUB}₽×деп': fixed_col,
             'ref_balance ₽': int(ref_balance or 0),
             'Выведено ₽': int(ref_withdraw or 0),
         })
@@ -1437,88 +1589,16 @@ async def adv_referrers_progress_callback(callback: CallbackQuery):
         except OSError:
             pass
 
-@dp.callback_query(F.data.startswith('adv_campaign_'))
-async def adv_campaigns(callback: CallbackQuery):
+@dp.callback_query(F.data.startswith('adv_cid_'))
+async def adv_campaign_by_id_callback(callback: CallbackQuery):
+    await callback.answer()
     await callback.message.delete()
-
-    campaign_name = callback.data.replace('adv_campaign_', '')
-
-    with sq.connect('database.db') as con:
-        cur = con.cursor()
-
-        cur.execute(
-            '''
-            SELECT campaign_name, campaign_description, campaign_link
-            FROM adv_campaigns
-            WHERE campaign_name = ?
-            ''',
-            (campaign_name,)
-        )
-
-        campaign = cur.fetchone()
-
-        if not campaign:
-            await callback.message.answer("Кампания не найдена")
-            return
-
-        campaign_id = campaign[2].replace(
-            'https://t.me/coffemaniaVPNbot?start=',
-            ''
-        )
-
-        cur.execute(
-            'SELECT ref_withdraw FROM users WHERE id = ?',
-            (campaign_id,)
-        )
-
-        user_data = cur.fetchone()
-
-        ref_withdraw = int(user_data[0]) if user_data else 0
-
-        cur.execute(
-            'SELECT COUNT(*) FROM referal_users WHERE ref_master_id = ?',
-            (campaign_id,)
-        )
-
-        refs_total = cur.fetchone()[0]
-
-        cur.execute(
-            """
-            SELECT COUNT(*), COALESCE(SUM(CAST(t.amount AS INTEGER)), 0)
-            FROM transactions t
-            JOIN referal_users r ON r.referral_id = t.user_id
-            WHERE r.ref_master_id = ?
-              AND t.type IN ('CryptoBot', 'yookassa')
-            """,
-            (campaign_id,)
-        )
-
-        dep_stats = cur.fetchone()
-
-        deposits_count = dep_stats[0]
-        deposits_total = int(dep_stats[1])
-
-        ref_share = int(deposits_total * 0.5)
-
     try:
-        await callback.message.answer(
-            f"<b>Название: {campaign[0]}</b>\n\n"
-            f"Описание: {campaign[1]}\n\n"
-            f"Ссылка: {campaign[2]}\n\n"
-            "-------------------------\n"
-            f"<tg-emoji emoji-id='5429278861932124623'>🪧</tg-emoji> Количество рефералов: {refs_total}\n"
-            f"<tg-emoji emoji-id='5472250091332993630'>💳</tg-emoji> Количество депозитов: {deposits_count}\n"
-            f"<tg-emoji emoji-id='5298614648138919107'>📈</tg-emoji> Общая сумма депозитов: {deposits_total} ₽\n"
-            "-------------------------\n"
-            f"<tg-emoji emoji-id=\"5474417568053745249\">🌱</tg-emoji> Всего заработано: {ref_share} ₽\n"
-            f"<tg-emoji emoji-id=\"5463424023734014980\">🛫</tg-emoji> Выведено: {ref_withdraw} ₽\n"
-            f"<tg-emoji emoji-id=\"5238132025323444613\">🏦</tg-emoji> Баланс доступный для вывода: {ref_share - ref_withdraw} ₽\n",
-            parse_mode="HTML",
-            reply_markup=ikb_adv_back
-        )
-
-    except Exception as e:
-        logging.error(e)
+        campaign_id = int(callback.data.replace('adv_cid_', '', 1))
+    except ValueError:
+        await callback.message.answer('❌ Неверный ID кампании.', reply_markup=ikb_adv_back)
+        return
+    await _send_campaign_dashboard(callback.message, campaign_id, ikb_adv_back)
 
 @dp.callback_query(F.data == 'ping_brokes')
 async def ping_broke_users(callback: CallbackQuery): # оповестить нищеебов ебаных
