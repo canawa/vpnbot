@@ -1437,21 +1437,51 @@ async def adv_referrers_progress_callback(callback: CallbackQuery):
         except OSError:
             pass
 
-
 @dp.callback_query(F.data.startswith('adv_campaign_'))
 async def adv_campaigns(callback: CallbackQuery):
     await callback.message.delete()
-    campaign_name = callback.data.replace('adv_campaign_','')
+
+    campaign_name = callback.data.replace('adv_campaign_', '')
+
     with sq.connect('database.db') as con:
         cur = con.cursor()
-        cur.execute('SELECT campaign_name, campaign_description, campaign_link FROM adv_campaigns WHERE campaign_name == ?', (campaign_name,))
-        result = cur.fetchone()
-        campaign_id = result[-1].replace('https://t.me/coffemaniaVPNbot?start=', '')
-        cur.execute('SELECT ref_withdraw FROM users WHERE id = ?', (callback.from_user.id,))
-        result = cur.fetchone()
-        ref_withdraw = result[0]
-        cur.execute('SELECT COUNT(*) FROM referal_users WHERE ref_master_id = ?', (campaign_id,))
-        refs_total = (cur.fetchone() or (0,))[0]
+
+        cur.execute(
+            '''
+            SELECT campaign_name, campaign_description, campaign_link
+            FROM adv_campaigns
+            WHERE campaign_name = ?
+            ''',
+            (campaign_name,)
+        )
+
+        campaign = cur.fetchone()
+
+        if not campaign:
+            await callback.message.answer("Кампания не найдена")
+            return
+
+        campaign_id = campaign[2].replace(
+            'https://t.me/coffemaniaVPNbot?start=',
+            ''
+        )
+
+        cur.execute(
+            'SELECT ref_withdraw FROM users WHERE id = ?',
+            (campaign_id,)
+        )
+
+        user_data = cur.fetchone()
+
+        ref_withdraw = int(user_data[0]) if user_data else 0
+
+        cur.execute(
+            'SELECT COUNT(*) FROM referal_users WHERE ref_master_id = ?',
+            (campaign_id,)
+        )
+
+        refs_total = cur.fetchone()[0]
+
         cur.execute(
             """
             SELECT COUNT(*), COALESCE(SUM(CAST(t.amount AS INTEGER)), 0)
@@ -1460,34 +1490,35 @@ async def adv_campaigns(callback: CallbackQuery):
             WHERE r.ref_master_id = ?
               AND t.type IN ('CryptoBot', 'yookassa')
             """,
-            (campaign_id,),
+            (campaign_id,)
         )
-        dep_stats = cur.fetchone() or (0, 0)
-        deposits_count = dep_stats[0] or 0
-        deposits_total = int(dep_stats[1] or 0)
-        ref_share = int(deposits_total*0.5)
-        ref_withdraw = int(ref_withdraw)
-        # "Ваша доля" считаем строго как 50% от депозитов рефералов.
-        # Фиксированные бонусы 50₽ за приглашения сюда не входят.
+
+        dep_stats = cur.fetchone()
+
+        deposits_count = dep_stats[0]
+        deposits_total = int(dep_stats[1])
+
+        ref_share = int(deposits_total * 0.5)
+
     try:
         await callback.message.answer(
-        "<b>Название: " + str(result[0]) + "</b>\n\n"
-       "Описание: " + str(result[1]) + "\n\n"
-         "Ссылка: " + str(result[2]) + "\n\n"
-         "-------------------------\n"
-         "👥 Количество рефералов: " + str(refs_total) + "\n"
-          "💳 Количество депозитов: " + str(deposits_count) + "\n"
-         "💰 Общая сумма депозитов: " + str(deposits_total) + " ₽"
-         "-------------------------\n"
+            f"<b>Название: {campaign[0]}</b>\n\n"
+            f"Описание: {campaign[1]}\n\n"
+            f"Ссылка: {campaign[2]}\n\n"
+            "-------------------------\n"
+            f"👥 Количество рефералов: {refs_total}\n"
+            f"💳 Количество депозитов: {deposits_count}\n"
+            f"💰 Общая сумма депозитов: {deposits_total} ₽\n"
+            "-------------------------\n"
             f"🧮 Всего заработано: {ref_share} ₽\n"
             f"🏦 Выведено: {ref_withdraw} ₽\n"
-            f'❤️ Баланс доступный для вывода: {ref_share - ref_withdraw} ₽\n',
+            f"❤️ Баланс доступный для вывода: {ref_share - ref_withdraw} ₽\n",
             parse_mode="HTML",
             reply_markup=ikb_adv_back
         )
+
     except Exception as e:
         logging.error(e)
-
 
 @dp.callback_query(F.data == 'ping_brokes')
 async def ping_broke_users(callback: CallbackQuery): # оповестить нищеебов ебаных
