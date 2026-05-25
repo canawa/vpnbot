@@ -37,6 +37,8 @@ from referrals import (
     mark_subscription_referral_bonus_used,
     estimated_earnings_from_deposits,
     format_admin_campaign_stats,
+    format_refmasters_overview,
+    partner_pending_payout,
 )
 import locale
 from emojis import get_emoji
@@ -46,7 +48,9 @@ from databases import (
     referral_link,
     resolve_ref_master_id,
     set_custom_ref_code,
+    normalize_ref_code,
     fetch_all_referrers_progress,
+    fetch_refmaster_partner_rows,
     get_adv_campaign_dashboard,
     get_ref_partner_dashboard,
     list_adv_campaigns,
@@ -108,6 +112,11 @@ class AdvCampaign(StatesGroup):
 
 class AdminRefmaster(StatesGroup):
     waiting_user_id = State()
+
+
+class AdminCustomRef(StatesGroup):
+    waiting_user_id = State()
+    waiting_code = State()
 
 def _subscription_url_from_dict(d):
     if not isinstance(d, dict):
@@ -1345,6 +1354,115 @@ async def admin_set_role_message(message: Message, state: FSMContext):
             )
     await state.clear()
 
+@dp.callback_query(F.data == 'admin_custom_ref', F.from_user.id.in_(ADMIN_IDS))
+async def admin_custom_ref_menu_callback(callback: CallbackQuery):
+    await callback.answer('🔗 Авторские ссылки')
+    await callback.message.delete()
+    ikb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text='✏️ Задать код', callback_data='admin_custom_ref_set')],
+        [InlineKeyboardButton(text='🗑 Снять код', callback_data='admin_custom_ref_del')],
+        [InlineKeyboardButton(text='Назад', callback_data='admin_back')],
+    ])
+    await callback.message.answer(
+        '🔗 <b>Авторские реферальные ссылки</b>\n\n'
+        'Код подставляется в <code>?start=код</code> вместо числового ID.\n'
+        'Допустимо: латиница, цифры, <code>_</code> и <code>-</code>, до 64 символов.\n\n'
+        'Выберите действие:',
+        parse_mode='HTML',
+        reply_markup=ikb,
+    )
+
+
+@dp.callback_query(F.data == 'admin_custom_ref_set', F.from_user.id.in_(ADMIN_IDS))
+async def admin_custom_ref_set_callback(callback: CallbackQuery, state: FSMContext):
+    await state.set_state(AdminCustomRef.waiting_user_id)
+    await state.update_data(custom_ref_action='set')
+    await callback.answer('Задать код')
+    await callback.message.delete()
+    await callback.message.answer(
+        '✏️ <b>Задать авторский код</b>\n\nОтправьте <b>Telegram ID</b> рефовода:',
+        parse_mode='HTML',
+        reply_markup=ikb_admin_back,
+    )
+
+
+@dp.callback_query(F.data == 'admin_custom_ref_del', F.from_user.id.in_(ADMIN_IDS))
+async def admin_custom_ref_del_callback(callback: CallbackQuery, state: FSMContext):
+    await state.set_state(AdminCustomRef.waiting_user_id)
+    await state.update_data(custom_ref_action='del')
+    await callback.answer('Снять код')
+    await callback.message.delete()
+    await callback.message.answer(
+        '🗑 <b>Снять авторский код</b>\n\nОтправьте <b>Telegram ID</b> рефовода:',
+        parse_mode='HTML',
+        reply_markup=ikb_admin_back,
+    )
+
+
+@dp.message(AdminCustomRef.waiting_user_id, F.from_user.id.in_(ADMIN_IDS))
+async def admin_custom_ref_user_id_message(message: Message, state: FSMContext):
+    if not (message.text or '').strip().isdigit():
+        await message.answer(
+            '❌ ID должен быть числом (Telegram ID).',
+            reply_markup=ikb_admin_back,
+        )
+        return
+
+    data = await state.get_data()
+    action = data.get('custom_ref_action')
+    if action not in ('set', 'del'):
+        await message.answer(
+            '❌ Сессия устарела. Админка → 🔗 Авторские ссылки.',
+            reply_markup=ikb_admin_back,
+        )
+        await state.clear()
+        return
+
+    user_id = int(message.text.strip())
+    if action == 'del':
+        ok, text = set_custom_ref_code(user_id, None)
+        prefix = '✅ ' if ok else '❌ '
+        await message.answer(prefix + text, parse_mode='HTML', reply_markup=ikb_admin_back)
+        await state.clear()
+        return
+
+    await state.update_data(custom_ref_user_id=user_id)
+    await state.set_state(AdminCustomRef.waiting_code)
+    await message.answer(
+        f'ID: <code>{user_id}</code>\n\nТеперь отправьте <b>код</b> для ссылки '
+        f'(например <code>author_ivan</code>):',
+        parse_mode='HTML',
+        reply_markup=ikb_admin_back,
+    )
+
+
+@dp.message(AdminCustomRef.waiting_code, F.from_user.id.in_(ADMIN_IDS))
+async def admin_custom_ref_code_message(message: Message, state: FSMContext):
+    data = await state.get_data()
+    user_id = data.get('custom_ref_user_id')
+    if not user_id:
+        await message.answer(
+            '❌ Сессия устарела. Начните снова: Админка → 🔗 Авторские ссылки.',
+            reply_markup=ikb_admin_back,
+        )
+        await state.clear()
+        return
+
+    code = (message.text or '').strip()
+    if not normalize_ref_code(code):
+        await message.answer(
+            '❌ Неверный код. Латиница, цифры, <code>_</code> и <code>-</code>, 1–64 символа.',
+            parse_mode='HTML',
+            reply_markup=ikb_admin_back,
+        )
+        return
+
+    ok, text = set_custom_ref_code(int(user_id), code)
+    prefix = '✅ ' if ok else '❌ '
+    await message.answer(prefix + text, parse_mode='HTML', reply_markup=ikb_admin_back)
+    await state.clear()
+
+
 @dp.callback_query(lambda c: c.data == 'admin_referrals')
 async def admin_referrals_callback(callback: CallbackQuery):
     await callback.answer("👉🏼 Рефералы") # на пол экрана хуйня высветится
@@ -1366,8 +1484,8 @@ async def adv_campaigns_callback(callback: CallbackQuery, state: FSMContext):
     count = len(list_adv_campaigns())
     await callback.message.answer(
         f'<b>Рекламные кампании</b>\n\nВсего в базе: <b>{count}</b>\n'
-        'Поиск по ID: кампания (<code>?start=ID</code>) или Telegram ID рефовода.\n'
-        'Для <b>Refmaster 2.0</b> — блок «К выплате сейчас» и список депозитов.',
+        '<b>👑 Refmaster / 2.0 — выплаты</b> — все партнёры с ролями, долг и карточки.\n'
+        'Поиск по ID: кампания или Telegram ID рефовода.',
         parse_mode='HTML',
         reply_markup=ikb_adv_campaigns_menu,
     )
@@ -1485,6 +1603,98 @@ async def adv_campaign_id_lookup_message(message: Message, state: FSMContext):
     campaign_id = int(raw)
     await _send_campaign_dashboard(message, campaign_id, ikb_adv_back)
     await state.clear()
+
+
+@dp.callback_query((F.data == 'adv_refmasters') & F.from_user.id.in_(ADMIN_IDS))
+async def adv_refmasters_callback(callback: CallbackQuery):
+    await callback.answer('Refmaster / 2.0')
+    await callback.message.delete()
+    partners = fetch_refmaster_partner_rows()
+    text = format_refmasters_overview(partners)
+    markup = generate_ikb_refmaster_partners(partners) if partners else ikb_adv_back
+    if len(text) > 4000:
+        await callback.message.answer(text[:4000] + '\n…', parse_mode='HTML', reply_markup=markup)
+        await callback.message.answer(text[4000:], parse_mode='HTML')
+    else:
+        await callback.message.answer(text, parse_mode='HTML', reply_markup=markup)
+
+
+@dp.callback_query(
+    (F.data.startswith('adv_rm_')) & F.from_user.id.in_(ADMIN_IDS),
+)
+async def adv_refmaster_detail_callback(callback: CallbackQuery):
+    await callback.answer()
+    await callback.message.delete()
+    try:
+        partner_id = int(callback.data.replace('adv_rm_', '', 1))
+    except ValueError:
+        await callback.message.answer('❌ Неверный ID.', reply_markup=ikb_adv_back)
+        return
+    await _send_ref_partner_dashboard(
+        callback.message, partner_id, ikb_adv_refmaster_detail_back,
+    )
+
+
+@dp.callback_query((F.data == 'adv_refmasters_excel') & F.from_user.id.in_(ADMIN_IDS))
+async def adv_refmasters_excel_callback(callback: CallbackQuery):
+    await callback.answer('Excel…')
+    partners = fetch_refmaster_partner_rows()
+    if not partners:
+        await callback.message.answer(
+            'Нет пользователей с ролью Refmaster / 2.0.',
+            reply_markup=ikb_adv_back,
+        )
+        return
+
+    excel_rows = []
+    total_pending = 0
+    for p in partners:
+        pending = partner_pending_payout(p['ref_balance'], p['ref_withdraw'])
+        total_pending += pending
+        est = estimated_earnings_from_deposits(
+            p['role'],
+            p['deposits_total'],
+            p['deposits_count'],
+            p['bonus_deposits_count'],
+        )
+        excel_rows.append({
+            'ID': p['id'],
+            'Username': p.get('username') or '',
+            'Роль': role_display_name(p.get('role')),
+            'Авторский код': p.get('custom_ref_code') or '',
+            'К выплате ₽': pending,
+            'ref_balance ₽': p['ref_balance'],
+            'Выведено ₽': p['ref_withdraw'],
+            'Рефералов': p['refs_total'],
+            'С оплатой': p['paying_refs'],
+            'Депозитов': p['deposits_count'],
+            'Сумма депозитов ₽': p['deposits_total'],
+            'Квалиф. деп (≥149)': p['bonus_deposits_count'],
+            'Деп в окне 90д (2.0)': p['qualified_deposits_count'],
+            'Оценка начислений ₽': est if est is not None else '',
+            'ref_amount': p['ref_amount'],
+        })
+
+    df = pd.DataFrame(excel_rows)
+    out_path = 'refmasters_payouts.xlsx'
+    df.to_excel(out_path, index=False)
+    try:
+        await callback.message.answer(
+            f'<b>Refmaster / 2.0</b>\nПартнёров: {len(partners)} · '
+            f'к выплате всего: <b>{total_pending} ₽</b>',
+            parse_mode='HTML',
+            reply_markup=ikb_adv_back,
+        )
+        await callback.message.answer_document(
+            FSInputFile(out_path),
+            caption='Выплаты Refmaster / 2.0',
+            reply_markup=ikb_adv_back,
+        )
+    finally:
+        try:
+            os.remove(out_path)
+        except OSError:
+            pass
 
 
 @dp.callback_query((F.data == 'adv_referrers_progress') & F.from_user.id.in_(ADMIN_IDS))

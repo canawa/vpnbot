@@ -268,6 +268,89 @@ def set_custom_ref_code(user_id: int, code: str | None) -> tuple[bool, str]:
     return True, f'Код снят. Ссылка снова: {referral_link(user_id)}'
 
 
+def fetch_refmaster_partner_rows() -> list[dict]:
+    """Пользователи с ролью refmaster / refmaster_20 и сводкой по рефералам."""
+    with sq.connect('database.db') as con:
+        cur = con.cursor()
+        cur.execute(
+            """
+            SELECT
+                u.id,
+                u.username,
+                COALESCE(u.role, '') AS role,
+                u.custom_ref_code,
+                COALESCE(u.ref_amount, 0),
+                COALESCE(u.ref_balance, 0),
+                COALESCE(u.ref_withdraw, 0),
+                (
+                    SELECT COUNT(*) FROM referal_users r
+                    WHERE r.ref_master_id = u.id
+                ) AS refs_total,
+                (
+                    SELECT COUNT(DISTINCT r.referral_id)
+                    FROM referal_users r
+                    INNER JOIN transactions t ON t.user_id = r.referral_id
+                        AND t.type IN ('CryptoBot', 'yookassa')
+                    WHERE r.ref_master_id = u.id
+                ) AS paying_refs,
+                (
+                    SELECT COUNT(*)
+                    FROM transactions t
+                    JOIN referal_users r ON r.referral_id = t.user_id
+                    WHERE r.ref_master_id = u.id
+                      AND t.type IN ('CryptoBot', 'yookassa')
+                ) AS deposits_count,
+                (
+                    SELECT COALESCE(SUM(CAST(t.amount AS INTEGER)), 0)
+                    FROM transactions t
+                    JOIN referal_users r ON r.referral_id = t.user_id
+                    WHERE r.ref_master_id = u.id
+                      AND t.type IN ('CryptoBot', 'yookassa')
+                ) AS deposits_total,
+                (
+                    SELECT COUNT(*)
+                    FROM transactions t
+                    JOIN referal_users r ON r.referral_id = t.user_id
+                    WHERE r.ref_master_id = u.id
+                      AND t.type IN ('CryptoBot', 'yookassa')
+                      AND CAST(t.amount AS INTEGER) >= 149
+                ) AS bonus_deposits_count,
+                (
+                    SELECT COUNT(*)
+                    FROM transactions t
+                    JOIN referal_users r ON r.referral_id = t.user_id
+                    WHERE r.ref_master_id = u.id
+                      AND t.type IN ('CryptoBot', 'yookassa')
+                      AND CAST(t.amount AS INTEGER) >= 149
+                      AND date(t.date) >= date(r.registration_date)
+                      AND date(t.date) <= date(r.registration_date, '+90 days')
+                ) AS qualified_deposits_count
+            FROM users u
+            WHERE LOWER(TRIM(COALESCE(u.role, ''))) IN ('refmaster', 'refmaster_20')
+            ORDER BY (COALESCE(u.ref_balance, 0) - COALESCE(u.ref_withdraw, 0)) DESC,
+                     u.id DESC
+            """
+        )
+        rows = []
+        for row in cur.fetchall():
+            rows.append({
+                'id': int(row[0]),
+                'username': row[1],
+                'role': row[2],
+                'custom_ref_code': row[3],
+                'ref_amount': int(row[4] or 0),
+                'ref_balance': int(row[5] or 0),
+                'ref_withdraw': int(row[6] or 0),
+                'refs_total': int(row[7] or 0),
+                'paying_refs': int(row[8] or 0),
+                'deposits_count': int(row[9] or 0),
+                'deposits_total': int(row[10] or 0),
+                'bonus_deposits_count': int(row[11] or 0),
+                'qualified_deposits_count': int(row[12] or 0),
+            })
+        return rows
+
+
 def fetch_all_referrers_progress() -> list[tuple]:
     """Статистика по каждому ref_master_id из referal_users (как в экране refmaster)."""
     with sq.connect('database.db') as con:

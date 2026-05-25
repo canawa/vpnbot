@@ -82,6 +82,7 @@ ikb_admin = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text='🔄 Оплаты', callback_data='admin_payments')],
     [InlineKeyboardButton(text='🔑 Подписки', callback_data='admin_keys')],
     [InlineKeyboardButton(text='👉🏼 Рефералы', callback_data='admin_referrals')],
+    [InlineKeyboardButton(text='🔗 Авторские ссылки', callback_data='admin_custom_ref')],
     [InlineKeyboardButton(text='👑 Роли', callback_data='admin_roles')],
     [InlineKeyboardButton(text='🔊 Напомнить юзерам о бесплатном тестовом периоде', callback_data='admin_notify_trial')],
     # [InlineKeyboardButton(text='⏰ Уведомить ро скидке у кого нет подписки', callback_data='admin_notify_sale')],
@@ -98,9 +99,50 @@ ikb_admin = InlineKeyboardMarkup(inline_keyboard=[
 ikb_adv_campaigns_menu = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text='Создать новую кампанию', callback_data='adv_new_campaign_create')],
     [InlineKeyboardButton(text='Список кампаний', callback_data='adv_get_campaigns')],
-    [InlineKeyboardButton(text='Смотреть по ID (выплаты 2.0)', callback_data='adv_lookup_by_id')],
+    [InlineKeyboardButton(text='👑 Refmaster / 2.0 — выплаты', callback_data='adv_refmasters')],
+    [InlineKeyboardButton(text='Смотреть по ID', callback_data='adv_lookup_by_id')],
     [InlineKeyboardButton(text='Прогресс всех рефоводов', callback_data='adv_referrers_progress')],
     [InlineKeyboardButton(text=' Назад', callback_data='admin_back', icon_custom_emoji_id=get_emoji('exit'))],
+])
+
+
+def generate_ikb_refmaster_partners(partners: list) -> InlineKeyboardMarkup:
+    """Кнопки по каждому refmaster / refmaster_20."""
+    from referrals import role_uses_fixed_deposit_bonus, partner_pending_payout
+
+    keyboard = []
+    for p in partners[:25]:
+        pending = partner_pending_payout(p['ref_balance'], p['ref_withdraw'])
+        tag = '2.0' if role_uses_fixed_deposit_bonus(p.get('role')) else '50%'
+        keyboard.append([
+            InlineKeyboardButton(
+                text=f'{p["id"]} · {pending}₽ · {tag}',
+                callback_data=f'adv_rm_{p["id"]}',
+            )
+        ])
+    if len(partners) > 25:
+        keyboard.append([
+            InlineKeyboardButton(
+                text=f'…ещё {len(partners) - 25} — смотри Excel',
+                callback_data='adv_refmasters_excel',
+            )
+        ])
+    keyboard.append([
+        InlineKeyboardButton(text='📥 Excel по выплатам', callback_data='adv_refmasters_excel'),
+    ])
+    keyboard.append([
+        InlineKeyboardButton(
+            text=' Назад',
+            callback_data='adv_campaigns',
+            icon_custom_emoji_id=get_emoji('exit'),
+        ),
+    ])
+    return InlineKeyboardMarkup(inline_keyboard=keyboard)
+
+
+ikb_adv_refmaster_detail_back = InlineKeyboardMarkup(inline_keyboard=[
+    [InlineKeyboardButton(text='◀️ К списку Refmaster', callback_data='adv_refmasters')],
+    [InlineKeyboardButton(text=' Назад в кампании', callback_data='adv_campaigns', icon_custom_emoji_id=get_emoji('exit'))],
 ])
 
 def generate_ikb_campaigns_list():

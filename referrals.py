@@ -202,6 +202,67 @@ def _format_deposit_rows_block(deposit_rows: list, role: str | None) -> str:
     return '\n'.join(lines)
 
 
+def partner_pending_payout(ref_balance: int, ref_withdraw: int) -> int:
+    return max(int(ref_balance or 0) - int(ref_withdraw or 0), 0)
+
+
+def format_refmasters_overview(partners: list[dict]) -> str:
+    """Сводный список всех Refmaster / 2.0 для админки."""
+    if not partners:
+        return (
+            '<b>👑 Refmaster / 2.0</b>\n\n'
+            'Нет пользователей с ролью Refmaster или Refmaster 2.0.\n'
+            '<i>Выдайте роль: Админка → Роли.</i>'
+        )
+
+    total_pending = sum(
+        partner_pending_payout(p['ref_balance'], p['ref_withdraw']) for p in partners
+    )
+    total_balance = sum(int(p.get('ref_balance') or 0) for p in partners)
+    total_withdrawn = sum(int(p.get('ref_withdraw') or 0) for p in partners)
+    count_10 = sum(1 for p in partners if role_uses_deposit_share(p.get('role')))
+    count_20 = sum(1 for p in partners if role_uses_fixed_deposit_bonus(p.get('role')))
+
+    lines = [
+        '<b>👑 Refmaster / 2.0 — выплаты</b>',
+        f'Партнёров: <b>{len(partners)}</b> '
+        f'(1.0: {count_10}, 2.0: {count_20})',
+        f'<b>🔴 К выплате всего: {total_pending} ₽</b>',
+        f'На ref_balance: {total_balance} ₽ | выведено: {total_withdrawn} ₽',
+        '',
+        '<b>По партнёрам</b> (сверху — больше долг):',
+    ]
+
+    for i, p in enumerate(partners, 1):
+        pending = partner_pending_payout(p['ref_balance'], p['ref_withdraw'])
+        role = role_display_name(p.get('role'))
+        uname = p.get('username')
+        who = f'@{uname}' if uname else f'id {p["id"]}'
+        code = p.get('custom_ref_code')
+        code_bit = f' · <code>{code}</code>' if code else ''
+
+        if role_uses_fixed_deposit_bonus(p.get('role')):
+            accrual_note = (
+                f'начисл. 90д: {p["qualified_deposits_count"]}×'
+                f'{REFMASTER_20_DEPOSIT_BONUS_RUB}₽'
+            )
+        elif role_uses_deposit_share(p.get('role')):
+            accrual_note = f'~50% от деп: {int(p.get("deposits_total") or 0) // 2}₽'
+        else:
+            accrual_note = '—'
+
+        lines.append(
+            f'\n{i}. <code>{p["id"]}</code> {who}{code_bit}\n'
+            f'   <b>{role}</b> · 🔴 <b>{pending} ₽</b> к выплате\n'
+            f'   баланс {p["ref_balance"]} | выведено {p["ref_withdraw"]} | {accrual_note}\n'
+            f'   рефералов {p["refs_total"]} (оплатили {p["paying_refs"]}) · '
+            f'деп {p["deposits_count"]} / {p["deposits_total"]}₽'
+        )
+
+    lines.append('\n<i>Кнопки ниже — полная карточка партнёра.</i>')
+    return '\n'.join(lines)
+
+
 def format_refmaster_20_payout_block(dashboard: dict) -> str:
     ref_balance = int(dashboard.get('ref_balance') or 0)
     ref_withdraw = int(dashboard.get('ref_withdraw') or 0)
