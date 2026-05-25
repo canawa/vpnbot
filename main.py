@@ -548,12 +548,12 @@ async def referral_callback(callback: CallbackQuery):
                     "🤝 <b>Реферальная программа</b>\n\n"
                     "Ваша реферальная ссылка:\n"
                     f"<code>{referral_link(callback.from_user.id)}</code>\n\n"
-                    f"👥 Количество рефералов: {refs_total}\n"
-                    f"💳 Количество депозитов: {deposits_count}\n"
-                    f"💰 Общая сумма депозитов: {deposits_total} ₽\n"
-                    f"🧮 Всего заработано: {ref_share} ₽\n"
-                    f"🏦 Выведено: {ref_withdraw} ₽\n"
-                    f'❤️ Баланс доступный для вывода: {ref_share-ref_withdraw}\n'
+                    f"<tg-emoji emoji-id=\"5429278861932124623\">🪧</tg-emoji> Количество рефералов: {refs_total}\n"
+                    f"<tg-emoji emoji-id=\"5472250091332993630\">💳</tg-emoji> Количество депозитов: {deposits_count}\n"
+                    f"<tg-emoji emoji-id=\"5298614648138919107\">📈</tg-emoji> Общая сумма депозитов: {deposits_total} ₽\n"
+                    f"<tg-emoji emoji-id=\"5474417568053745249\">🌱</tg-emoji> Всего заработано: {ref_share} ₽\n"
+                    f"<tg-emoji emoji-id=\"5463424023734014980\">🛫</tg-emoji> Выведено: {ref_withdraw} ₽\n"
+                    f'<tg-emoji emoji-id=\"5238132025323444613\">🏦</tg-emoji> Баланс доступный для вывода: {ref_share-ref_withdraw}\n'
                     '\nДля вывода обращаться @yatogotsirka'
                 ),
                 parse_mode='HTML',
@@ -1506,13 +1506,13 @@ async def adv_campaigns(callback: CallbackQuery):
             f"Описание: {campaign[1]}\n\n"
             f"Ссылка: {campaign[2]}\n\n"
             "-------------------------\n"
-            f"👥 Количество рефералов: {refs_total}\n"
-            f"💳 Количество депозитов: {deposits_count}\n"
-            f"💰 Общая сумма депозитов: {deposits_total} ₽\n"
+            f"<tg-emoji emoji-id='5429278861932124623'>🪧</tg-emoji> Количество рефералов: {refs_total}\n"
+            f"<tg-emoji emoji-id='5472250091332993630'>💳</tg-emoji> Количество депозитов: {deposits_count}\n"
+            f"<tg-emoji emoji-id='5298614648138919107'>📈</tg-emoji> Общая сумма депозитов: {deposits_total} ₽\n"
             "-------------------------\n"
-            f"🧮 Всего заработано: {ref_share} ₽\n"
-            f"🏦 Выведено: {ref_withdraw} ₽\n"
-            f"❤️ Баланс доступный для вывода: {ref_share - ref_withdraw} ₽\n",
+            f"<tg-emoji emoji-id=\"5474417568053745249\">🌱</tg-emoji> Всего заработано: {ref_share} ₽\n"
+            f"<tg-emoji emoji-id=\"5463424023734014980\">🛫</tg-emoji> Выведено: {ref_withdraw} ₽\n"
+            f"<tg-emoji emoji-id=\"5238132025323444613\">🏦</tg-emoji> ❤️ Баланс доступный для вывода: {ref_share - ref_withdraw} ₽\n",
             parse_mode="HTML",
             reply_markup=ikb_adv_back
         )
