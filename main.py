@@ -1444,12 +1444,12 @@ async def adv_campaigns(callback: CallbackQuery):
     campaign_name = callback.data.replace('adv_campaign_','')
     with sq.connect('database.db') as con:
         cur = con.cursor()
-        cur.execute('SELECT ref_withdraw FROM users WHERE id = ?', (callback.from_user.id,))
-        result = cur.fetchone()
-        ref_withdraw = result[0]
         cur.execute('SELECT campaign_name, campaign_description, campaign_link FROM adv_campaigns WHERE campaign_name == ?', (campaign_name,))
         result = cur.fetchone()
         campaign_id = result[-1].replace('https://t.me/coffemaniaVPNbot?start=', '')
+        cur.execute('SELECT ref_withdraw FROM users WHERE id = ?', (callback.from_user.id,))
+        result = cur.fetchone()
+        ref_withdraw = result[0]
         cur.execute('SELECT COUNT(*) FROM referal_users WHERE ref_master_id = ?', (campaign_id,))
         refs_total = (cur.fetchone() or (0,))[0]
         cur.execute(
