@@ -579,7 +579,7 @@ async def referral_callback(callback: CallbackQuery):
                 model_line = (
                     '<tg-emoji emoji-id="5474417568053745249">🌱</tg-emoji> '
                     f'Бонус: +{REFMASTER_20_DEPOSIT_BONUS_RUB} ₽ за продление подписки '
-                    f'реферала от 149 ₽ (покупка ГБ не считается)\n'
+                    f'реферала от 149 ₽\n'
                 )
 
             await callback.message.answer_photo(
