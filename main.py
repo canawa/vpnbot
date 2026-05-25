@@ -1488,6 +1488,7 @@ async def adv_campaigns(callback: CallbackQuery):
     except Exception as e:
         await callback.message.answer(str(e))
 
+
 @dp.callback_query(F.data == 'ping_brokes')
 async def ping_broke_users(callback: CallbackQuery): # оповестить нищеебов ебаных
     await callback.message.delete()
