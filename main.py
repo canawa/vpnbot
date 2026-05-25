@@ -27,6 +27,7 @@ from referrals import (
     REFMASTER_ROLE,
     REFMASTER_20_ROLE,
     REFMASTER_20_DEPOSIT_BONUS_RUB,
+    REFMASTER_20_MIN_DEPOSIT_RUB,
     role_has_refmaster_ui,
     role_uses_deposit_share,
     role_uses_fixed_deposit_bonus,
@@ -468,37 +469,40 @@ async def process_gb_addition(callback: CallbackQuery):
             check_payment_yookassa_status,
             price,
             pid,
-            callback.from_user.id
+            callback.from_user.id,
+            'yookassa_gb',
         )
 
         if status == 'paid':
-
             body = await asyncio.to_thread(
                 Vpn().give_lte_gbs,
                 callback.from_user.id,
                 gb_amount
             )
-
             print(body)
-
-            try:
-                await callback.message.delete()
-            except:
-                pass
-
-            await callback.message.answer(
-                text=f'Успешно добавили вам +{gb_amount} ГБ к LTE трафику!',
-                parse_mode='HTML',
-                reply_markup=ikb_back
+            success_text = f'Успешно добавили вам +{gb_amount} ГБ к LTE трафику!'
+        elif status == 'already_processed':
+            success_text = (
+                f'✅ Этот платёж уже обработан. +{gb_amount} ГБ должны быть на аккаунте.'
             )
-
         else:
-
             await callback.message.answer(
                 text='Ваша оплата не прошла. Попробуйте еще раз!',
                 parse_mode='HTML',
                 reply_markup=ikb_back
             )
+            return
+
+        try:
+            await callback.message.delete()
+        except Exception:
+            pass
+
+        await callback.message.answer(
+            text=success_text,
+            parse_mode='HTML',
+            reply_markup=ikb_back
+        )
 
     except Exception as e:
 
@@ -574,7 +578,8 @@ async def referral_callback(callback: CallbackQuery):
             else:
                 model_line = (
                     '<tg-emoji emoji-id="5474417568053745249">🌱</tg-emoji> '
-                    f'Бонус: +{REFMASTER_20_DEPOSIT_BONUS_RUB} ₽ за каждый депозит реферала\n'
+                    f'Бонус: +{REFMASTER_20_DEPOSIT_BONUS_RUB} ₽ за продление подписки '
+                    f'реферала от 149 ₽ (покупка ГБ не считается)\n'
                 )
 
             await callback.message.answer_photo(
@@ -717,7 +722,7 @@ async def check_payment_yookassa_callback(callback: CallbackQuery):
             with sq.connect('database.db') as con:
                 cur = con.cursor()
                 reward = apply_deposit_reward_to_ref_partner(
-                    cur, callback.from_user.id, amount_rub,
+                    cur, callback.from_user.id, amount_rub, 'yookassa',
                 )
                 if reward:
                     ref_master_id, reward_kind = reward
@@ -1268,7 +1273,10 @@ async def admin_roles_callback(callback: CallbackQuery):
     await callback.message.delete()
     ikb_admin_roles = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text='👑 Refmaster (50% с депозитов)', callback_data='admin_give_refmaster')],
-        [InlineKeyboardButton(text='👑 Refmaster 2.0 (+50₽ за депозит)', callback_data='admin_give_refmaster_20')],
+        [InlineKeyboardButton(
+            text='👑 Refmaster 2.0 (+50₽, подписка ≥149₽)',
+            callback_data='admin_give_refmaster_20',
+        )],
         [InlineKeyboardButton(text='Назад', callback_data='admin_back')],
     ])
     await callback.message.answer("👑 <b>Управление ролями</b>\n\nВыберите действие:", parse_mode='HTML', reply_markup=ikb_admin_roles)
@@ -1295,8 +1303,8 @@ async def admin_give_refmaster_20_callback(callback: CallbackQuery, state: FSMCo
     await callback.message.delete()
     await callback.message.answer(
         "👑 <b>Выдача роли Refmaster 2.0</b>\n"
-        f"Модель: <b>+{REFMASTER_20_DEPOSIT_BONUS_RUB} ₽</b> на реф. баланс за каждый депозит реферала "
-        "(90 дней), <b>без</b> доли 50%.\n\n"
+        f"Модель: <b>+{REFMASTER_20_DEPOSIT_BONUS_RUB} ₽</b> за продление подписки реферала "
+        f"от <b>{REFMASTER_20_MIN_DEPOSIT_RUB} ₽</b> (90 дней, без ГБ), <b>без</b> доли 50%.\n\n"
         "Отправьте ID пользователя:",
         parse_mode='HTML',
         reply_markup=ikb_admin_back,
@@ -1510,22 +1518,28 @@ async def adv_referrers_progress_callback(callback: CallbackQuery):
             paying_refs,
             deposits_count,
             deposits_total,
+            bonus_deposits_count,
         ) = row
         refs_count = int(refs_count or 0)
         paying_refs = int(paying_refs or 0)
         deposits_count = int(deposits_count or 0)
         deposits_total = int(deposits_total or 0)
+        bonus_deposits_count = int(bonus_deposits_count or 0)
         total_refs += refs_count
         total_deposits_count += deposits_count
         total_deposits_sum += deposits_total
 
-        ref_share_est = estimated_earnings_from_deposits(role, deposits_total, deposits_count)
+        ref_share_est = estimated_earnings_from_deposits(
+            role, deposits_total, deposits_count, bonus_deposits_count,
+        )
         if role_uses_deposit_share(role):
             model_note = '50% с депозитов'
             share_col = ref_share_est if ref_share_est is not None else ''
             fixed_col = ''
         elif role_uses_fixed_deposit_bonus(role):
-            model_note = f'+{REFMASTER_20_DEPOSIT_BONUS_RUB}₽/депозит'
+            model_note = (
+                f'+{REFMASTER_20_DEPOSIT_BONUS_RUB}₽/продление от {REFMASTER_20_MIN_DEPOSIT_RUB}₽'
+            )
             share_col = ''
             fixed_col = ref_share_est if ref_share_est is not None else ''
         else:

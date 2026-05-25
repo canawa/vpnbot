@@ -285,7 +285,13 @@ def fetch_all_referrers_progress() -> list[tuple]:
                 COUNT(DISTINCT r.referral_id) AS refs_count,
                 COUNT(DISTINCT CASE WHEN t.id IS NOT NULL THEN r.referral_id END) AS paying_refs,
                 COUNT(t.id) AS deposits_count,
-                COALESCE(SUM(CAST(t.amount AS INTEGER)), 0) AS deposits_total
+                COALESCE(SUM(CAST(t.amount AS INTEGER)), 0) AS deposits_total,
+                SUM(
+                    CASE
+                        WHEN t.id IS NOT NULL AND CAST(t.amount AS INTEGER) >= 149 THEN 1
+                        ELSE 0
+                    END
+                ) AS bonus_deposits_count
             FROM referal_users r
             LEFT JOIN users u ON u.id = r.ref_master_id
             LEFT JOIN transactions t ON t.user_id = r.referral_id
@@ -401,6 +407,7 @@ def get_ref_partner_dashboard(ref_master_id: int) -> dict | None:
             JOIN referal_users r ON r.referral_id = t.user_id
             WHERE r.ref_master_id = ?
               AND t.type IN ('CryptoBot', 'yookassa')
+              AND CAST(t.amount AS INTEGER) >= 149
               AND date(t.date) >= date(r.registration_date)
               AND date(t.date) <= date(r.registration_date, '+90 days')
             """,
@@ -409,6 +416,19 @@ def get_ref_partner_dashboard(ref_master_id: int) -> dict | None:
         qual_row = cur.fetchone() or (0, 0)
         qualified_deposits_count = int(qual_row[0] or 0)
         qualified_deposits_total = int(qual_row[1] or 0)
+
+        cur.execute(
+            """
+            SELECT COUNT(*)
+            FROM transactions t
+            JOIN referal_users r ON r.referral_id = t.user_id
+            WHERE r.ref_master_id = ?
+              AND t.type IN ('CryptoBot', 'yookassa')
+              AND CAST(t.amount AS INTEGER) >= 149
+            """,
+            (ref_master_id,),
+        )
+        bonus_deposits_count = int((cur.fetchone() or (0,))[0] or 0)
 
         cur.execute(
             """
@@ -466,6 +486,7 @@ def get_ref_partner_dashboard(ref_master_id: int) -> dict | None:
         'deposits_total': deposits_total,
         'qualified_deposits_count': qualified_deposits_count,
         'qualified_deposits_total': qualified_deposits_total,
+        'bonus_deposits_count': bonus_deposits_count,
         'deposit_rows': deposit_rows,
     }
 

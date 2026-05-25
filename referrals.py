@@ -7,8 +7,30 @@ REFMASTER_ROLE = 'refmaster'
 REFMASTER_20_ROLE = 'refmaster_20'
 REFERRAL_COMMISSION_WINDOW_DAYS = 90
 REFMASTER_20_DEPOSIT_BONUS_RUB = 50
+REFMASTER_20_MIN_DEPOSIT_RUB = 149
+
+TX_TYPE_YOOKASSA_SUBSCRIPTION = 'yookassa'
+TX_TYPE_YOOKASSA_GB = 'yookassa_gb'
+TX_TYPE_CRYPTOBOT = 'CryptoBot'
+REFERRAL_DEPOSIT_TX_TYPES = frozenset({
+    TX_TYPE_YOOKASSA_SUBSCRIPTION,
+    TX_TYPE_CRYPTOBOT,
+})
 
 REF_PARTNER_ROLES = frozenset({REFMASTER_ROLE, REFMASTER_20_ROLE})
+
+
+def is_subscription_referral_deposit(amount_rub: int, tx_type: str | None) -> bool:
+    """Учитываются только продления/подписка, не покупка ГБ."""
+    return (tx_type or '').strip() in REFERRAL_DEPOSIT_TX_TYPES
+
+
+def is_refmaster_20_qualifying_deposit(amount_rub: int, tx_type: str | None) -> bool:
+    """+50 ₽: подписка/продление, сумма от 149 ₽."""
+    return (
+        is_subscription_referral_deposit(amount_rub, tx_type)
+        and int(amount_rub) >= REFMASTER_20_MIN_DEPOSIT_RUB
+    )
 
 
 def normalize_role(role: str | None) -> str:
@@ -66,16 +88,24 @@ def fetch_ref_master_role(cur, ref_master_id: int) -> str:
     return normalize_role(row[0] if row else None)
 
 
-def apply_deposit_reward_to_ref_partner(cur, referral_id: int, amount_rub: int) -> tuple[int, str] | None:
+def apply_deposit_reward_to_ref_partner(
+    cur,
+    referral_id: int,
+    amount_rub: int,
+    tx_type: str = TX_TYPE_YOOKASSA_SUBSCRIPTION,
+) -> tuple[int, str] | None:
     """
     Начисляет вознаграждение рефоводу за депозит реферала.
 
-    refmaster: +50% суммы депозита на ref_balance.
-    refmaster_20: +50 ₽ на ref_balance (фикс, без доли).
+    refmaster: +50% суммы депозита на ref_balance (только подписка, не ГБ).
+    refmaster_20: +50 ₽ при продлении/подписке от 149 ₽.
 
     Returns:
         (ref_master_id, 'share' | 'fixed50') при успешном начислении, иначе None.
     """
+    if not is_subscription_referral_deposit(amount_rub, tx_type):
+        return None
+
     ref_info = fetch_ref_master_for_referral(cur, referral_id)
     if not ref_info:
         return None
@@ -94,6 +124,8 @@ def apply_deposit_reward_to_ref_partner(cur, referral_id: int, amount_rub: int) 
         return ref_master_id, 'share'
 
     if role_uses_fixed_deposit_bonus(role):
+        if not is_refmaster_20_qualifying_deposit(amount_rub, tx_type):
+            return None
         cur.execute(
             'UPDATE users SET ref_balance = ref_balance + ? WHERE id = ?',
             (REFMASTER_20_DEPOSIT_BONUS_RUB, ref_master_id),
@@ -130,12 +162,17 @@ def mark_subscription_referral_bonus_used(cur, referral_id: int) -> None:
     cur.execute('UPDATE users SET received_bonus = 1 WHERE id = ?', (referral_id,))
 
 
-def estimated_earnings_from_deposits(role: str | None, deposits_total: int, deposits_count: int) -> int | None:
-    """Оценка «заработано» для отчётов (refmaster — 50%, refmaster_20 — 50₽ × депозиты)."""
+def estimated_earnings_from_deposits(
+    role: str | None,
+    deposits_total: int,
+    deposits_count: int,
+    bonus_deposits_count: int = 0,
+) -> int | None:
+    """Оценка «заработано» для отчётов (refmaster — 50%, refmaster_20 — 50₽ × квалиф. депозиты)."""
     if role_uses_deposit_share(role):
         return int(deposits_total) // 2
     if role_uses_fixed_deposit_bonus(role):
-        return int(deposits_count) * REFMASTER_20_DEPOSIT_BONUS_RUB
+        return int(bonus_deposits_count) * REFMASTER_20_DEPOSIT_BONUS_RUB
     return None
 
 
@@ -148,7 +185,11 @@ def _format_deposit_rows_block(deposit_rows: list, role: str | None) -> str:
         who = f'@{uname}' if uname else f"id {d['referral_id']}"
         window = '✅' if d.get('in_window') else '⛔ вне 90д'
         bonus_note = ''
-        if role_uses_fixed_deposit_bonus(role) and d.get('in_window'):
+        if (
+            role_uses_fixed_deposit_bonus(role)
+            and d.get('in_window')
+            and is_refmaster_20_qualifying_deposit(d['amount'], d.get('pay_type'))
+        ):
             bonus_note = f' → +{REFMASTER_20_DEPOSIT_BONUS_RUB}₽'
         elif role_uses_deposit_share(role) and d.get('in_window'):
             bonus_note = f' → +{d["amount"] // 2}₽'
@@ -165,10 +206,10 @@ def format_refmaster_20_payout_block(dashboard: dict) -> str:
     ref_balance = int(dashboard.get('ref_balance') or 0)
     ref_withdraw = int(dashboard.get('ref_withdraw') or 0)
     pending = max(ref_balance - ref_withdraw, 0)
-    deposits_count = int(dashboard.get('deposits_count') or 0)
+    bonus_count = int(dashboard.get('bonus_deposits_count') or 0)
     qualified_count = int(dashboard.get('qualified_deposits_count') or 0)
     expected_accrual = qualified_count * REFMASTER_20_DEPOSIT_BONUS_RUB
-    expected_all_time = deposits_count * REFMASTER_20_DEPOSIT_BONUS_RUB
+    expected_all_time = bonus_count * REFMASTER_20_DEPOSIT_BONUS_RUB
     delta = ref_balance - expected_accrual
     delta_sign = '+' if delta >= 0 else ''
 
@@ -178,8 +219,9 @@ def format_refmaster_20_payout_block(dashboard: dict) -> str:
         f'На реф. балансе (ref_balance): <b>{ref_balance} ₽</b>\n'
         f'Уже выплачено (ref_withdraw): <b>{ref_withdraw} ₽</b>\n'
         f'<b>🔴 К выплате сейчас: {pending} ₽</b>\n\n'
-        f'<b>Начисления по модели (+{REFMASTER_20_DEPOSIT_BONUS_RUB}₽ за депозит):</b>\n'
-        f'• Депозитов всего: <b>{deposits_count}</b> '
+        f'<b>Начисления (+{REFMASTER_20_DEPOSIT_BONUS_RUB}₽ за продление от '
+        f'{REFMASTER_20_MIN_DEPOSIT_RUB}₽, без ГБ):</b>\n'
+        f'• Квалиф. депозитов всего: <b>{bonus_count}</b> '
         f'(оценка ×{REFMASTER_20_DEPOSIT_BONUS_RUB}₽ = <b>{expected_all_time} ₽</b>)\n'
         f'• В окне 90 дней (бот реально начисляет): <b>{qualified_count}</b> '
         f'→ <b>{expected_accrual} ₽</b>\n'
@@ -261,7 +303,13 @@ def format_admin_campaign_stats(dashboard: dict) -> str:
         f'Всего: <b>{refs_total}</b> | с оплатой: <b>{paying_refs}</b> | '
         f'без оплаты: <b>{refs_total - paying_refs}</b>\n'
         f'Депозитов: <b>{deposits_count}</b> на <b>{deposits_total} ₽</b>\n'
-        f'Депозитов в окне 90д: <b>{qualified_count}</b>\n'
+        f'Депозитов в окне 90д: <b>{qualified_count}</b>'
+        + (
+            f' (квалиф. +{REFMASTER_20_DEPOSIT_BONUS_RUB}₽: от {REFMASTER_20_MIN_DEPOSIT_RUB}₽, подписка)'
+            if role_uses_fixed_deposit_bonus(role)
+            else ''
+        )
+        + '\n'
         f'{payout_block}'
         f'{stats_tail}'
     )

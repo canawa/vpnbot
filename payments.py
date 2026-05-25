@@ -43,7 +43,7 @@ def check_payment_status(invoice_id):
             return inv['status'], float(inv['amount']) * rub_to_usdt
     return None, None
 
-def check_payment_yookassa_status(amount, payment_id, user_id):
+def check_payment_yookassa_status(amount, payment_id, user_id, tx_type='yookassa'):
     """
     Возвращает:
         'paid'             — оплачено, транзакция записана
@@ -79,16 +79,17 @@ def check_payment_yookassa_status(amount, payment_id, user_id):
         try:
             with sq.connect('database.db') as con:
                 cur = con.cursor()
+                tx_type = (tx_type or 'yookassa').strip()
                 cur.execute(
                     'SELECT 1 FROM transactions WHERE type = ? AND external_payment_id = ?',
-                    ('yookassa', str(payment_id).strip()),
+                    (tx_type, str(payment_id).strip()),
                 )
                 if cur.fetchone():
                     return 'already_processed'
                 cur.execute(
                     'INSERT INTO transactions (user_id, amount, type, date, external_payment_id) '
                     'VALUES (?, ?, ?, ?, ?)',
-                    (user_id, amount, 'yookassa',
+                    (user_id, amount, tx_type,
                      datetime.now().isoformat(), str(payment_id).strip())
                 )
                 con.commit()
