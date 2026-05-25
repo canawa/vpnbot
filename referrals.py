@@ -206,9 +206,24 @@ def partner_pending_payout(ref_balance: int, ref_withdraw: int) -> int:
     return max(int(ref_balance or 0) - int(ref_withdraw or 0), 0)
 
 
-def format_refmasters_overview(partners: list[dict]) -> str:
-    """Сводный список всех Refmaster / 2.0 для админки."""
+def filter_refmaster_partners_with_pending(partners: list[dict]) -> list[dict]:
+    """Только партнёры с ненулевым долгом (ref_balance − ref_withdraw > 0)."""
+    return [
+        p for p in partners
+        if partner_pending_payout(p.get('ref_balance'), p.get('ref_withdraw')) > 0
+    ]
+
+
+def format_refmasters_overview(partners: list[dict], *, all_roles_count: int = 0) -> str:
+    """Сводный список Refmaster / 2.0 с ненулевым долгом."""
     if not partners:
+        if all_roles_count > 0:
+            return (
+                '<b>👑 Refmaster / 2.0</b>\n\n'
+                f'Партнёров с ролью: <b>{all_roles_count}</b>, '
+                'но <b>к выплате никому ничего нет</b> (долг = 0).\n'
+                '<i>В списке показываются только те, кому ещё должны.</i>'
+            )
         return (
             '<b>👑 Refmaster / 2.0</b>\n\n'
             'Нет пользователей с ролью Refmaster или Refmaster 2.0.\n'

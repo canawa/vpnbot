@@ -38,6 +38,7 @@ from referrals import (
     estimated_earnings_from_deposits,
     format_admin_campaign_stats,
     format_refmasters_overview,
+    filter_refmaster_partners_with_pending,
     partner_pending_payout,
 )
 import locale
@@ -1609,8 +1610,9 @@ async def adv_campaign_id_lookup_message(message: Message, state: FSMContext):
 async def adv_refmasters_callback(callback: CallbackQuery):
     await callback.answer('Refmaster / 2.0')
     await callback.message.delete()
-    partners = fetch_refmaster_partner_rows()
-    text = format_refmasters_overview(partners)
+    all_partners = fetch_refmaster_partner_rows()
+    partners = filter_refmaster_partners_with_pending(all_partners)
+    text = format_refmasters_overview(partners, all_roles_count=len(all_partners))
     markup = generate_ikb_refmaster_partners(partners) if partners else ikb_adv_back
     if len(text) > 4000:
         await callback.message.answer(text[:4000] + '\n…', parse_mode='HTML', reply_markup=markup)
@@ -1638,12 +1640,15 @@ async def adv_refmaster_detail_callback(callback: CallbackQuery):
 @dp.callback_query((F.data == 'adv_refmasters_excel') & F.from_user.id.in_(ADMIN_IDS))
 async def adv_refmasters_excel_callback(callback: CallbackQuery):
     await callback.answer('Excel…')
-    partners = fetch_refmaster_partner_rows()
+    all_partners = fetch_refmaster_partner_rows()
+    partners = filter_refmaster_partners_with_pending(all_partners)
     if not partners:
-        await callback.message.answer(
-            'Нет пользователей с ролью Refmaster / 2.0.',
-            reply_markup=ikb_adv_back,
+        msg = (
+            'Нет партнёров с долгом к выплате (все на нуле).'
+            if all_partners
+            else 'Нет пользователей с ролью Refmaster / 2.0.'
         )
+        await callback.message.answer(msg, reply_markup=ikb_adv_back)
         return
 
     excel_rows = []
