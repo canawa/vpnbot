@@ -541,6 +541,7 @@ async def referral_callback(callback: CallbackQuery):
             # "Ваша доля" считаем строго как 50% от депозитов рефералов.
             # Фиксированные бонусы 50₽ за приглашения сюда не входят.
             ref_share = int(deposits_total * 0.5)
+            ref_withdraw=int(ref_withdraw)
             await callback.message.answer_photo(
                 INVITE_FRIEND_PHOTO,
                 caption=(
@@ -550,8 +551,9 @@ async def referral_callback(callback: CallbackQuery):
                     f"👥 Количество рефералов: {refs_total}\n"
                     f"💳 Количество депозитов: {deposits_count}\n"
                     f"💰 Общая сумма депозитов: {deposits_total} ₽\n"
-                    f"🧮 Ваша доля: {ref_share} ₽\n"
-                    f"🏦 Выведено: {int(ref_withdraw)} ₽"
+                    f"🧮 Всего заработано: {ref_share} ₽\n"
+                    f"🏦 Выведено: {ref_withdraw} ₽\n"
+                    f'❤️ Баланс доступный для вывода: {ref_share-ref_withdraw}\n'
                     '\nДля вывода обращаться @yatogotsirka'
                 ),
                 parse_mode='HTML',
@@ -1442,6 +1444,9 @@ async def adv_campaigns(callback: CallbackQuery):
     campaign_name = callback.data.replace('adv_campaign_','')
     with sq.connect('database.db') as con:
         cur = con.cursor()
+        cur.execute('SELECT ref_withdraw FROM users WHERE id = ?', (callback.from_user.id,))
+        result = cur.fetchone()
+        ref_withdraw = result[0]
         cur.execute('SELECT campaign_name, campaign_description, campaign_link FROM adv_campaigns WHERE campaign_name == ?', (campaign_name,))
         result = cur.fetchone()
         campaign_id = result[-1].replace('https://t.me/coffemaniaVPNbot?start=', '')
@@ -1460,6 +1465,8 @@ async def adv_campaigns(callback: CallbackQuery):
         dep_stats = cur.fetchone() or (0, 0)
         deposits_count = dep_stats[0] or 0
         deposits_total = int(dep_stats[1] or 0)
+        ref_share = int(deposits_total*0.5)
+        ref_withdraw = int(ref_withdraw)
         # "Ваша доля" считаем строго как 50% от депозитов рефералов.
         # Фиксированные бонусы 50₽ за приглашения сюда не входят.
     try:
@@ -1470,7 +1477,11 @@ async def adv_campaigns(callback: CallbackQuery):
          "-------------------------\n"
          "👥 Количество рефералов: " + str(refs_total) + "\n"
           "💳 Количество депозитов: " + str(deposits_count) + "\n"
-         "💰 Общая сумма депозитов: " + str(deposits_total) + " ₽",
+         "💰 Общая сумма депозитов: " + str(deposits_total) + " ₽"
+         "-------------------------\n"
+            f"🧮 Всего заработано: {ref_share} ₽\n"
+            f"🏦 Выведено: {ref_withdraw} ₽\n"
+            f'❤️ Баланс доступный для вывода: {ref_share - ref_withdraw}\n',
             parse_mode="HTML",
             reply_markup=ikb_adv_back
         )
