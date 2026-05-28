@@ -346,7 +346,7 @@ def format_admin_campaign_stats(dashboard: dict) -> str:
         stats_tail = _format_deposit_rows_block(dashboard.get('deposit_rows') or [], role)
     elif role_uses_deposit_share(role):
         earned_est = int(deposits_total * 0.5)
-        pending = max(int(deposits_total * 0.5) - ref_withdraw, 0)
+        pending = max(ref_balance - ref_withdraw, 0)
         payout_block = (
             f'\n<b>💸 Выплаты Refmaster 1.0</b>\n'
             f'Оценка 50% от депозитов: <b>{earned_est} ₽</b>\n'
