@@ -1502,16 +1502,92 @@ async def _send_ref_partner_dashboard(message: Message, lookup_id: int, reply_ma
             reply_markup=reply_markup,
         )
         return
+    pending = partner_pending_payout(
+        dashboard.get('ref_balance', 0),
+        dashboard.get('ref_withdraw', 0),
+    )
+    effective_reply_markup = reply_markup
+    if pending > 0 and dashboard.get('username') is not None:
+        # Кнопка доступна только для реального пользователя (не "чистая" кампания).
+        effective_reply_markup = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text=f'✅ Я выплатил {pending} ₽',
+                        callback_data=f'adv_mark_paid_{int(dashboard["ref_master_id"])}',
+                    )
+                ],
+                *reply_markup.inline_keyboard,
+            ]
+        )
     text = format_admin_campaign_stats(dashboard)
     if len(text) > 4000:
-        await message.answer(text[:4000] + '\n…', parse_mode='HTML', reply_markup=reply_markup)
+        await message.answer(
+            text[:4000] + '\n…',
+            parse_mode='HTML',
+            reply_markup=effective_reply_markup,
+        )
         await message.answer(text[4000:], parse_mode='HTML')
     else:
-        await message.answer(text, parse_mode='HTML', reply_markup=reply_markup)
+        await message.answer(text, parse_mode='HTML', reply_markup=effective_reply_markup)
 
 
 async def _send_campaign_dashboard(message: Message, campaign_id: int, reply_markup):
     await _send_ref_partner_dashboard(message, campaign_id, reply_markup)
+
+
+@dp.callback_query((F.data.startswith('adv_mark_paid_')) & F.from_user.id.in_(ADMIN_IDS))
+async def adv_mark_paid_callback(callback: CallbackQuery):
+    await callback.answer()
+    await callback.message.delete()
+    try:
+        ref_master_id = int(callback.data.replace('adv_mark_paid_', '', 1))
+    except ValueError:
+        await callback.message.answer('❌ Неверный ID рефовода.', reply_markup=ikb_adv_back)
+        return
+
+    paid_amount = 0
+    with sq.connect('database.db') as con:
+        cur = con.cursor()
+        cur.execute(
+            'SELECT COALESCE(ref_balance, 0), COALESCE(ref_withdraw, 0), username '
+            'FROM users WHERE id = ?',
+            (ref_master_id,),
+        )
+        row = cur.fetchone()
+        if not row:
+            await callback.message.answer(
+                f'❌ Пользователь {ref_master_id} не найден в users.',
+                reply_markup=ikb_adv_back,
+            )
+            return
+
+        ref_balance = int(row[0] or 0)
+        ref_withdraw = int(row[1] or 0)
+        paid_amount = max(ref_balance - ref_withdraw, 0)
+        if paid_amount <= 0:
+            await callback.message.answer(
+                'ℹ️ Долг уже равен 0, списывать нечего.',
+                reply_markup=ikb_adv_back,
+            )
+            return
+
+        cur.execute(
+            'UPDATE users SET ref_withdraw = ref_withdraw + ? WHERE id = ?',
+            (paid_amount, ref_master_id),
+        )
+        con.commit()
+
+    await callback.message.answer(
+        f'✅ Выплата отмечена: <b>{paid_amount} ₽</b> для ID <code>{ref_master_id}</code>.',
+        parse_mode='HTML',
+        reply_markup=ikb_adv_back,
+    )
+    await _send_ref_partner_dashboard(
+        callback.message,
+        ref_master_id,
+        ikb_adv_refmaster_detail_back,
+    )
 
 @dp.callback_query(F.data == 'adv_new_campaign_create')
 async def create_adv_campaign(callback: CallbackQuery, state: FSMContext):
