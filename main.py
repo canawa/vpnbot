@@ -119,6 +119,10 @@ class AdminCustomRef(StatesGroup):
     waiting_user_id = State()
     waiting_code = State()
 
+
+class AdminRefPayout(StatesGroup):
+    waiting_amount = State()
+
 def _subscription_url_from_dict(d):
     if not isinstance(d, dict):
         return None
@@ -1517,6 +1521,12 @@ async def _send_ref_partner_dashboard(message: Message, lookup_id: int, reply_ma
                         callback_data=f'adv_mark_paid_{int(dashboard["ref_master_id"])}',
                     )
                 ],
+                [
+                    InlineKeyboardButton(
+                        text='✍️ Выплатил частично',
+                        callback_data=f'adv_mark_paid_partial_{int(dashboard["ref_master_id"])}',
+                    )
+                ],
                 *reply_markup.inline_keyboard,
             ]
         )
@@ -1586,6 +1596,129 @@ async def adv_mark_paid_callback(callback: CallbackQuery):
     await _send_ref_partner_dashboard(
         callback.message,
         ref_master_id,
+        ikb_adv_refmaster_detail_back,
+    )
+
+
+@dp.callback_query((F.data.startswith('adv_mark_paid_partial_')) & F.from_user.id.in_(ADMIN_IDS))
+async def adv_mark_paid_partial_callback(callback: CallbackQuery, state: FSMContext):
+    await callback.answer()
+    await callback.message.delete()
+    try:
+        ref_master_id = int(callback.data.replace('adv_mark_paid_partial_', '', 1))
+    except ValueError:
+        await callback.message.answer('❌ Неверный ID рефовода.', reply_markup=ikb_adv_back)
+        return
+
+    with sq.connect('database.db') as con:
+        cur = con.cursor()
+        cur.execute(
+            'SELECT COALESCE(ref_balance, 0), COALESCE(ref_withdraw, 0), username '
+            'FROM users WHERE id = ?',
+            (ref_master_id,),
+        )
+        row = cur.fetchone()
+    if not row:
+        await callback.message.answer(
+            f'❌ Пользователь {ref_master_id} не найден в users.',
+            reply_markup=ikb_adv_back,
+        )
+        return
+
+    pending = max(int(row[0] or 0) - int(row[1] or 0), 0)
+    if pending <= 0:
+        await callback.message.answer(
+            'ℹ️ Долг уже равен 0, частичная выплата не нужна.',
+            reply_markup=ikb_adv_back,
+        )
+        return
+
+    await state.set_state(AdminRefPayout.waiting_amount)
+    await state.update_data(ref_master_id=ref_master_id)
+    await callback.message.answer(
+        f'✍️ <b>Частичная выплата</b>\n\n'
+        f'ID рефовода: <code>{ref_master_id}</code>\n'
+        f'Текущий долг: <b>{pending} ₽</b>\n\n'
+        'Отправьте сумму выплаты (целое число в ₽):',
+        parse_mode='HTML',
+        reply_markup=ikb_adv_refmaster_detail_back,
+    )
+
+
+@dp.message(AdminRefPayout.waiting_amount, F.from_user.id.in_(ADMIN_IDS))
+async def adv_mark_paid_partial_amount_message(message: Message, state: FSMContext):
+    raw = (message.text or '').strip()
+    if not raw.isdigit():
+        await message.answer(
+            '❌ Сумма должна быть целым числом. Пример: <code>500</code>',
+            parse_mode='HTML',
+            reply_markup=ikb_adv_refmaster_detail_back,
+        )
+        return
+    amount = int(raw)
+    if amount <= 0:
+        await message.answer(
+            '❌ Сумма должна быть больше 0.',
+            reply_markup=ikb_adv_refmaster_detail_back,
+        )
+        return
+
+    data = await state.get_data()
+    ref_master_id = data.get('ref_master_id')
+    if not ref_master_id:
+        await message.answer(
+            '❌ Сессия устарела. Откройте карточку рефовода заново.',
+            reply_markup=ikb_adv_back,
+        )
+        await state.clear()
+        return
+
+    with sq.connect('database.db') as con:
+        cur = con.cursor()
+        cur.execute(
+            'SELECT COALESCE(ref_balance, 0), COALESCE(ref_withdraw, 0) '
+            'FROM users WHERE id = ?',
+            (int(ref_master_id),),
+        )
+        row = cur.fetchone()
+        if not row:
+            await message.answer(
+                f'❌ Пользователь {ref_master_id} не найден в users.',
+                reply_markup=ikb_adv_back,
+            )
+            await state.clear()
+            return
+        pending = max(int(row[0] or 0) - int(row[1] or 0), 0)
+        if pending <= 0:
+            await message.answer(
+                'ℹ️ Долг уже равен 0, списывать нечего.',
+                reply_markup=ikb_adv_back,
+            )
+            await state.clear()
+            return
+        if amount > pending:
+            await message.answer(
+                f'❌ Сумма больше долга. Сейчас можно максимум <b>{pending} ₽</b>.',
+                parse_mode='HTML',
+                reply_markup=ikb_adv_refmaster_detail_back,
+            )
+            return
+
+        cur.execute(
+            'UPDATE users SET ref_withdraw = ref_withdraw + ? WHERE id = ?',
+            (amount, int(ref_master_id)),
+        )
+        con.commit()
+
+    await state.clear()
+    await message.answer(
+        f'✅ Частичная выплата отмечена: <b>{amount} ₽</b> для ID <code>{ref_master_id}</code>.',
+        parse_mode='HTML',
+        reply_markup=ikb_adv_refmaster_detail_back,
+    )
+    await _send_ref_partner_dashboard(
+        message,
+        int(ref_master_id),
         ikb_adv_refmaster_detail_back,
     )
 
