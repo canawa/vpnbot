@@ -1229,6 +1229,90 @@ async def admin_notify_trial_callback(callback: CallbackQuery):
 
 
 
+REFMASTERS_BROADCAST_TEXT = (
+    '<tg-emoji emoji-id="5208449313067258557">💲</tg-emoji> Зарабатывай вместе с Кофеманией\n\n'
+    '<tg-emoji emoji-id="5362079447136610876">👨‍💻</tg-emoji> Предлагаем эксклюзивное участие '
+    'в партнерской программе\n\n'
+    '<b>Что получаешь ты:</b>\n'
+    '• 50₽ за каждый платёж от 149₽\n'
+    '• Выплаты когда хочешь, без задержек, на любой счет\n\n'
+    '<b>Что получаешь от нас:</b>\n'
+    '• Готовые креативы и связки\n'
+    '• Партнёрский кабинет\n'
+    '• Статистика по каждому приведённому\n\n'
+    '<tg-emoji emoji-id="5258203794772085854">⚡️</tg-emoji> В этом месяце мы выплатили '
+    'свыше 20.000 рублей нашим партнерам\n\n'
+    '<b>Что нужно делать:</b>\n'
+    'Лить где умеешь - Telegram, YouTube, TikTok, свои каналы. '
+    'У тебя есть аудитория → ты зарабатываешь.\n\n'
+)
+
+ikb_refmasters_broadcast = InlineKeyboardMarkup(inline_keyboard=[
+    [InlineKeyboardButton(text='Оставить заявку', style='success' , icon_custom_emoji_id='5463424023734014980', url='https://t.me/coffeemaniasup2?text=%D0%9F%D1%80%D0%B8%D0%B2%D0%B5%D1%82%2C%20%D1%8F%20%D1%85%D0%BE%D1%87%D1%83%20%D0%B7%D0%B0%D1%80%D0%B0%D0%B1%D0%B0%D1%82%D1%8B%D0%B2%D0%B0%D1%82%D1%8C%20%D0%B2%D0%BC%D0%B5%D1%81%D1%82%D0%B5%20%D1%81%20%D0%B2%D0%B0%D0%BC%D0%B8.%20%D0%A0%D0%B0%D1%81%D1%81%D0%BA%D0%B0%D0%B6%D0%B8%D1%82%D0%B5%20%D0%BF%D0%BE%D0%B4%D1%80%D0%BE%D0%B1%D0%BD%D0%B5%D0%B5')],
+    [InlineKeyboardButton(text='Условия партнёрства', style='primary', url='https://telegra.ph/Refmaster-20-Refshare-20-kak-rabotaet-partnyorskaya-programma-05-29')],
+])
+
+
+async def _broadcast_html_to_all_users(text: str, reply_markup=None) -> tuple[int, int, int, int]:
+    """Рассылка всем users. Returns sent, blocked, failed, total."""
+    with sq.connect('database.db') as con:
+        cur = con.cursor()
+        cur.execute('SELECT id FROM users')
+        rows = cur.fetchall()
+
+    sent = 0
+    blocked = 0
+    failed = 0
+    for (uid,) in rows:
+        try:
+            await bot.send_message(uid, text, parse_mode='HTML', reply_markup=reply_markup)
+            sent += 1
+        except Exception as e:
+            err_name = type(e).__name__
+            if err_name == 'TelegramRetryAfter':
+                wait_s = getattr(e, 'retry_after', 5) or 5
+                await asyncio.sleep(float(wait_s) + 0.5)
+                try:
+                    await bot.send_message(
+                        uid, text, parse_mode='HTML', reply_markup=reply_markup,
+                    )
+                    sent += 1
+                    continue
+                except Exception:
+                    failed += 1
+            elif err_name in ('TelegramForbiddenError', 'TelegramNotFound'):
+                blocked += 1
+            else:
+                failed += 1
+                print(f'broadcast → {uid}: {err_name}: {e}')
+        await asyncio.sleep(0.05)
+    return sent, blocked, failed, len(rows)
+
+
+@dp.callback_query(
+    (F.data == 'we_need_refmasters') & F.from_user.id.in_(ADMIN_IDS),
+)
+async def we_need_refmasters_callback(callback: CallbackQuery):
+    await callback.answer('Рассылка о партнёрке…')
+    await callback.message.delete()
+    await callback.message.answer('⏳ Рассылаем сообщение всем пользователям…', parse_mode='HTML')
+
+    sent, blocked, failed, total = await _broadcast_html_to_all_users(
+        REFMASTERS_BROADCAST_TEXT,
+        reply_markup=ikb_refmasters_broadcast,
+    )
+
+    await callback.message.answer(
+        f'<b>Рассылка «ищем рефоводов» завершена</b>\n\n'
+        f'✅ Отправлено: {sent}\n'
+        f'🚫 Заблокировали бота: {blocked}\n'
+        f'⚠️ Ошибок: {failed}\n'
+        f'👥 Всего в базе: {total}',
+        parse_mode='HTML',
+        reply_markup=ikb_admin_back,
+    )
+
+
 @dp.callback_query(lambda c: c.data == 'admin_notify_referral')
 async def admin_notify_referral_callback(callback: CallbackQuery):
     await callback.answer("🤝 Напомнить о рефке") # на пол экрана хуйня высветится
