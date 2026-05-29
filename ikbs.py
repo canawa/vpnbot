@@ -1,4 +1,4 @@
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CopyTextButton
 import sqlite3 as sq
 from emojis import get_emoji
 from datetime import datetime
@@ -55,10 +55,15 @@ ikb_documents = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text='Назад', callback_data='back', icon_custom_emoji_id=get_emoji('exit'))],
 ])
 
-ikb_referral = InlineKeyboardMarkup(inline_keyboard=[
-    # [InlineKeyboardButton(text='💸 Вывести реферальный баланс', callback_data='ref_withdraw')], ПОКА ЧТО УБРАЛ
-    [InlineKeyboardButton(text='Назад', callback_data='back', icon_custom_emoji_id=get_emoji('exit'))],
-])
+def get_ikb_referral(link):
+    ikb_referral = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(
+            text='Скопировать ссылку',
+            copy_text=CopyTextButton(text=f'{link}'))],
+        [InlineKeyboardButton(text='Поделиться ссылкой', switch_inline_query=f'Привет, приглашаю тебя пользоваться хорошим ВПН сервисом с обходом глушилок: {link}', style='primary')],
+        [InlineKeyboardButton(text='Назад', callback_data='back', icon_custom_emoji_id=get_emoji('exit'))],
+    ])
+    return ikb_referral
 
 ikb_support = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text='💬 Написать в поддержку', url='t.me/coffeemaniasup2')],
