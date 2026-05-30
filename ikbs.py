@@ -101,6 +101,13 @@ ikb_admin = InlineKeyboardMarkup(inline_keyboard=[
 
 ])
 
+def get_ikb_connect_via_app(link):
+    token = link.rstrip("/").split("/")[-1]
+    app_link = f"https://sub.coffemaniavpn.online/app/add?token={token}&connect=1"
+    ikb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text='Подключиться', url=app_link)]
+    ])
+    return ikb
 
 ikb_adv_campaigns_menu = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text='Создать новую кампанию', callback_data='adv_new_campaign_create')],

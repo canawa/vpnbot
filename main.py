@@ -6,6 +6,7 @@ from aiogram.filters import CommandStart
 from aiogram.types import Message, CallbackQuery, invoice, LabeledPrice, FSInputFile, MessageEntity
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ChatMember
 from texts import *
+from aiogram.filters.command import CommandObject
 from aiogram.fsm.context import FSMContext
 import asyncio # для работы с асинхронными функциями
 import html
@@ -302,7 +303,13 @@ async def _register_referral(referral_id: int, ref_master_id: int, referral_user
 
 
 @dp.message(CommandStart())
-async def start_command(message):
+async def start_command(message, command: CommandObject):
+
+    if command.args == 'connect':
+        user = vpn.get_user_by_tg_id(message.from_user.id)
+        url = user['response'][0]['subscriptionUrl']
+        print(url)
+        await message.answer('Жми на кнопку и подключайся', reply_markup = get_ikb_connect_via_app(url))
 
     ref_master_id = None
     parts = (message.text or '').split(maxsplit=1)
@@ -1979,12 +1986,12 @@ async def ping_unactive_users(callback: CallbackQuery):
 
 async def main():
     setup_funnel(dp, bot, vpn, trial_flow_cb=_activate_trial_for_user)
-    asyncio.create_task(check_expired_subscriptions_table(bot))
-    asyncio.create_task(check_expiring_tomorrow_subscriptions_table(bot))
-    asyncio.create_task(notify_gbs_ending(bot))
-    asyncio.create_task(notify_inactive_trial_users(bot))
-    asyncio.create_task(run_funnel_worker(bot))
-    asyncio.create_task(run_renewal_funnel_worker(bot))
+    # asyncio.create_task(check_expired_subscriptions_table(bot))
+    # asyncio.create_task(check_expiring_tomorrow_subscriptions_table(bot))
+    # asyncio.create_task(notify_gbs_ending(bot))
+    # asyncio.create_task(notify_inactive_trial_users(bot))
+    # asyncio.create_task(run_funnel_worker(bot))
+    # asyncio.create_task(run_renewal_funnel_worker(bot))
     # Запускаем фоновую задачу для сброса флага runout_notified в 00:01 каждый день
     asyncio.create_task(reset_runout_notified_daily())
     await dp.start_polling(bot) # отправить соединение к серверам телеграмма
