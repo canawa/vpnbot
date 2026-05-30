@@ -194,7 +194,7 @@ def vpn_subscription_message_html(url: str) -> str:
         "- расходуется только на LTE серверах\n\n" +
         "<tg-emoji emoji-id=\"5420323339723881652\">⚠️</tg-emoji> В пробной подписке - 3 ГБ на 3 дня\n\n" +
         "<tg-emoji emoji-id=\"5375381102586247966\">🔗</tg-emoji> Твоя ссылка: "
-        f"`{url}`"
+        f"<code>{url} </code>"
 
     )
 
