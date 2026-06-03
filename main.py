@@ -63,8 +63,6 @@ from payments import (
     check_payment_yookassa_status,
     rub_to_usdt,
     schedule_open_invoice_payment_reminder,
-    setup_open_invoice_reminder_handlers,
-    fetch_open_invoice_reminder_stats,
 )
 from logging.handlers import RotatingFileHandler
 import logging
@@ -478,7 +476,6 @@ async def buy_gbs(callback: CallbackQuery):
             payment_id,
             'yookassa_gb',
             confirmation_url=confirmation_url,
-            amount=price,
         )
     except Exception as e:
         await callback.message.answer(
@@ -910,7 +907,6 @@ async def process_deposit(callback: CallbackQuery):
                 payment_id,
                 'yookassa',
                 confirmation_url=confirmation_url,
-                amount=amount,
             )
 
         except Exception as e:
@@ -1053,7 +1049,6 @@ async def admin_funnel_stats_callback(callback: CallbackQuery):
 
     summary, users_rows, events_rows = fetch_funnel_stats()
     renewal_summary, renewal_rows = fetch_renewal_stats()
-    oinv_summary, oinv_rows = fetch_open_invoice_reminder_stats()
     if not users_rows and not renewal_rows:
         await callback.message.answer(
             'В воронке пока никого нет. Пользователи попадают после /start.',
@@ -1071,12 +1066,8 @@ async def admin_funnel_stats_callback(callback: CallbackQuery):
                 pd.DataFrame(events_rows).to_excel(writer, sheet_name='События', index=False)
             if renewal_rows:
                 pd.DataFrame(renewal_rows).to_excel(writer, sheet_name='Продление', index=False)
-            if oinv_rows:
-                pd.DataFrame(oinv_rows).to_excel(writer, sheet_name='Открытый счёт', index=False)
         parts = [summary] if users_rows else []
         parts.append(renewal_summary)
-        if oinv_rows or 'Отправлено' in oinv_summary:
-            parts.append(oinv_summary)
         full_summary = '\n\n'.join(parts)
         await callback.message.answer(full_summary, parse_mode='HTML', reply_markup=ikb_admin_back)
         await callback.message.answer_document(
@@ -2015,7 +2006,6 @@ async def ping_unactive_users(callback: CallbackQuery):
 
 async def main():
     setup_funnel(dp, bot, vpn, trial_flow_cb=_activate_trial_for_user)
-    setup_open_invoice_reminder_handlers(dp)
     asyncio.create_task(check_expired_subscriptions_table(bot))
     asyncio.create_task(check_expiring_tomorrow_subscriptions_table(bot))
     asyncio.create_task(notify_gbs_ending(bot))

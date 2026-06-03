@@ -157,23 +157,6 @@ def create_tables():
         )
         """)
 
-        cur.execute("""
-        CREATE TABLE IF NOT EXISTS open_invoice_reminders (
-            payment_id TEXT PRIMARY KEY,
-            user_id INTEGER NOT NULL,
-            tx_type TEXT NOT NULL,
-            amount INTEGER,
-            confirmation_url TEXT,
-            reminder_sent_at TEXT NOT NULL,
-            pay_clicked_at TEXT,
-            paid_at TEXT
-        )
-        """)
-        cur.execute(
-            'CREATE INDEX IF NOT EXISTS ix_open_invoice_reminders_user '
-            'ON open_invoice_reminders(user_id)'
-        )
-
         con.commit()
         try:
             cur.execute('ALTER TABLE users ADD COLUMN is_legacy INTEGER DEFAULT 0;')
