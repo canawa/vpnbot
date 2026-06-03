@@ -476,6 +476,8 @@ async def buy_gbs(callback: CallbackQuery):
             payment_id,
             'yookassa_gb',
             confirmation_url=confirmation_url,
+            amount=price,
+            check_extra=gb_amount,
         )
     except Exception as e:
         await callback.message.answer(
@@ -907,6 +909,8 @@ async def process_deposit(callback: CallbackQuery):
                 payment_id,
                 'yookassa',
                 confirmation_url=confirmation_url,
+                amount=amount,
+                check_extra=paid_days,
             )
 
         except Exception as e:

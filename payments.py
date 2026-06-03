@@ -127,15 +127,37 @@ def _fetch_yookassa_confirmation_url(payment_id: str) -> str | None:
         return None
 
 
-def build_open_invoice_reminder_keyboard(confirmation_url: str | None):
+def build_check_payment_callback_data(
+    payment_id: str,
+    tx_type: str,
+    amount: int,
+    extra: int,
+) -> str:
+    """extra: paid_days для подписки, gb_amount для ГБ."""
+    pid = str(payment_id).strip()
+    if (tx_type or '').strip() == 'yookassa_gb':
+        return f'gb_yookassa_{pid}_{int(extra)}_{int(amount)}'
+    return f'yookassa_{int(amount)}_{int(extra)}_{pid}'
+
+
+def build_open_invoice_reminder_keyboard(
+    confirmation_url: str | None,
+    check_callback_data: str | None = None,
+):
     from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
+    rows = []
     url = (confirmation_url or '').strip()
-    if not url:
+    if url:
+        rows.append([InlineKeyboardButton(text='Оплатить', url=url, style='success')])
+    check_cb = (check_callback_data or '').strip()
+    if check_cb:
+        rows.append([
+            InlineKeyboardButton(text='Проверить', callback_data=check_cb, style='success'),
+        ])
+    if not rows:
         return None
-    return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text='Оплатить', url=url, style='success')],
-    ])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
 def is_yookassa_payment_settled(payment_id: str, tx_type: str = 'yookassa') -> bool:
@@ -167,11 +189,12 @@ async def _send_open_invoice_reminder(
     user_id: int,
     payment_id: str,
     confirmation_url: str | None = None,
+    check_callback_data: str | None = None,
 ) -> None:
     from aiogram.types import FSInputFile
 
     pay_url = (confirmation_url or '').strip() or _fetch_yookassa_confirmation_url(payment_id)
-    reply_markup = build_open_invoice_reminder_keyboard(pay_url)
+    reply_markup = build_open_invoice_reminder_keyboard(pay_url, check_callback_data)
 
     if not os.path.isfile(ZHIRIK_VIDEO_PATH):
         logger.error('open invoice reminder: video not found: %s', ZHIRIK_VIDEO_PATH)
@@ -198,12 +221,15 @@ async def _open_invoice_reminder_worker(
     payment_id: str,
     tx_type: str = 'yookassa',
     confirmation_url: str | None = None,
+    check_callback_data: str | None = None,
 ) -> None:
     await asyncio.sleep(OPEN_INVOICE_REMINDER_DELAY_SEC)
     if is_yookassa_payment_settled(payment_id, tx_type):
         return
     try:
-        await _send_open_invoice_reminder(bot, user_id, payment_id, confirmation_url)
+        await _send_open_invoice_reminder(
+            bot, user_id, payment_id, confirmation_url, check_callback_data,
+        )
         logger.info(
             'open invoice reminder sent user_id=%s payment_id=%s',
             user_id, payment_id,
@@ -221,8 +247,15 @@ def schedule_open_invoice_payment_reminder(
     payment_id: str,
     tx_type: str = 'yookassa',
     confirmation_url: str | None = None,
+    amount: int | None = None,
+    check_extra: int | None = None,
 ) -> None:
-    """Через 3 минуты — видео + текст + «Оплатить», если счёт ещё не оплачен."""
+    """Через 3 минуты — видео + «Оплатить» + «Проверить», если счёт ещё не оплачен."""
+    check_cb = None
+    if amount is not None and check_extra is not None:
+        check_cb = build_check_payment_callback_data(
+            payment_id, tx_type, amount, check_extra,
+        )
     asyncio.create_task(
         _open_invoice_reminder_worker(
             bot,
@@ -230,5 +263,6 @@ def schedule_open_invoice_payment_reminder(
             str(payment_id).strip(),
             tx_type,
             confirmation_url,
+            check_cb,
         ),
     )
