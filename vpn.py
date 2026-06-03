@@ -22,6 +22,19 @@ from sync_remna_expire_from_keys_once import get_user_by_tg_id
 dotenv.load_dotenv()
 BASE_LIMIT = 26843545600  # 25 ГБ
 
+
+def panel_user_record(payload) -> dict | None:
+    """Remnawave: response — список или один объект."""
+    if not isinstance(payload, dict):
+        return None
+    response = payload.get('response')
+    if isinstance(response, list):
+        return response[0] if response else None
+    if isinstance(response, dict):
+        return response
+    return None
+
+
 class Vpn:
     def __init__(self):
         self.base_url = os.getenv("REMNAWAVE_BASE_URL")
@@ -83,12 +96,9 @@ class Vpn:
         panel_expire = None
         try:
             panel_user = self.get_user_by_tg_id(tg_id)
-            if isinstance(panel_user, dict):
-                response = panel_user.get('response')
-                if isinstance(response, list) and response:
-                    panel_expire = _parse_iso_dt(response[0].get('expireAt'))
-                elif isinstance(response, dict):
-                    panel_expire = _parse_iso_dt(response.get('expireAt'))
+            user_data = panel_user_record(panel_user)
+            if user_data:
+                panel_expire = _parse_iso_dt(user_data.get('expireAt'))
         except Exception:
             panel_expire = None
 
@@ -97,7 +107,10 @@ class Vpn:
 
         new_expire = base_expire + timedelta(days=days)
 
-        user_data = self.get_user_by_tg_id(tg_id)['response'][0] # перенос трафика на след месяц
+        user_data = panel_user_record(self.get_user_by_tg_id(tg_id))
+        if not user_data:
+            return {'errorCode': 'USER_NOT_FOUND', 'message': 'User not found in panel'}
+        # перенос трафика на след месяц
         current_limit = user_data['trafficLimitBytes']
         used = user_data['userTraffic']['usedTrafficBytes']
         leftover = max(0, BASE_LIMIT - used)

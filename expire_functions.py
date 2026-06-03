@@ -7,7 +7,7 @@ import asyncio
 
 from main import PING_UNCONNECTED_PHOTO
 from texts import PING_CAPTION
-from vpn import Vpn
+from vpn import Vpn, panel_user_record
 from ikbs import *
 from aiogram.exceptions import TelegramForbiddenError
 from renewal_funnel import renewal_funnel_handles_notifications
@@ -167,15 +167,29 @@ async def notify_gbs_ending(bot):
                 # print(tg_id)
                 try:
 
-                    user_data = Vpn().get_user_by_tg_id(tg_id)['response'][0]
-                    current_limit = user_data['trafficLimitBytes']
-                    used = user_data['userTraffic']['usedTrafficBytes']
+                    payload = Vpn().get_user_by_tg_id(tg_id)
+                    user_data = panel_user_record(payload)
+                    if not user_data:
+                        continue
+
+                    current_limit = int(user_data.get('trafficLimitBytes') or 0)
+                    if current_limit <= 0:
+                        continue
+
+                    traffic = user_data.get('userTraffic') or {}
+                    used = int(traffic.get('usedTrafficBytes') or 0)
                     remaining_gb = (current_limit - used) / 1073741824
 
                     with sq.connect('database.db') as con:
                         cur = con.cursor()
-                        cur.execute('SELECT notified_low_traffic FROM subscriptions WHERE user_id = ?', (tg_id,))
-                        notified = cur.fetchone()[0]
+                        cur.execute(
+                            'SELECT notified_low_traffic FROM subscriptions WHERE user_id = ?',
+                            (tg_id,),
+                        )
+                        row = cur.fetchone()
+                        if row is None:
+                            continue
+                        notified = row[0]
 
                     if remaining_gb <= 1 and not notified:
                         await bot.send_message(
