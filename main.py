@@ -57,7 +57,13 @@ from databases import (
     get_ref_partner_dashboard,
     list_adv_campaigns,
 )
-from payments import get_pay_link, check_payment_status, check_payment_yookassa_status, rub_to_usdt
+from payments import (
+    get_pay_link,
+    check_payment_status,
+    check_payment_yookassa_status,
+    rub_to_usdt,
+    schedule_open_invoice_payment_reminder,
+)
 from logging.handlers import RotatingFileHandler
 import logging
 from sync_remna_expire_from_keys_once import get_user_by_tg_id
@@ -464,6 +470,9 @@ async def buy_gbs(callback: CallbackQuery):
             f'👉 Создали заявку на оплату, переходите по ссылке и оплатите.\n\n <b>❗ После оплаты нажмите на кнопку "Я оплатил"</b>',
             parse_mode='HTML',
             reply_markup=create_yookassa_gb_payment(payment_id, gb_amount, confirmation_url, price))
+        schedule_open_invoice_payment_reminder(
+            bot, callback.from_user.id, payment_id, 'yookassa_gb',
+        )
     except Exception as e:
         await callback.message.answer(
             '❌ Не удалось создать заявку. Напишите в техподдержку, мы обязательно поможем!',
@@ -887,6 +896,9 @@ async def process_deposit(callback: CallbackQuery):
                     confirmation_url,
                     payment_id
                 )
+            )
+            schedule_open_invoice_payment_reminder(
+                bot, callback.from_user.id, payment_id, 'yookassa',
             )
 
         except Exception as e:
