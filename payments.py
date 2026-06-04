@@ -8,6 +8,7 @@ import dotenv
 import requests
 from requests.exceptions import ReadTimeout, ConnectionError as RequestsConnectionError
 from yookassa import Payment, Configuration
+from funnel import log_open_invoice_reminder_sent
 
 logger = logging.getLogger(__name__)
 
@@ -153,7 +154,7 @@ def build_open_invoice_reminder_keyboard(
     check_cb = (check_callback_data or '').strip()
     if check_cb:
         rows.append([
-            InlineKeyboardButton(text='Проверить', callback_data=check_cb, style='success'),
+            InlineKeyboardButton(text='Проверить', callback_data=check_cb),
         ])
     if not rows:
         return None
@@ -188,6 +189,7 @@ async def _send_open_invoice_reminder(
     bot,
     user_id: int,
     payment_id: str,
+    tx_type: str = 'yookassa',
     confirmation_url: str | None = None,
     check_callback_data: str | None = None,
 ) -> None:
@@ -204,15 +206,15 @@ async def _send_open_invoice_reminder(
             parse_mode='HTML',
             reply_markup=reply_markup,
         )
-        return
-
-    await bot.send_video(
-        user_id,
-        FSInputFile(ZHIRIK_VIDEO_PATH),
-        caption=OPEN_INVOICE_REMINDER_TEXT,
-        parse_mode='HTML',
-        reply_markup=reply_markup,
-    )
+    else:
+        await bot.send_video(
+            user_id,
+            FSInputFile(ZHIRIK_VIDEO_PATH),
+            caption=OPEN_INVOICE_REMINDER_TEXT,
+            parse_mode='HTML',
+            reply_markup=reply_markup,
+        )
+    log_open_invoice_reminder_sent(user_id, payment_id, tx_type)
 
 
 async def _open_invoice_reminder_worker(
@@ -228,7 +230,12 @@ async def _open_invoice_reminder_worker(
         return
     try:
         await _send_open_invoice_reminder(
-            bot, user_id, payment_id, confirmation_url, check_callback_data,
+            bot,
+            user_id,
+            payment_id,
+            tx_type,
+            confirmation_url,
+            check_callback_data,
         )
         logger.info(
             'open invoice reminder sent user_id=%s payment_id=%s',

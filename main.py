@@ -81,6 +81,8 @@ from funnel import (
     reset_funnel_for_test,
     FUNNEL_SLEEP_SEC,
     fetch_funnel_stats,
+    try_log_open_invoice_check_click,
+    try_log_open_invoice_reminder_paid,
 )
 from renewal_funnel import renewal_on_paid, run_renewal_funnel_worker, fetch_renewal_stats
 locale.setlocale(locale.LC_TIME, 'ru_RU.UTF-8')
@@ -497,6 +499,8 @@ async def process_gb_addition(callback: CallbackQuery):
         gb_amount = int(data[1])
         price = int(data[2])
 
+        try_log_open_invoice_check_click(callback.from_user.id, pid, 'yookassa_gb')
+
         status = await asyncio.to_thread(
             check_payment_yookassa_status,
             price,
@@ -506,6 +510,9 @@ async def process_gb_addition(callback: CallbackQuery):
         )
 
         if status == 'paid':
+            try_log_open_invoice_reminder_paid(
+                callback.from_user.id, pid, price, 'yookassa_gb',
+            )
             body = await asyncio.to_thread(
                 Vpn().give_lte_gbs,
                 callback.from_user.id,
@@ -745,9 +752,14 @@ async def check_payment_yookassa_callback(callback: CallbackQuery):
     #     await callback.answer('❌ Сумма не соответствует тарифу. Создайте платёж заново.', show_alert=True)
     #     return
 
+    try_log_open_invoice_check_click(callback.from_user.id, payment_id, 'yookassa')
+
     payment_state = await asyncio.to_thread(check_payment_yookassa_status,amount_rub, payment_id, callback.from_user.id )
 
     if payment_state == 'paid':
+        try_log_open_invoice_reminder_paid(
+            callback.from_user.id, payment_id, amount_rub, 'yookassa',
+        )
         funnel_on_paid(callback.from_user.id)
         renewal_on_paid(callback.from_user.id)
         try:

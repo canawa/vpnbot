@@ -75,6 +75,111 @@ def log_funnel_event(user_id: int, event_type: str, meta: str | None = None) -> 
         con.commit()
 
 
+EVENT_MSG_OPEN_INVOICE_3M = 'msg_open_invoice_3m'
+EVENT_CLICK_OPEN_INVOICE_CHECK = 'click_open_invoice_check'
+EVENT_PAID_OPEN_INVOICE_3M = 'paid_open_invoice_3m'
+
+
+def _open_invoice_meta(tx_type: str, payment_id: str) -> str:
+    return f'{(tx_type or "yookassa").strip()}:{str(payment_id).strip()}'
+
+
+def log_open_invoice_reminder_sent(
+    user_id: int,
+    payment_id: str,
+    tx_type: str = 'yookassa',
+) -> None:
+    """Видео/текст через 3 мин после неоплаченного счёта ЮKassa."""
+    log_funnel_event(user_id, EVENT_MSG_OPEN_INVOICE_3M, _open_invoice_meta(tx_type, payment_id))
+
+
+def _open_invoice_reminder_was_sent(payment_id: str, tx_type: str) -> bool:
+    meta = _open_invoice_meta(tx_type, payment_id)
+    with _connect() as con:
+        cur = con.cursor()
+        cur.execute(
+            'SELECT 1 FROM funnel_events WHERE event_type = ? AND meta = ? LIMIT 1',
+            (EVENT_MSG_OPEN_INVOICE_3M, meta),
+        )
+        return cur.fetchone() is not None
+
+
+def try_log_open_invoice_check_click(
+    user_id: int,
+    payment_id: str,
+    tx_type: str = 'yookassa',
+) -> None:
+    """«Проверить» после напоминания (тот же callback, что у «Я оплатил»)."""
+    if not _open_invoice_reminder_was_sent(payment_id, tx_type):
+        return
+    meta = _open_invoice_meta(tx_type, payment_id)
+    with _connect() as con:
+        cur = con.cursor()
+        cur.execute(
+            'SELECT 1 FROM funnel_events WHERE event_type = ? AND meta = ? LIMIT 1',
+            (EVENT_CLICK_OPEN_INVOICE_CHECK, meta),
+        )
+        if cur.fetchone():
+            return
+    log_funnel_event(user_id, EVENT_CLICK_OPEN_INVOICE_CHECK, meta)
+
+
+def try_log_open_invoice_reminder_paid(
+    user_id: int,
+    payment_id: str,
+    amount: int,
+    tx_type: str = 'yookassa',
+) -> None:
+    if not _open_invoice_reminder_was_sent(payment_id, tx_type):
+        return
+    base_meta = _open_invoice_meta(tx_type, payment_id)
+    paid_meta = f'{base_meta}:{int(amount)}'
+    with _connect() as con:
+        cur = con.cursor()
+        cur.execute(
+            'SELECT 1 FROM funnel_events WHERE event_type = ? AND meta LIKE ? LIMIT 1',
+            (EVENT_PAID_OPEN_INVOICE_3M, f'{base_meta}:%'),
+        )
+        if cur.fetchone():
+            return
+    log_funnel_event(user_id, EVENT_PAID_OPEN_INVOICE_3M, paid_meta)
+
+
+def _open_invoice_reminder_stats() -> dict:
+    with _connect() as con:
+        cur = con.cursor()
+        cur.execute(
+            'SELECT COUNT(*) FROM funnel_events WHERE event_type = ?',
+            (EVENT_MSG_OPEN_INVOICE_3M,),
+        )
+        sent = cur.fetchone()[0] or 0
+        cur.execute(
+            'SELECT COUNT(*) FROM funnel_events WHERE event_type = ?',
+            (EVENT_CLICK_OPEN_INVOICE_CHECK,),
+        )
+        clicks = cur.fetchone()[0] or 0
+        cur.execute(
+            'SELECT meta FROM funnel_events WHERE event_type = ?',
+            (EVENT_PAID_OPEN_INVOICE_3M,),
+        )
+        paid_rows = cur.fetchall()
+    paid_count = len(paid_rows)
+    paid_sum = 0
+    for (meta,) in paid_rows:
+        if not meta:
+            continue
+        try:
+            paid_sum += int(str(meta).rsplit(':', 1)[-1])
+        except (ValueError, IndexError):
+            pass
+    return {
+        'sent': sent,
+        'clicks': clicks,
+        'paid_count': paid_count,
+        'paid_sum': paid_sum,
+    }
+
+
 def _set_survey_answer(user_id: int, answer: str) -> None:
     _ensure_row(user_id)
     with _connect() as con:
@@ -339,6 +444,19 @@ def fetch_funnel_stats() -> tuple[str, list[dict], list[dict]]:
         f'• {k}: <b>{v}</b>' for k, v in sorted(by_branch.items())
     )
 
+    oir = _open_invoice_reminder_stats()
+    oir_sent = oir['sent']
+    oir_clicks = oir['clicks']
+    oir_paid = oir['paid_count']
+    oir_sum = oir['paid_sum']
+    open_invoice_block = (
+        f'<b>Напоминание об оплате (3 мин, zhirik):</b>\n'
+        f'• Отправлено: <b>{oir_sent}</b>\n'
+        f'• Нажали «Проверить»: <b>{oir_clicks}</b> ({pct(oir_clicks, oir_sent)})\n'
+        f'• Оплатили после напоминания: <b>{oir_paid}</b> ({pct(oir_paid, oir_sent)})\n'
+        f'• Сумма оплат с напоминания: <b>{oir_sum} ₽</b>'
+    )
+
     summary = (
         '<b>📊 Статистика воронки</b>\n\n'
         f'Всего в воронке: <b>{total}</b>\n\n'
@@ -348,9 +466,10 @@ def fetch_funnel_stats() -> tuple[str, list[dict], list[dict]]:
         f'• Оплатили (last_paid_at): <b>{paid_count}</b> ({pct(paid_count, total)})\n'
         f'• Оплата после конца триала: <b>{paid_after_trial_end}</b>\n'
         f'• Бонус +1 день: <b>{sum(1 for u in users_excel if u["extra_trial_once"])}</b>\n\n'
+        f'{open_invoice_block}\n\n'
         f'<b>Ответы опроса:</b>\n{survey_lines}\n\n'
         f'<b>Отправлено писем (флаги):</b>\n{msg_lines}\n\n'
-        '<i>Подробности — в файле (листы «Пользователи» и «События»).</i>'
+        '<i>Подробности — в файле (листы «Покупка», «События», «Продление»).</i>'
     )
     return summary, users_excel, event_agg
 
