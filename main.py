@@ -634,7 +634,7 @@ async def referral_callback(callback: CallbackQuery):
                     f"<tg-emoji emoji-id=\"5474417568053745249\">💰</tg-emoji> На реф. балансе: {ref_balance} ₽\n"
                     f"<tg-emoji emoji-id=\"5463424023734014980\">🛫</tg-emoji> Выведено: {ref_withdraw} ₽\n"
                     f'<tg-emoji emoji-id=\"5238132025323444613\">🏦</tg-emoji> Доступно к выводу: {available} ₽\n'
-                    '\nДля вывода обращаться @yatogotsirka'
+                    '\nДля вывода обращаться @canawag'
                 ),
                 parse_mode='HTML',
                 reply_markup=get_ikb_referral(referral_link(callback.from_user.id)),
