@@ -63,7 +63,8 @@ async def check_expired_subscriptions_table(bot):
                         continue
 
         except Exception as e:
-            print(f'Error check_expired_subscriptions_table: {e}')
+            # print(f'Error check_expired_subscriptions_table: {e}')
+            pass
 
         await asyncio.sleep(3600)
 
@@ -115,7 +116,8 @@ async def check_expiring_tomorrow_subscriptions_table(bot):
                         continue
 
         except Exception as e:
-            print(f'Error check_expiring_tomorrow_subscriptions_table: {e}')
+            # print(f'Error check_expiring_tomorrow_subscriptions_table: {e}')
+            pass
 
         await asyncio.sleep(3600)
 
@@ -150,7 +152,8 @@ async def reset_runout_notified_daily(): # НЕ ЕБУ КАК РАБОТАЕТ!
                     f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
                 )
         except Exception as e:
-            print(f"Error resetting runout_notified: {e}")
+            # print(f"Error resetting runout_notified: {e}")
+            pass
             # В случае ошибки ждем час перед следующей попыткой
             await asyncio.sleep(3600)
 
@@ -207,13 +210,15 @@ async def notify_gbs_ending(bot):
                             con.execute('UPDATE subscriptions SET notified_low_traffic = 0 WHERE user_id = ?', (tg_id,))
 
                 except Exception as e:
-                    print(f'Ошибка для {tg_id}: {e}')
+                    # print(f'Ошибка для {tg_id}: {e}')
+                    pass
 
                     continue
 
         except Exception as e:
 
-            print(e)
+            # print(e)
+            pass
 
         await asyncio.sleep(3600)
 
@@ -240,12 +245,14 @@ async def notify_inactive_trial_users(bot):
                     logging.info(f"[trial_notify] sent ok user_id={user_id}")
 
                 except Exception as e:
-                    logging.exception(f"[trial_notify] failed user_id={user_id}: {e}")
+                    # logging.exception(f"[trial_notify] failed user_id={user_id}: {e}")
+                    pass
 
                 await asyncio.sleep(0.05)
 
         except Exception as e:
-            logging.exception(f"[trial_notify] batch error: {e}")
+        #     logging.exception(f"[trial_notify] batch error: {e}")
 
-        logging.info("[trial_notify] sleep %ss", TRIAL_UNCONNECTED_SLEEP_SEC)
+        # logging.info("[trial_notify] sleep %ss", TRIAL_UNCONNECTED_SLEEP_SEC)
+            pass
         await asyncio.sleep(TRIAL_UNCONNECTED_SLEEP_SEC)

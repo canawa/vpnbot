@@ -13,6 +13,7 @@ import html
 import sqlite3 as sq
 import requests
 from prices import *
+from ikbs import *
 import dotenv
 import os
 from aiogram.fsm.state import State, StatesGroup
@@ -68,7 +69,7 @@ from logging.handlers import RotatingFileHandler
 import logging
 from sync_remna_expire_from_keys_once import get_user_by_tg_id
 from vpn import Vpn
-from ikbs import *
+
 
 import sys
 from expire_functions import *
@@ -223,6 +224,7 @@ try:
     PING_UNACTIVE_PHOTO=FSInputFile('photos/ping_unactive_photo.jpg')
     INVITE_MAX_COLORED_PHOTO=FSInputFile('photos/INVITE_MAX_COLORED.jpg')
     DECISION_PHOTO=FSInputFile('photos/decision.jpg')
+    TWO_DAYS_BONUS_PHOTO=FSInputFile('photos/2_days_bonus_photo.png')
 
 except FileNotFoundError:
     print("Photo files not found")
@@ -330,27 +332,7 @@ async def start_command(message, command: CommandObject):
             message.from_user.username,
         )
 
-    # print(user)
-    try:
-        user = vpn.get_user_by_tg_id(message.from_user.id)
-        expire_at_str = user['response'][0]['expireAt']
-    except:
-        expire_at_str = None
-    if expire_at_str:
-        expire_at = datetime.fromisoformat(expire_at_str)
-        has_active_subscription = expire_at.date() > date.today()
-        subscription_expires_at = format_date_ru(expire_at)
-    else:
-        has_active_subscription = False
-        subscription_expires_at = None
-
-    text = welcome_back_caption(has_active_subscription, subscription_expires_at)
-    await message.answer_photo(
-        WELCOME_PHOTO,
-        caption=text,
-        reply_markup=generate_ikb_main(message.from_user.id),
-        parse_mode='HTML'
-    )
+    await send_main_menu(message, message.from_user.id)
     with sq.connect('database.db') as con:
         cur = con.cursor()
         cur.execute("INSERT OR IGNORE INTO users (id, username, balance, had_trial) VALUES (?, ?, ?, ?)", (message.from_user.id, message.from_user.username, 0, 0))
@@ -667,32 +649,48 @@ def welcome_back_caption(has_active: bool, subscription_expires_at=None) -> str:
         
     )
 
+
+def _subscription_status_from_panel(user_id: int) -> tuple[bool, str | None]:
+    try:
+        user = vpn.get_user_by_tg_id(user_id)
+        expire_at_str = user['response'][0]['expireAt']
+    except Exception:
+        expire_at_str = None
+    if expire_at_str:
+        try:
+            text = str(expire_at_str).strip()
+            if text.endswith('Z'):
+                text = text[:-1] + '+00:00'
+            expire_at = datetime.fromisoformat(text)
+            if expire_at.tzinfo is not None:
+                expire_at = expire_at.astimezone().replace(tzinfo=None)
+            has_active_subscription = expire_at.date() > date.today()
+            subscription_expires_at = format_date_ru(expire_at)
+        except Exception:
+            has_active_subscription = False
+            subscription_expires_at = None
+    else:
+        has_active_subscription = False
+        subscription_expires_at = None
+    return has_active_subscription, subscription_expires_at
+
+
+async def send_main_menu(message: Message, user_id: int) -> None:
+    has_active_subscription, subscription_expires_at = _subscription_status_from_panel(user_id)
+    text = welcome_back_caption(has_active_subscription, subscription_expires_at)
+    await message.answer_photo(
+        WELCOME_PHOTO,
+        caption=text,
+        parse_mode='HTML',
+        reply_markup=generate_ikb_main(user_id),
+    )
+
+
 @dp.callback_query(lambda c: c.data == 'back')
 async def back_callback(callback: CallbackQuery):
     await callback.answer("Назад") # на пол экрана хуйня высветится
     await callback.message.delete()
-
-    # print(user)
-    try:
-        user = vpn.get_user_by_tg_id(callback.from_user.id)
-        expire_at_str = user['response'][0]['expireAt']
-    except:
-        expire_at_str = None
-    if expire_at_str:
-        expire_at = datetime.fromisoformat(expire_at_str)
-        has_active_subscription = expire_at.date() > date.today()
-        subscription_expires_at = format_date_ru(expire_at)
-    else:
-        has_active_subscription = False
-        subscription_expires_at = None
-
-    text = welcome_back_caption(has_active_subscription, subscription_expires_at)
-    await callback.message.answer_photo(
-        WELCOME_PHOTO,
-        caption=text,
-        parse_mode='HTML',
-        reply_markup=generate_ikb_main(callback.from_user.id),
-    )
+    await send_main_menu(callback.message, callback.from_user.id)
 
 @dp.callback_query(lambda c: c.data == 'trial')
 async def plan_trial(callback: CallbackQuery):
@@ -2019,6 +2017,98 @@ async def ping_unactive_users(callback: CallbackQuery):
             logging.exception(
                 f"Ошибка при отправке сообщения пользователю {user}: {e}"
             )
+
+
+@dp.callback_query(F.data == 'admin_give_2_days_bonus')
+async def admin_give_2_days_bonus(callback: CallbackQuery):
+    await callback.message.delete()
+    try:
+        users = await asyncio.to_thread(vpn.get_unactive_users)
+    except Exception as e:
+        logging.exception('admin_give_2_days_bonus get_unactive_users: %s', e)
+        await callback.message.answer(
+            'Не удалось получить список пользователей с панели.',
+            reply_markup=ikb_admin_back,
+        )
+        return
+    success = 0
+    text = (
+    '<tg-emoji emoji-id="5203996991054432397">🎁</tg-emoji> Персонально для тебя — 2 дня бесплатного доступа!\n\n'
+    '<tg-emoji emoji-id="5456218262612223748">😢</tg-emoji> Давно не виделись, и мы решили сделать тебе подарок — 2 дня бесплатного доступа ко всем возможностям сервиса.\n\n'
+    'Тебя там ждет новый <tg-emoji emoji-id="5433895041242246420">🎙</tg-emoji> LTE ОБХОД на всех операторов!\n\n'
+    '<tg-emoji emoji-id="5469796926272580161">🐝</tg-emoji> - Билайн\n'
+    '<tg-emoji emoji-id="5262690652616931769">🥚</tg-emoji> - МТС\n'
+    '<tg-emoji emoji-id="5470134961673612788">📱</tg-emoji> - Мегафон\n'
+    '<tg-emoji emoji-id="5469769180783849063">📱</tg-emoji> - YOTA\n'
+    '<tg-emoji emoji-id="5440552665752820072">📱</tg-emoji> - Tele2\n'
+    '<tg-emoji emoji-id="5469634469134609000">📱</tg-emoji> - TMobile\n\n'
+    'Наша команда разработала новую технологию обхода и мы спешим пригласить тебя потестировать его!\n\n'
+    'Спасибо что ты с нами! Забирай свой бонус и тестируй новинку бесплатно в течение 2 дней!'
+)
+    for user in users:
+        try:
+            await bot.send_photo(
+                chat_id=user,
+                photo=TWO_DAYS_BONUS_PHOTO,
+                caption=text,
+                parse_mode='HTML',
+                reply_markup=get_ikb_2_days_bonus(user),
+            )
+            success += 1
+            await asyncio.sleep(0.1)
+        except Exception as e:
+            logging.exception(
+                f"Ошибка при отправке сообщения пользователю {user}: {e}"
+            )
+
+    await callback.message.answer(
+        f'Рассылка завершена. Отправлено: {success}',
+        reply_markup=ikb_admin_back,
+    )
+    
+# выдача 2 дней подписки
+@dp.callback_query(F.data.startswith('2_days_bonus_'))
+async def give_2_days_bonus(callback: CallbackQuery):
+    try:
+        await callback.message.delete()
+    except Exception:
+        pass
+
+    try:
+        tg_id = int(callback.data.replace('2_days_bonus_', '', 1))
+    except ValueError:
+        await callback.answer('❌ Неверная кнопка.', show_alert=True)
+        return
+
+    if tg_id != callback.from_user.id:
+        await callback.answer('❌ Это предложение не для вас.', show_alert=True)
+        return
+
+    try:
+        response = await asyncio.to_thread(vpn.give_2_days_bonus, tg_id)
+    except Exception as e:
+        logging.exception('give_2_days_bonus tg_id=%s: %s', tg_id, e)
+        await callback.message.answer(
+            'Ошибка при выдаче 2 дней подписки! Попробуйте позже или напишите в поддержку.',
+            reply_markup=generate_ikb_main(tg_id),
+        )
+        return
+
+    if not isinstance(response, dict) or response.get('errorCode'):
+        await callback.message.answer(
+            'Ошибка при выдаче 2 дней подписки!',
+            reply_markup=generate_ikb_main(tg_id),
+        )
+        return
+
+    try:
+        await send_main_menu(callback.message, callback.from_user.id)
+    except Exception as e:
+        logging.exception('send_main_menu after 2_days_bonus tg_id=%s: %s', tg_id, e)
+        await callback.message.answer(
+            '2 дня подписки выданы! Нажмите /start, чтобы открыть меню.',
+            reply_markup=generate_ikb_main(tg_id),
+        )
 
 async def main():
     setup_funnel(dp, bot, vpn, trial_flow_cb=_activate_trial_for_user)

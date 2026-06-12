@@ -287,5 +287,74 @@ class Vpn:
             if user['status']!='ACTIVE':
                 unactive_users.append(user['telegramId'])
         return unactive_users
-print(Vpn().get_all_users())
-# print(Vpn().get_unactive_users())
+
+    def give_2_days_bonus(self, tg_id):
+        try:
+            tg_id = int(tg_id)
+        except (TypeError, ValueError):
+            return {'errorCode': 'INVALID_USER_ID', 'message': 'Invalid telegram id'}
+
+        now = datetime.now()
+
+        try:
+            panel_user = self.get_user_by_tg_id(tg_id)
+        except Exception as e:
+            return {'errorCode': 'API_ERROR', 'message': str(e)}
+
+        user_data = panel_user_record(panel_user)
+        if not user_data:
+            return {'errorCode': 'USER_NOT_FOUND', 'message': 'User not found in panel'}
+
+        panel_expire = None
+        expire_raw = user_data.get('expireAt')
+        if expire_raw:
+            text = str(expire_raw).strip()
+            if text.endswith('Z'):
+                text = text[:-1] + '+00:00'
+            try:
+                panel_expire = datetime.fromisoformat(text)
+                if panel_expire.tzinfo is not None:
+                    panel_expire = panel_expire.astimezone().replace(tzinfo=None)
+            except Exception:
+                panel_expire = None
+
+        base_expire = max(now, panel_expire) if panel_expire and panel_expire > now else now
+        new_expire = base_expire + timedelta(days=2)
+
+        response = requests.patch(
+            f"{self.base_url}/api/users",
+            headers={"Content-Type": "application/json", "Authorization": f"Bearer {self.token}"},
+            json={
+                "username": f'user_{tg_id}',
+                "status": "ACTIVE",
+                "trafficLimitBytes": 2147483648,
+                "expireAt": new_expire.isoformat(),
+                "telegramId": tg_id,
+                "hwidDeviceLimit": 3,
+                "trafficLimitStrategy": "MONTH_ROLLING",
+                "activeInternalSquads": ["6f11955f-6b95-4f96-bba4-3d866de8ce83", 'ffa0ca48-bb6e-447b-a404-f1808b09c967'],
+            },
+        )
+        try:
+            body = response.json()
+        except Exception as e:
+            return {'errorCode': 'ERROR', 'message': str(e)}
+
+        if not isinstance(body, dict):
+            if response.ok:
+                body = {}
+            else:
+                return {'errorCode': 'HTTP_ERROR', 'message': response.text or str(body)}
+
+        if body.get('errorCode'):
+            return body
+
+        if not response.ok:
+            return {'errorCode': 'HTTP_ERROR', 'message': response.text or 'PATCH failed'}
+
+        try:
+            upsert_subscription_days(tg_id, expires_at=new_expire.isoformat())
+        except Exception as e:
+            return {'errorCode': 'DB_ERROR', 'message': str(e)}
+
+        return body

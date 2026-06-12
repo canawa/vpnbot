@@ -96,7 +96,8 @@ ikb_admin = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text='📊 Статистика воронки', callback_data='admin_funnel_stats')],
     [InlineKeyboardButton(text='Рассказать челам что 5р в день', callback_data='ping_unactive')],
     # [InlineKeyboardButton(text='оповесть бомжей о снижении', callback_data='ping_brokes')]
-    [InlineKeyboardButton(text='Рассказать что ищем рефоводов', callback_data='we_need_refmasters')]
+    [InlineKeyboardButton(text='Рассказать что ищем рефоводов', callback_data='we_need_refmasters')],
+    [InlineKeyboardButton(text='Выдать 2 дня подписки инактив юзерам', callback_data='admin_give_2_days_bonus')],
 
 
 ])
@@ -302,3 +303,9 @@ def create_yookassa_gb_payment(payment_id, gb_amount, confirmation_url, price):
         [InlineKeyboardButton(text='Отменить платеж!', callback_data='back', style='danger')],
     ])
     return ikb_yookassa
+
+def get_ikb_2_days_bonus(tg_id):
+    ikb_2_days_bonus = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text='Получить 2 дня подписки', callback_data=f'2_days_bonus_{tg_id}', style='success')],
+    ])
+    return ikb_2_days_bonus
