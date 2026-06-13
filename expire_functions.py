@@ -99,8 +99,13 @@ async def check_expiring_tomorrow_subscriptions_table(bot):
                         await bot.send_message(
                             user_id,
                             (
-                                '⏰ <b>Подписка заканчивается завтра</b>\n\n'
-                                'Продлите заранее, чтобы не прерывать доступ.\n\n'
+                                'Эй, завтра твой VPN отключится 👀\n\n'
+                                'И ты снова останешься без:\n\n'
+                                '<tg-emoji emoji-id="5332541698616629306">🔴</tg-emoji>Доступа к соцсетям\n'
+                                '<tg-emoji emoji-id="5332356160324409089">⌛️</tg-emoji> Интернета на улице\n'
+                                '<tg-emoji emoji-id="5420323339723881652">⚠️</tg-emoji> Видосиков на Ютубе\n\n'
+                                'Мы знаем - это бесит. Поэтому и сделали так, чтобы у нас такого не было.\n\n'
+                                'Продли подписку и забудь о проблемах, просто КАЙФУЙ'
                             ),
                             parse_mode='HTML',
                             reply_markup=create_ikb_renew(),
