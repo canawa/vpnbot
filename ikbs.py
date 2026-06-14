@@ -89,7 +89,7 @@ def get_ikb_ref_settings(notify_referral: bool, notify_deposit: bool):
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text=ref_label, callback_data='ref_toggle_notify_referral')],
         [InlineKeyboardButton(text=dep_label, callback_data='ref_toggle_notify_deposit')],
-        [InlineKeyboardButton(text='◀️ Назад', callback_data='referral', icon_custom_emoji_id=get_emoji('exit'))],
+        [InlineKeyboardButton(text='Назад', callback_data='referral', icon_custom_emoji_id=get_emoji('exit'))],
     ])
 
 ikb_support = InlineKeyboardMarkup(inline_keyboard=[

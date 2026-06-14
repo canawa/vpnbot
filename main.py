@@ -647,9 +647,7 @@ async def ref_settings_callback(callback: CallbackQuery):
     except Exception:
         pass
     await callback.message.answer(
-        '⚙️ <b>Настройки уведомлений</b>\n\n'
-        'Нажмите на пункт, чтобы включить или выключить push в Telegram.\n'
-        'Начисления на баланс работают в любом случае.',
+        '⚙️ <b>Настройки уведомлений</b>',
         parse_mode='HTML',
         reply_markup=get_ikb_ref_settings(notify_referral, notify_deposit),
     )
