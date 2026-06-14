@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """Роли и начисления реферальной программы."""
 
+import sqlite3 as sq
 from datetime import date, timedelta
 
 REFMASTER_ROLE = 'refmaster'
@@ -56,6 +57,54 @@ def role_display_name(role: str | None) -> str:
     if r == REFMASTER_20_ROLE:
         return 'Refmaster 2.0'
     return role or '—'
+
+
+def get_ref_notify_prefs(user_id: int) -> tuple[bool, bool]:
+    """(уведомления о новом реферале, о новом депозите). По умолчанию включены."""
+    with sq.connect('database.db') as con:
+        cur = con.cursor()
+        cur.execute(
+            'SELECT ref_notify_new_referral, ref_notify_new_deposit FROM users WHERE id = ?',
+            (user_id,),
+        )
+        row = cur.fetchone()
+    if not row:
+        return True, True
+    notify_referral = row[0] if row[0] is not None else 1
+    notify_deposit = row[1] if row[1] is not None else 1
+    return bool(notify_referral), bool(notify_deposit)
+
+
+def ref_notify_enabled(user_id: int, kind: str) -> bool:
+    notify_referral, notify_deposit = get_ref_notify_prefs(user_id)
+    if kind == 'referral':
+        return notify_referral
+    if kind == 'deposit':
+        return notify_deposit
+    return True
+
+
+def toggle_ref_notify_pref(user_id: int, kind: str) -> bool:
+    """Переключает настройку и возвращает новое значение (True = вкл)."""
+    col = 'ref_notify_new_referral' if kind == 'referral' else 'ref_notify_new_deposit'
+    current = ref_notify_enabled(user_id, kind)
+    new_val = 0 if current else 1
+    with sq.connect('database.db') as con:
+        con.execute(f'UPDATE users SET {col} = ? WHERE id = ?', (new_val, user_id))
+        con.commit()
+    return bool(new_val)
+
+
+def should_send_ref_partner_notification(
+    cur,
+    ref_master_id: int,
+    kind: str,
+) -> bool:
+    """Refmaster / Refmaster 2.0 могут отключить уведы; остальные — всегда получают."""
+    role = fetch_ref_master_role(cur, ref_master_id)
+    if not role_has_refmaster_ui(role):
+        return True
+    return ref_notify_enabled(ref_master_id, kind)
 
 
 def referral_commission_active(registration_date_str: str | None) -> bool:

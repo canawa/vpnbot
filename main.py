@@ -13,7 +13,7 @@ import html
 import sqlite3 as sq
 import requests
 from prices import *
-from ikbs import *
+from ikbs import *  
 import dotenv
 import os
 from aiogram.fsm.state import State, StatesGroup
@@ -42,6 +42,9 @@ from referrals import (
     format_refmasters_overview,
     filter_refmaster_partners_with_pending,
     partner_pending_payout,
+    get_ref_notify_prefs,
+    toggle_ref_notify_pref,
+    should_send_ref_partner_notification,
 )
 import locale
 from emojis import get_emoji
@@ -291,14 +294,15 @@ async def _register_referral(referral_id: int, ref_master_id: int, referral_user
         cur.execute('SELECT * FROM referal_users WHERE referral_id = ?', (referral_id,))
         if cur.fetchone():
             return
-        try:
-            await bot.send_message(
-                ref_master_id,
-                f' <b>🎉 У вас новый реферал - {referral_username}!</b>',
-                parse_mode='HTML',
-            )
-        except Exception:
-            pass
+        if should_send_ref_partner_notification(cur, ref_master_id, 'referral'):
+            try:
+                await bot.send_message(
+                    ref_master_id,
+                    f' <b>🎉 У вас новый реферал - {referral_username}!</b>',
+                    parse_mode='HTML',
+                )
+            except Exception:
+                pass
         registration_date = date.today().isoformat()
         cur.execute('SELECT username FROM users WHERE id = ?', (ref_master_id,))
         ref_master_username_row = cur.fetchone()
@@ -619,10 +623,59 @@ async def referral_callback(callback: CallbackQuery):
                     '\nДля вывода обращаться @canawag'
                 ),
                 parse_mode='HTML',
-                reply_markup=get_ikb_referral(referral_link(callback.from_user.id)),
+                reply_markup=get_ikb_referral(referral_link(callback.from_user.id), with_settings=True),
             )
             return
     await callback.message.answer_photo(INVITE_FRIEND_PHOTO, caption=f"🤝 <b>Пригласить друга</b>\n\nВаша реферальная ссылка:\n<code>{referral_link(callback.from_user.id)}</code>\n\nВсего приведено друзей: {ref_amount}\n\n<tg-emoji emoji-id='5407064977544583568'>👌</tg-emoji><b>Приглашайте друзей — за каждого пользователя, который купит подписку по вашему приглашению, вы получите +7 дней к своей подписке!</b>", parse_mode='HTML', reply_markup=get_ikb_referral(referral_link(callback.from_user.id)))
+
+
+@dp.callback_query(lambda c: c.data == 'ref_settings')
+async def ref_settings_callback(callback: CallbackQuery):
+    await callback.answer()
+    uid = callback.from_user.id
+    with sq.connect('database.db') as con:
+        cur = con.cursor()
+        cur.execute('SELECT role FROM users WHERE id = ?', (uid,))
+        row = cur.fetchone()
+        role = (row[0] if row else None) or ''
+    if not role_has_refmaster_ui(role):
+        await callback.answer('Настройки доступны партнёрам Refmaster.', show_alert=True)
+        return
+    notify_referral, notify_deposit = get_ref_notify_prefs(uid)
+    try:
+        await callback.message.delete()
+    except Exception:
+        pass
+    await callback.message.answer(
+        '⚙️ <b>Настройки уведомлений</b>\n\n'
+        'Нажмите на пункт, чтобы включить или выключить push в Telegram.\n'
+        'Начисления на баланс работают в любом случае.',
+        parse_mode='HTML',
+        reply_markup=get_ikb_ref_settings(notify_referral, notify_deposit),
+    )
+
+
+@dp.callback_query(
+    lambda c: c.data in ('ref_toggle_notify_referral', 'ref_toggle_notify_deposit')
+)
+async def ref_toggle_notify_callback(callback: CallbackQuery):
+    uid = callback.from_user.id
+    with sq.connect('database.db') as con:
+        cur = con.cursor()
+        cur.execute('SELECT role FROM users WHERE id = ?', (uid,))
+        row = cur.fetchone()
+        role = (row[0] if row else None) or ''
+    if not role_has_refmaster_ui(role):
+        await callback.answer('Недоступно', show_alert=True)
+        return
+    kind = 'referral' if callback.data == 'ref_toggle_notify_referral' else 'deposit'
+    new_val = toggle_ref_notify_pref(uid, kind)
+    notify_referral, notify_deposit = get_ref_notify_prefs(uid)
+    await callback.message.edit_reply_markup(
+        reply_markup=get_ikb_ref_settings(notify_referral, notify_deposit),
+    )
+    label = 'Новый реферал' if kind == 'referral' else 'Новый депозит'
+    await callback.answer(f'{label}: {"включено" if new_val else "выключено"}')
 
 
 @dp.callback_query(lambda c: c.data == 'support')
@@ -768,19 +821,20 @@ async def check_payment_yookassa_callback(callback: CallbackQuery):
                 )
                 if reward:
                     ref_master_id, reward_kind = reward
-                    if reward_kind == 'share':
-                        bonus_text = f'+{amount_rub // 2} ₽ (50% от депозита)'
-                    else:
-                        bonus_text = f'+{REFMASTER_20_DEPOSIT_BONUS_RUB} ₽ на реф. баланс'
-                    try:
-                        await bot.send_message(
-                            ref_master_id,
-                            f'<tg-emoji emoji-id="5416117059207572332">➡️</tg-emoji> '
-                            f'Ваш реферал совершил депозит. Начислено {bonus_text}.',
-                            parse_mode='HTML',
-                        )
-                    except Exception as e:
-                        print(f'Не удалось уведомить рефовода {ref_master_id}: {e}')
+                    if should_send_ref_partner_notification(cur, ref_master_id, 'deposit'):
+                        if reward_kind == 'share':
+                            bonus_text = f'+{amount_rub // 2} ₽ (50% от депозита)'
+                        else:
+                            bonus_text = f'+{REFMASTER_20_DEPOSIT_BONUS_RUB} ₽ на реф. баланс'
+                        try:
+                            await bot.send_message(
+                                ref_master_id,
+                                f'<tg-emoji emoji-id="5416117059207572332">➡️</tg-emoji> '
+                                f'Ваш реферал совершил депозит. Начислено {bonus_text}.',
+                                parse_mode='HTML',
+                            )
+                        except Exception as e:
+                            print(f'Не удалось уведомить рефовода {ref_master_id}: {e}')
 
                 ref_master_id_sub = should_grant_subscription_referral_bonus(
                     cur, callback.from_user.id,

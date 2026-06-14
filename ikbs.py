@@ -55,15 +55,42 @@ ikb_documents = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text='Назад', callback_data='back', icon_custom_emoji_id=get_emoji('exit'))],
 ])
 
-def get_ikb_referral(link):
-    ikb_referral = InlineKeyboardMarkup(inline_keyboard=[
+def get_ikb_referral(link, with_settings: bool = False):
+    rows = [
         [InlineKeyboardButton(
             text='Скопировать ссылку',
             copy_text=CopyTextButton(text=f'{link}'))],
-        [InlineKeyboardButton(text='Поделиться ссылкой', switch_inline_query=f'Привет, приглашаю тебя пользоваться хорошим ВПН сервисом с обходом глушилок: {link}', style='primary')],
-        [InlineKeyboardButton(text='Назад', callback_data='back', icon_custom_emoji_id=get_emoji('exit'))],
+        [InlineKeyboardButton(
+            text='Поделиться ссылкой',
+            switch_inline_query=(
+                f'Привет, приглашаю тебя пользоваться хорошим ВПН сервисом '
+                f'с обходом глушилок: {link}'
+            ),
+            style='primary',
+        )],
+    ]
+    if with_settings:
+        rows.append([
+            InlineKeyboardButton(text='⚙️ Настройки', callback_data='ref_settings'),
+        ])
+    rows.append([
+        InlineKeyboardButton(text='Назад', callback_data='back', icon_custom_emoji_id=get_emoji('exit')),
     ])
-    return ikb_referral
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def get_ikb_ref_settings(notify_referral: bool, notify_deposit: bool):
+    ref_label = (
+        '🔔 Новый реферал: вкл' if notify_referral else '🔕 Новый реферал: выкл'
+    )
+    dep_label = (
+        '🔔 Новый депозит: вкл' if notify_deposit else '🔕 Новый депозит: выкл'
+    )
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=ref_label, callback_data='ref_toggle_notify_referral')],
+        [InlineKeyboardButton(text=dep_label, callback_data='ref_toggle_notify_deposit')],
+        [InlineKeyboardButton(text='◀️ Назад', callback_data='referral', icon_custom_emoji_id=get_emoji('exit'))],
+    ])
 
 ikb_support = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text='💬 Написать в поддержку', url='t.me/coffeemaniasup2')],

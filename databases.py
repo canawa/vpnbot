@@ -170,6 +170,18 @@ def create_tables():
             cur.execute('ALTER TABLE user_funnel ADD COLUMN survey_answer TEXT;')
         except Exception as e:
             print(e)
+        try:
+            cur.execute(
+                'ALTER TABLE users ADD COLUMN ref_notify_new_referral INTEGER DEFAULT 1;'
+            )
+        except Exception as e:
+            print(e)
+        try:
+            cur.execute(
+                'ALTER TABLE users ADD COLUMN ref_notify_new_deposit INTEGER DEFAULT 1;'
+            )
+        except Exception as e:
+            print(e)
         cur.execute(
             """
             CREATE UNIQUE INDEX IF NOT EXISTS ux_users_custom_ref_code
