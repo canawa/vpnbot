@@ -5,6 +5,7 @@ from datetime import datetime, date
 from datetime import timedelta
 import asyncio
 
+from aiogram.types import FSInputFile
 from main import PING_UNCONNECTED_PHOTO
 from texts import PING_CAPTION
 from vpn import Vpn, panel_user_record
@@ -13,6 +14,17 @@ from aiogram.exceptions import TelegramForbiddenError
 from renewal_funnel import renewal_funnel_handles_notifications
 
 TRIAL_UNCONNECTED_SLEEP_SEC = int(os.getenv('TRIAL_UNCONNECTED_SLEEP_SEC', '86400'))
+DAY_BEFORE_PHOTO_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'day_before.jpg')
+
+EXPIRING_TOMORROW_CAPTION = (
+    'Эй, завтра твой VPN отключится 👀\n\n'
+    'И ты снова останешься без:\n\n'
+    '<tg-emoji emoji-id="5332541698616629306">🔴</tg-emoji>Доступа к соцсетям\n'
+    '<tg-emoji emoji-id="5332356160324409089">⌛️</tg-emoji> Интернета на улице\n'
+    '<tg-emoji emoji-id="5420323339723881652">⚠️</tg-emoji> Видосиков на Ютубе\n\n'
+    'Мы знаем - это бесит. Поэтому и сделали так, чтобы у нас такого не было.\n\n'
+    'Продли подписку и забудь о проблемах, просто КАЙФУЙ'
+)
 
 
 async def check_expired_subscriptions_table(bot):
@@ -96,20 +108,22 @@ async def check_expiring_tomorrow_subscriptions_table(bot):
                         con.commit()
                         continue
                     try:
-                        await bot.send_message(
-                            user_id,
-                            (
-                                'Эй, завтра твой VPN отключится 👀\n\n'
-                                'И ты снова останешься без:\n\n'
-                                '<tg-emoji emoji-id="5332541698616629306">🔴</tg-emoji>Доступа к соцсетям\n'
-                                '<tg-emoji emoji-id="5332356160324409089">⌛️</tg-emoji> Интернета на улице\n'
-                                '<tg-emoji emoji-id="5420323339723881652">⚠️</tg-emoji> Видосиков на Ютубе\n\n'
-                                'Мы знаем - это бесит. Поэтому и сделали так, чтобы у нас такого не было.\n\n'
-                                'Продли подписку и забудь о проблемах, просто КАЙФУЙ'
-                            ),
-                            parse_mode='HTML',
-                            reply_markup=create_ikb_renew(),
-                        )
+                        markup = create_ikb_renew()
+                        if os.path.isfile(DAY_BEFORE_PHOTO_PATH):
+                            await bot.send_photo(
+                                user_id,
+                                FSInputFile(DAY_BEFORE_PHOTO_PATH),
+                                caption=EXPIRING_TOMORROW_CAPTION,
+                                parse_mode='HTML',
+                                reply_markup=markup,
+                            )
+                        else:
+                            await bot.send_message(
+                                user_id,
+                                EXPIRING_TOMORROW_CAPTION,
+                                parse_mode='HTML',
+                                reply_markup=markup,
+                            )
                         cur.execute(
                             'UPDATE subscriptions SET expiring_tomorrow_notified = 1 WHERE user_id = ?',
                             (user_id,),
