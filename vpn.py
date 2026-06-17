@@ -21,6 +21,7 @@ from sync_remna_expire_from_keys_once import get_user_by_tg_id
 
 dotenv.load_dotenv()
 BASE_LIMIT = 26843545600  # 25 ГБ
+BONUS_2_DAYS_TRAFFIC_BYTES = 2 * 1073741824  # +2 ГБ к текущему расходу
 
 
 def panel_user_record(payload) -> dict | None:
@@ -321,13 +322,17 @@ class Vpn:
         base_expire = max(now, panel_expire) if panel_expire and panel_expire > now else now
         new_expire = base_expire + timedelta(days=2)
 
+        traffic = user_data.get('userTraffic') or {}
+        used_bytes = int(traffic.get('usedTrafficBytes') or 0)
+        new_traffic_limit = used_bytes + BONUS_2_DAYS_TRAFFIC_BYTES
+
         response = requests.patch(
             f"{self.base_url}/api/users",
             headers={"Content-Type": "application/json", "Authorization": f"Bearer {self.token}"},
             json={
                 "username": f'user_{tg_id}',
                 "status": "ACTIVE",
-                "trafficLimitBytes": 2147483648,
+                "trafficLimitBytes": new_traffic_limit,
                 "expireAt": new_expire.isoformat(),
                 "telegramId": tg_id,
                 "hwidDeviceLimit": 3,
