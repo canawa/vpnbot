@@ -16,7 +16,7 @@ from prices import *
 from ikbs import *  
 import dotenv
 import os
-from aiogram.fsm.state import State, StatesGroup
+from aiogram.fsm.state import State, StatesGroup 
 import random
 from traitlets import Bool
 from yookassa import Configuration, Payment # для работы с Юкассой

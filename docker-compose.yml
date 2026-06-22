@@ -12,4 +12,7 @@ services:
       - ./database.db:/app/database.db
       - ./logs:/app/logs
 
+    ports:
+      - "${LK_PORT:-8080}:8080"
+
     restart: always

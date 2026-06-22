@@ -363,3 +363,4 @@ class Vpn:
             return {'errorCode': 'DB_ERROR', 'message': str(e)}
 
         return body
+
