@@ -200,6 +200,10 @@ def create_tables():
             cur.execute('ALTER TABLE referal_users ADD COLUMN adv_link_id INTEGER;')
         except Exception as e:
             print(e)
+        try:
+            cur.execute('ALTER TABLE adv_campaigns ADD COLUMN owner_id INTEGER;')
+        except Exception as e:
+            print(e)
         _migrate_adv_campaign_links(cur)
         cur.execute(
             """
@@ -468,18 +472,69 @@ def fetch_all_referrers_progress() -> list[tuple]:
         return cur.fetchall()
 
 
-def list_adv_campaigns() -> list[tuple]:
-    """rowid, campaign_name, campaign_description — новые сверху."""
+def list_adv_campaigns(*, viewer_id: int | None = None, admin_sees_all: bool = False) -> list[tuple]:
+    """rowid, campaign_name, campaign_description. Менеджер — только свои (owner_id)."""
     with sq.connect('database.db') as con:
         cur = con.cursor()
-        cur.execute(
-            """
-            SELECT rowid, campaign_name, campaign_description
-            FROM adv_campaigns
-            ORDER BY rowid DESC
-            """
-        )
+        if admin_sees_all:
+            cur.execute(
+                """
+                SELECT rowid, campaign_name, campaign_description
+                FROM adv_campaigns
+                ORDER BY rowid DESC
+                """
+            )
+        elif viewer_id is not None:
+            cur.execute(
+                """
+                SELECT rowid, campaign_name, campaign_description
+                FROM adv_campaigns
+                WHERE owner_id = ?
+                ORDER BY rowid DESC
+                """,
+                (int(viewer_id),),
+            )
+        else:
+            return []
         return cur.fetchall()
+
+
+def get_adv_campaign_owner_id(campaign_id: int) -> int | None:
+    with sq.connect('database.db') as con:
+        cur = con.cursor()
+        cur.execute('SELECT owner_id FROM adv_campaigns WHERE rowid = ?', (int(campaign_id),))
+        row = cur.fetchone()
+    if not row or row[0] is None:
+        return None
+    return int(row[0])
+
+
+def user_can_view_adv_campaign(
+    viewer_id: int,
+    campaign_id: int,
+    *,
+    admin_sees_all: bool,
+) -> bool:
+    if not get_adv_campaign(campaign_id):
+        return False
+    if admin_sees_all:
+        return True
+    owner_id = get_adv_campaign_owner_id(campaign_id)
+    return owner_id is not None and owner_id == int(viewer_id)
+
+
+def user_can_view_adv_link(
+    viewer_id: int,
+    link_id: int,
+    *,
+    admin_sees_all: bool,
+) -> bool:
+    link = get_adv_campaign_link(link_id)
+    if not link:
+        return False
+    return user_can_view_adv_campaign(
+        viewer_id, link['campaign_id'], admin_sees_all=admin_sees_all,
+    )
 
 
 def get_adv_campaign(campaign_id: int) -> tuple | None:
@@ -542,16 +597,18 @@ def create_adv_campaign_with_link(
     name: str,
     description: str,
     link_name: str = 'Ссылка 1',
+    *,
+    owner_id: int | None = None,
 ) -> tuple[int, int, str]:
     """Создаёт кампанию и первую ссылку. Возвращает (campaign_id, link_id, link_url)."""
     with sq.connect('database.db') as con:
         cur = con.cursor()
         cur.execute(
             """
-            INSERT INTO adv_campaigns (campaign_name, campaign_description, campaign_link)
-            VALUES (?, ?, ?)
+            INSERT INTO adv_campaigns (campaign_name, campaign_description, campaign_link, owner_id)
+            VALUES (?, ?, ?, ?)
             """,
-            (name, description, ''),
+            (name, description, '', owner_id),
         )
         campaign_id = int(cur.lastrowid)
         cur.execute(

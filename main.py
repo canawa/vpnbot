@@ -69,6 +69,8 @@ from databases import (
     add_adv_campaign_link,
     get_ref_partner_dashboard,
     list_adv_campaigns,
+    user_can_view_adv_campaign,
+    user_can_view_adv_link,
 )
 from payments import (
     get_pay_link,
@@ -134,6 +136,17 @@ def can_access_refmaster_payouts(user_id: int) -> bool:
 
 def _adv2_menu_markup():
     return build_ikb_adv2_menu()
+
+
+def _adv_campaigns_for_user(user_id: int):
+    return list_adv_campaigns(
+        viewer_id=user_id,
+        admin_sees_all=is_full_admin(user_id),
+    )
+
+
+def _user_sees_all_adv_campaigns(user_id: int) -> bool:
+    return is_full_admin(user_id)
 
 
 def _admin_panel_markup(user_id: int):
@@ -1761,10 +1774,11 @@ async def adv_campaigns_callback(callback: CallbackQuery, state: FSMContext):
 async def adv2_campaigns_callback(callback: CallbackQuery, state: FSMContext):
     await state.clear()
     await callback.message.delete()
-    count = len(list_adv_campaigns())
+    count = len(_adv_campaigns_for_user(callback.from_user.id))
+    label = 'Кампаний' if _user_sees_all_adv_campaigns(callback.from_user.id) else 'Ваших кампаний'
     await callback.message.answer(
         f'<b>Рекламные кампании 2.0</b>\n\n'
-        f'Кампаний в базе: <b>{count}</b>\n'
+        f'{label} в базе: <b>{count}</b>\n'
         'У каждой кампании — несколько ссылок (<code>?start=lID</code>).\n'
         'Статистика по кампании целиком или по отдельной ссылке.',
         parse_mode='HTML',
@@ -1897,7 +1911,11 @@ async def get_campaign_description(message: Message, state: FSMContext):
     data = await state.get_data()
     name = data["campaign_name"]
 
-    campaign_id, link_id, link_url = create_adv_campaign_with_link(name, description)
+    campaign_id, link_id, link_url = create_adv_campaign_with_link(
+        name,
+        description,
+        owner_id=None if is_full_admin(message.from_user.id) else message.from_user.id,
+    )
 
     await state.clear()
 
@@ -1917,7 +1935,8 @@ async def get_campaign_description(message: Message, state: FSMContext):
 )
 async def get_campaigns(callback: CallbackQuery):
     await callback.message.delete()
-    campaigns = list_adv_campaigns()
+    uid = callback.from_user.id
+    campaigns = _adv_campaigns_for_user(uid)
     if not campaigns:
         await callback.message.answer(
             'Кампаний пока нет. Создайте первую.',
@@ -1926,7 +1945,7 @@ async def get_campaigns(callback: CallbackQuery):
         return
     await callback.message.answer(
         'Выберите кампанию (ID в кнопке):',
-        reply_markup=generate_ikb_campaigns_list(),
+        reply_markup=generate_ikb_campaigns_list(campaigns),
     )
 
 @dp.callback_query(
@@ -1985,21 +2004,30 @@ async def adv_campaign_id_lookup_message(message: Message, state: FSMContext):
         return
     lookup_id = int(raw)
     hide_payouts = not can_access_refmaster_payouts(message.from_user.id)
+    uid = message.from_user.id
+    sees_all = _user_sees_all_adv_campaigns(uid)
 
     if lookup_mode == 'adv2':
-        if not (get_adv_campaign(lookup_id) or get_adv_campaign_link(lookup_id)):
+        if get_adv_campaign(lookup_id):
+            if not user_can_view_adv_campaign(uid, lookup_id, admin_sees_all=sees_all):
+                await message.answer('❌ Нет доступа к этой кампании.', reply_markup=back_markup)
+                await state.clear()
+                return
+            await _send_campaign_dashboard(
+                message, lookup_id, ikb_adv2_back, hide_payouts=hide_payouts,
+            )
+        elif get_adv_campaign_link(lookup_id):
+            if not user_can_view_adv_link(uid, lookup_id, admin_sees_all=sees_all):
+                await message.answer('❌ Нет доступа к этой ссылке.', reply_markup=back_markup)
+                await state.clear()
+                return
+            await _send_link_dashboard(message, lookup_id, hide_payouts=hide_payouts)
+        else:
             await message.answer(
                 '❌ Не найдено. Введите ID кампании или ссылки.',
                 parse_mode='HTML',
                 reply_markup=back_markup,
             )
-            return
-        if get_adv_campaign(lookup_id):
-            await _send_campaign_dashboard(
-                message, lookup_id, ikb_adv2_back, hide_payouts=hide_payouts,
-            )
-        else:
-            await _send_link_dashboard(message, lookup_id, hide_payouts=hide_payouts)
     else:
         if get_adv_campaign(lookup_id):
             await _send_campaign_dashboard(
@@ -2243,6 +2271,10 @@ async def adv_campaign_by_id_callback(callback: CallbackQuery):
     except ValueError:
         await callback.message.answer('❌ Неверный ID кампании.', reply_markup=ikb_adv2_back)
         return
+    uid = callback.from_user.id
+    if not user_can_view_adv_campaign(uid, campaign_id, admin_sees_all=_user_sees_all_adv_campaigns(uid)):
+        await callback.message.answer('❌ Нет доступа к этой кампании.', reply_markup=ikb_adv2_back)
+        return
     hide_payouts = not can_access_refmaster_payouts(callback.from_user.id)
     await _send_campaign_dashboard(
         callback.message,
@@ -2263,6 +2295,10 @@ async def adv_link_by_id_callback(callback: CallbackQuery):
     except ValueError:
         await callback.message.answer('❌ Неверный ID ссылки.', reply_markup=ikb_adv2_back)
         return
+    uid = callback.from_user.id
+    if not user_can_view_adv_link(uid, link_id, admin_sees_all=_user_sees_all_adv_campaigns(uid)):
+        await callback.message.answer('❌ Нет доступа к этой ссылке.', reply_markup=ikb_adv2_back)
+        return
     hide_payouts = not can_access_refmaster_payouts(callback.from_user.id)
     await _send_link_dashboard(callback.message, link_id, hide_payouts=hide_payouts)
 
@@ -2279,6 +2315,10 @@ async def adv_add_link_callback(callback: CallbackQuery):
         return
     if not get_adv_campaign(campaign_id):
         await callback.message.answer('❌ Кампания не найдена.', reply_markup=ikb_adv2_back)
+        return
+    uid = callback.from_user.id
+    if not user_can_view_adv_campaign(uid, campaign_id, admin_sees_all=_user_sees_all_adv_campaigns(uid)):
+        await callback.message.answer('❌ Нет доступа к этой кампании.', reply_markup=ikb_adv2_back)
         return
     link_id, link_url = add_adv_campaign_link(campaign_id)
     await callback.message.answer(

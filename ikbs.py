@@ -214,10 +214,11 @@ ikb_adv_refmaster_detail_back = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text=' Назад в кампании', callback_data='adv_campaigns', icon_custom_emoji_id=get_emoji('exit'))],
 ])
 
-def generate_ikb_campaigns_list():
-    from databases import list_adv_campaigns
+def generate_ikb_campaigns_list(campaigns: list | None = None):
+    if campaigns is None:
+        from databases import list_adv_campaigns
+        campaigns = list_adv_campaigns(admin_sees_all=True)
 
-    campaigns = list_adv_campaigns()
     keyboard = []
     for rowid, name, _desc in campaigns:
         label = name if len(name) <= 28 else f'{name[:25]}…'
