@@ -116,10 +116,9 @@ ikb_admin = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text='👉🏼 Рефералы', callback_data='admin_referrals')],
     [InlineKeyboardButton(text='🔗 Авторские ссылки', callback_data='admin_custom_ref')],
     [InlineKeyboardButton(text='👑 Роли', callback_data='admin_roles')],
-    [InlineKeyboardButton(text='🔊 Напомнить юзерам о бесплатном тестовом периоде', callback_data='admin_notify_trial')],
-    # [InlineKeyboardButton(text='⏰ Уведомить ро скидке у кого нет подписки', callback_data='admin_notify_sale')],
     [InlineKeyboardButton(text='🤝 Напомнить о рефке', callback_data='admin_notify_referral')],
     [InlineKeyboardButton(text='Рекламные кампании', callback_data='adv_campaigns')],
+    [InlineKeyboardButton(text='Рекламные кампании 2.0', callback_data='adv2_campaigns')],
     [InlineKeyboardButton(text='📊 Статистика воронки', callback_data='admin_funnel_stats')],
     [InlineKeyboardButton(text='Рассказать челам что 5р в день', callback_data='ping_unactive')],
     # [InlineKeyboardButton(text='оповесть бомжей о снижении', callback_data='ping_brokes')]
@@ -137,14 +136,43 @@ def get_ikb_connect_via_app(link):
     ])
     return ikb
 
-ikb_adv_campaigns_menu = InlineKeyboardMarkup(inline_keyboard=[
-    [InlineKeyboardButton(text='Создать новую кампанию', callback_data='adv_new_campaign_create')],
-    [InlineKeyboardButton(text='Список кампаний', callback_data='adv_get_campaigns')],
-    [InlineKeyboardButton(text='👑 Refmaster / 2.0 — выплаты', callback_data='adv_refmasters')],
-    [InlineKeyboardButton(text='Смотреть по ID', callback_data='adv_lookup_by_id')],
-    [InlineKeyboardButton(text='Прогресс всех рефоводов', callback_data='adv_referrers_progress')],
-    [InlineKeyboardButton(text=' Назад', callback_data='admin_back', icon_custom_emoji_id=get_emoji('exit'))],
+ikb_adv_manager_panel = InlineKeyboardMarkup(inline_keyboard=[
+    [InlineKeyboardButton(text='Рекламные кампании 2.0', callback_data='adv2_campaigns')],
 ])
+
+
+def build_ikb_adv_legacy_menu() -> InlineKeyboardMarkup:
+    """Рефоводы, выплаты, старый поиск по ID."""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(
+            text='👑 Refmaster / 2.0 — выплаты',
+            callback_data='adv_refmasters',
+        )],
+        [InlineKeyboardButton(text='Смотреть по ID', callback_data='adv_lookup_by_id')],
+        [InlineKeyboardButton(
+            text='Прогресс всех рефоводов',
+            callback_data='adv_referrers_progress',
+        )],
+        [InlineKeyboardButton(
+            text=' Назад',
+            callback_data='admin_back',
+            icon_custom_emoji_id=get_emoji('exit'),
+        )],
+    ])
+
+
+def build_ikb_adv2_menu() -> InlineKeyboardMarkup:
+    """Кампании с несколькими ссылками."""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text='Создать новую кампанию', callback_data='adv_new_campaign_create')],
+        [InlineKeyboardButton(text='Список кампаний', callback_data='adv_get_campaigns')],
+        [InlineKeyboardButton(text='Смотреть по ID', callback_data='adv2_lookup_by_id')],
+        [InlineKeyboardButton(
+            text=' Назад',
+            callback_data='admin_back',
+            icon_custom_emoji_id=get_emoji('exit'),
+        )],
+    ])
 
 
 def generate_ikb_refmaster_partners(partners: list) -> InlineKeyboardMarkup:
@@ -191,7 +219,7 @@ def generate_ikb_campaigns_list():
 
     campaigns = list_adv_campaigns()
     keyboard = []
-    for rowid, name, _desc, _link in campaigns:
+    for rowid, name, _desc in campaigns:
         label = name if len(name) <= 28 else f'{name[:25]}…'
         keyboard.append([
             InlineKeyboardButton(
@@ -201,22 +229,69 @@ def generate_ikb_campaigns_list():
         ])
     if not campaigns:
         keyboard.append([
-            InlineKeyboardButton(text='(кампаний пока нет)', callback_data='adv_campaigns'),
+            InlineKeyboardButton(text='(кампаний пока нет)', callback_data='adv2_campaigns'),
         ])
     keyboard.append([
         InlineKeyboardButton(
             text='Найти по ID',
-            callback_data='adv_lookup_by_id',
+            callback_data='adv2_lookup_by_id',
         ),
     ])
     keyboard.append([
         InlineKeyboardButton(
             text='Назад',
-            callback_data='adv_campaigns',
+            callback_data='adv2_campaigns',
             icon_custom_emoji_id=get_emoji('exit'),
         ),
     ])
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
+
+def generate_ikb_campaign_detail(campaign_id: int, links: list) -> InlineKeyboardMarkup:
+    keyboard = []
+    for link in links[:20]:
+        lid = link['id']
+        name = link.get('link_name') or f'#{lid}'
+        short = name if len(name) <= 22 else f'{name[:19]}…'
+        refs = int(link.get('refs_total') or 0)
+        keyboard.append([
+            InlineKeyboardButton(
+                text=f'🔗 {lid} · {short} · {refs} реф.',
+                callback_data=f'adv_lid_{lid}',
+            )
+        ])
+    keyboard.append([
+        InlineKeyboardButton(
+            text='➕ Добавить ссылку',
+            callback_data=f'adv_add_link_{campaign_id}',
+        ),
+    ])
+    keyboard.append([
+        InlineKeyboardButton(
+            text='◀️ К списку кампаний',
+            callback_data='adv_get_campaigns',
+            icon_custom_emoji_id=get_emoji('exit'),
+        ),
+    ])
+    keyboard.append([
+        InlineKeyboardButton(
+            text=' Назад в меню',
+            callback_data='adv2_campaigns',
+            icon_custom_emoji_id=get_emoji('exit'),
+        ),
+    ])
+    return InlineKeyboardMarkup(inline_keyboard=keyboard)
+
+
+def generate_ikb_link_detail_back(campaign_id: int) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text='◀️ К кампании', callback_data=f'adv_cid_{campaign_id}')],
+        [InlineKeyboardButton(
+            text=' Назад в меню',
+            callback_data='adv2_campaigns',
+            icon_custom_emoji_id=get_emoji('exit'),
+        )],
+    ])
+
 
 ikb_admin_back = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text=' Назад', callback_data='admin_back', icon_custom_emoji_id=get_emoji('exit'))],
@@ -224,6 +299,10 @@ ikb_admin_back = InlineKeyboardMarkup(inline_keyboard=[
 
 ikb_adv_back = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text=' Назад', callback_data='adv_campaigns', icon_custom_emoji_id=get_emoji('exit'))],
+])
+
+ikb_adv2_back = InlineKeyboardMarkup(inline_keyboard=[
+    [InlineKeyboardButton(text=' Назад', callback_data='adv2_campaigns', icon_custom_emoji_id=get_emoji('exit'))],
 ])
 
 

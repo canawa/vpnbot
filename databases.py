@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 
 BOT_USERNAME = 'coffemaniaVPNbot'
 _REF_CODE_RE = re.compile(r'^[A-Za-z0-9_-]{1,64}$')
+ADV_LINK_START_PREFIX = 'l'
 
 
 def upsert_subscription_days(user_id: int, duration_days: int = None, expires_at: str = None) -> str:
@@ -98,9 +99,22 @@ def create_tables():
         CREATE TABLE IF NOT EXISTS adv_campaigns (
             campaign_name TEXT NOT NULL,
             campaign_description TEXT,
-            campaign_link TEXT NOT NULL
+            campaign_link TEXT
         )
         """)
+
+        cur.execute("""
+        CREATE TABLE IF NOT EXISTS adv_campaign_links (
+            rowid INTEGER PRIMARY KEY AUTOINCREMENT,
+            campaign_id INTEGER NOT NULL,
+            link_name TEXT NOT NULL,
+            created_at TEXT NOT NULL
+        )
+        """)
+        cur.execute(
+            'CREATE INDEX IF NOT EXISTS ix_adv_campaign_links_campaign '
+            'ON adv_campaign_links(campaign_id)'
+        )
 
         # Воронка на покупку
         cur.execute("""
@@ -182,6 +196,11 @@ def create_tables():
             )
         except Exception as e:
             print(e)
+        try:
+            cur.execute('ALTER TABLE referal_users ADD COLUMN adv_link_id INTEGER;')
+        except Exception as e:
+            print(e)
+        _migrate_adv_campaign_links(cur)
         cur.execute(
             """
             CREATE UNIQUE INDEX IF NOT EXISTS ux_users_custom_ref_code
@@ -216,6 +235,29 @@ def create_tables():
         con.commit()
 
 
+def _migrate_adv_campaign_links(cur) -> None:
+    """У каждой кампании — минимум одна запись в adv_campaign_links."""
+    cur.execute('SELECT rowid FROM adv_campaigns ORDER BY rowid')
+    for (campaign_id,) in cur.fetchall():
+        cur.execute(
+            'SELECT 1 FROM adv_campaign_links WHERE campaign_id = ? LIMIT 1',
+            (campaign_id,),
+        )
+        if cur.fetchone():
+            continue
+        cur.execute(
+            """
+            INSERT INTO adv_campaign_links (campaign_id, link_name, created_at)
+            VALUES (?, ?, ?)
+            """,
+            (campaign_id, 'Ссылка 1', datetime.now().isoformat()),
+        )
+
+
+def build_adv_link_url(link_id: int) -> str:
+    return f'https://t.me/{BOT_USERNAME}?start={ADV_LINK_START_PREFIX}{int(link_id)}'
+
+
 def normalize_ref_code(code: str) -> str | None:
     if code is None:
         return None
@@ -225,21 +267,49 @@ def normalize_ref_code(code: str) -> str | None:
     return code
 
 
-def resolve_ref_master_id(start_payload: str) -> int | None:
-    """Код автора в start=… или числовой Telegram ID."""
+def resolve_referral_start(start_payload: str) -> tuple[int | None, int | None]:
+    """
+    Разбор ?start=… → (ref_master_id, adv_link_id).
+    Для кампании ref_master_id = campaign_id; для рефовода = telegram id.
+    """
     payload = (start_payload or '').strip()
     if not payload:
-        return None
+        return None, None
+
     with sq.connect('database.db') as con:
         cur = con.cursor()
         cur.execute('SELECT id FROM users WHERE custom_ref_code = ?', (payload,))
         row = cur.fetchone()
         if row:
-            return int(row[0])
-    try:
-        return int(payload)
-    except ValueError:
-        return None
+            return int(row[0]), None
+
+        prefix = ADV_LINK_START_PREFIX
+        if payload.lower().startswith(prefix) and payload[len(prefix):].isdigit():
+            link_id = int(payload[len(prefix):])
+            cur.execute(
+                'SELECT campaign_id FROM adv_campaign_links WHERE rowid = ?',
+                (link_id,),
+            )
+            link_row = cur.fetchone()
+            if link_row:
+                return int(link_row[0]), link_id
+            return None, None
+
+        if not payload.isdigit():
+            return None, None
+
+        numeric_id = int(payload)
+        cur.execute('SELECT 1 FROM adv_campaigns WHERE rowid = ?', (numeric_id,))
+        if cur.fetchone():
+            return numeric_id, None
+
+        return numeric_id, None
+
+
+def resolve_ref_master_id(start_payload: str) -> int | None:
+    """Код автора, ссылка кампании lID, ID кампании или Telegram ID."""
+    ref_master_id, _adv_link_id = resolve_referral_start(start_payload)
+    return ref_master_id
 
 
 def get_referral_start_param(user_id: int) -> str:
@@ -399,12 +469,12 @@ def fetch_all_referrers_progress() -> list[tuple]:
 
 
 def list_adv_campaigns() -> list[tuple]:
-    """rowid, campaign_name, campaign_description, campaign_link — новые сверху."""
+    """rowid, campaign_name, campaign_description — новые сверху."""
     with sq.connect('database.db') as con:
         cur = con.cursor()
         cur.execute(
             """
-            SELECT rowid, campaign_name, campaign_description, campaign_link
+            SELECT rowid, campaign_name, campaign_description
             FROM adv_campaigns
             ORDER BY rowid DESC
             """
@@ -413,12 +483,12 @@ def list_adv_campaigns() -> list[tuple]:
 
 
 def get_adv_campaign(campaign_id: int) -> tuple | None:
-    """rowid, campaign_name, campaign_description, campaign_link."""
+    """rowid, campaign_name, campaign_description."""
     with sq.connect('database.db') as con:
         cur = con.cursor()
         cur.execute(
             """
-            SELECT rowid, campaign_name, campaign_description, campaign_link
+            SELECT rowid, campaign_name, campaign_description
             FROM adv_campaigns
             WHERE rowid = ?
             """,
@@ -427,25 +497,332 @@ def get_adv_campaign(campaign_id: int) -> tuple | None:
         return cur.fetchone()
 
 
+def list_adv_campaign_links(campaign_id: int) -> list[dict]:
+    with sq.connect('database.db') as con:
+        cur = con.cursor()
+        cur.execute(
+            """
+            SELECT rowid, link_name, created_at
+            FROM adv_campaign_links
+            WHERE campaign_id = ?
+            ORDER BY rowid ASC
+            """,
+            (campaign_id,),
+        )
+        return [
+            {'id': int(row[0]), 'link_name': row[1], 'created_at': row[2]}
+            for row in cur.fetchall()
+        ]
+
+
+def get_adv_campaign_link(link_id: int) -> dict | None:
+    with sq.connect('database.db') as con:
+        cur = con.cursor()
+        cur.execute(
+            """
+            SELECT rowid, campaign_id, link_name, created_at
+            FROM adv_campaign_links
+            WHERE rowid = ?
+            """,
+            (link_id,),
+        )
+        row = cur.fetchone()
+    if not row:
+        return None
+    return {
+        'id': int(row[0]),
+        'campaign_id': int(row[1]),
+        'link_name': row[2],
+        'created_at': row[3],
+        'link': build_adv_link_url(int(row[0])),
+    }
+
+
+def create_adv_campaign_with_link(
+    name: str,
+    description: str,
+    link_name: str = 'Ссылка 1',
+) -> tuple[int, int, str]:
+    """Создаёт кампанию и первую ссылку. Возвращает (campaign_id, link_id, link_url)."""
+    with sq.connect('database.db') as con:
+        cur = con.cursor()
+        cur.execute(
+            """
+            INSERT INTO adv_campaigns (campaign_name, campaign_description, campaign_link)
+            VALUES (?, ?, ?)
+            """,
+            (name, description, ''),
+        )
+        campaign_id = int(cur.lastrowid)
+        cur.execute(
+            """
+            INSERT INTO adv_campaign_links (campaign_id, link_name, created_at)
+            VALUES (?, ?, ?)
+            """,
+            (campaign_id, link_name, datetime.now().isoformat()),
+        )
+        link_id = int(cur.lastrowid)
+        link_url = build_adv_link_url(link_id)
+        cur.execute(
+            'UPDATE adv_campaigns SET campaign_link = ? WHERE rowid = ?',
+            (link_url, campaign_id),
+        )
+        con.commit()
+    return campaign_id, link_id, link_url
+
+
+def add_adv_campaign_link(campaign_id: int, link_name: str | None = None) -> tuple[int, str]:
+    """Новая ссылка в кампании. Возвращает (link_id, link_url)."""
+    campaign_id = int(campaign_id)
+    with sq.connect('database.db') as con:
+        cur = con.cursor()
+        cur.execute(
+            'SELECT COUNT(*) FROM adv_campaign_links WHERE campaign_id = ?',
+            (campaign_id,),
+        )
+        count = int((cur.fetchone() or (0,))[0])
+        name = (link_name or '').strip() or f'Ссылка {count + 1}'
+        cur.execute(
+            """
+            INSERT INTO adv_campaign_links (campaign_id, link_name, created_at)
+            VALUES (?, ?, ?)
+            """,
+            (campaign_id, name, datetime.now().isoformat()),
+        )
+        link_id = int(cur.lastrowid)
+        con.commit()
+    return link_id, build_adv_link_url(link_id)
+
+
+def _referral_filter_sql(
+    ref_master_id: int,
+    adv_link_id: int | None = None,
+) -> tuple[str, list]:
+    if adv_link_id is not None:
+        return 'r.ref_master_id = ? AND r.adv_link_id = ?', [ref_master_id, adv_link_id]
+    return 'r.ref_master_id = ?', [ref_master_id]
+
+
+def _fetch_referral_stats(cur, ref_master_id: int, adv_link_id: int | None = None) -> dict:
+    where_sql, params = _referral_filter_sql(ref_master_id, adv_link_id)
+
+    cur.execute(f'SELECT COUNT(*) FROM referal_users r WHERE {where_sql}', params)
+    refs_total = int((cur.fetchone() or (0,))[0])
+
+    cur.execute(
+        f"""
+        SELECT COUNT(DISTINCT r.referral_id)
+        FROM referal_users r
+        INNER JOIN transactions t ON t.user_id = r.referral_id
+            AND t.type IN ('CryptoBot', 'yookassa')
+        WHERE {where_sql}
+        """,
+        params,
+    )
+    paying_refs = int((cur.fetchone() or (0,))[0])
+
+    cur.execute(
+        f"""
+        SELECT COUNT(*), COALESCE(SUM(CAST(t.amount AS INTEGER)), 0)
+        FROM transactions t
+        JOIN referal_users r ON r.referral_id = t.user_id
+        WHERE {where_sql}
+          AND t.type IN ('CryptoBot', 'yookassa')
+        """,
+        params,
+    )
+    dep_row = cur.fetchone() or (0, 0)
+    deposits_count = int(dep_row[0] or 0)
+    deposits_total = int(dep_row[1] or 0)
+
+    cur.execute(
+        f"""
+        SELECT COUNT(*), COALESCE(SUM(CAST(t.amount AS INTEGER)), 0)
+        FROM transactions t
+        JOIN referal_users r ON r.referral_id = t.user_id
+        WHERE {where_sql}
+          AND t.type IN ('CryptoBot', 'yookassa')
+          AND CAST(t.amount AS INTEGER) >= 149
+          AND date(t.date) >= date(r.registration_date)
+          AND date(t.date) <= date(r.registration_date, '+90 days')
+        """,
+        params,
+    )
+    qual_row = cur.fetchone() or (0, 0)
+    qualified_deposits_count = int(qual_row[0] or 0)
+    qualified_deposits_total = int(qual_row[1] or 0)
+
+    cur.execute(
+        f"""
+        SELECT COUNT(*)
+        FROM transactions t
+        JOIN referal_users r ON r.referral_id = t.user_id
+        WHERE {where_sql}
+          AND t.type IN ('CryptoBot', 'yookassa')
+          AND CAST(t.amount AS INTEGER) >= 149
+        """,
+        params,
+    )
+    bonus_deposits_count = int((cur.fetchone() or (0,))[0] or 0)
+
+    cur.execute(
+        f"""
+        SELECT
+            r.referral_id,
+            COALESCE(r.referral_username, u.username, ''),
+            CAST(t.amount AS INTEGER),
+            t.type,
+            t.date,
+            CASE
+                WHEN date(t.date) >= date(r.registration_date)
+                 AND date(t.date) <= date(r.registration_date, '+90 days')
+                THEN 1 ELSE 0
+            END AS in_commission_window
+        FROM transactions t
+        JOIN referal_users r ON r.referral_id = t.user_id
+        LEFT JOIN users u ON u.id = r.referral_id
+        WHERE {where_sql}
+          AND t.type IN ('CryptoBot', 'yookassa')
+        ORDER BY t.date DESC
+        LIMIT 20
+        """,
+        params,
+    )
+    deposit_rows = [
+        {
+            'referral_id': row[0],
+            'referral_username': row[1] or '',
+            'amount': int(row[2] or 0),
+            'pay_type': row[3],
+            'date': row[4],
+            'in_window': bool(row[5]),
+        }
+        for row in cur.fetchall()
+    ]
+
+    return {
+        'refs_total': refs_total,
+        'paying_refs': paying_refs,
+        'deposits_count': deposits_count,
+        'deposits_total': deposits_total,
+        'qualified_deposits_count': qualified_deposits_count,
+        'qualified_deposits_total': qualified_deposits_total,
+        'bonus_deposits_count': bonus_deposits_count,
+        'deposit_rows': deposit_rows,
+    }
+
+
+def _link_brief_stats(cur, campaign_id: int, link_id: int) -> dict:
+    stats = _fetch_referral_stats(cur, campaign_id, link_id)
+    return {
+        'id': link_id,
+        'refs_total': stats['refs_total'],
+        'paying_refs': stats['paying_refs'],
+        'deposits_total': stats['deposits_total'],
+    }
+
+
+def get_adv_campaign_dashboard(campaign_id: int) -> dict | None:
+    """Сводка по кампании целиком (все ссылки)."""
+    campaign_id = int(campaign_id)
+    campaign = get_adv_campaign(campaign_id)
+    if not campaign:
+        return None
+
+    _rowid, name, description = campaign
+    with sq.connect('database.db') as con:
+        cur = con.cursor()
+        stats = _fetch_referral_stats(cur, campaign_id)
+        links_raw = list_adv_campaign_links(campaign_id)
+        links = []
+        for link in links_raw:
+            brief = _link_brief_stats(cur, campaign_id, link['id'])
+            links.append({
+                **link,
+                'link': build_adv_link_url(link['id']),
+                'refs_total': brief['refs_total'],
+                'paying_refs': brief['paying_refs'],
+                'deposits_total': brief['deposits_total'],
+            })
+
+    return {
+        'campaign_id': campaign_id,
+        'ref_master_id': campaign_id,
+        'is_campaign': True,
+        'is_link': False,
+        'campaign_name': name,
+        'campaign_description': description or '',
+        'campaign_link': None,
+        'links': links,
+        'username': None,
+        'role': None,
+        'ref_balance': 0,
+        'ref_withdraw': 0,
+        'ref_amount': stats['refs_total'],
+        'custom_ref_code': None,
+        **stats,
+    }
+
+
+def get_adv_link_dashboard(link_id: int) -> dict | None:
+    """Сводка по одной ссылке кампании."""
+    link = get_adv_campaign_link(link_id)
+    if not link:
+        return None
+
+    campaign = get_adv_campaign(link['campaign_id'])
+    if not campaign:
+        return None
+
+    _rowid, name, description = campaign
+    with sq.connect('database.db') as con:
+        cur = con.cursor()
+        stats = _fetch_referral_stats(cur, link['campaign_id'], link_id)
+
+    return {
+        'campaign_id': link['campaign_id'],
+        'link_id': link_id,
+        'link_name': link['link_name'],
+        'ref_master_id': link['campaign_id'],
+        'is_campaign': False,
+        'is_link': True,
+        'campaign_name': name,
+        'campaign_description': description or '',
+        'campaign_link': link['link'],
+        'links': [],
+        'username': None,
+        'role': None,
+        'ref_balance': 0,
+        'ref_withdraw': 0,
+        'ref_amount': stats['refs_total'],
+        'custom_ref_code': None,
+        **stats,
+    }
+
+
+def resolve_admin_adv_lookup(lookup_id: int) -> dict | None:
+    """Карточка по ID: кампания → ссылка → рефовод."""
+    lookup_id = int(lookup_id)
+    if get_adv_campaign(lookup_id):
+        return get_adv_campaign_dashboard(lookup_id)
+    if get_adv_campaign_link(lookup_id):
+        return get_adv_link_dashboard(lookup_id)
+    return get_ref_partner_dashboard(lookup_id)
+
+
 def get_ref_partner_dashboard(ref_master_id: int) -> dict | None:
     """
-    Сводка по ref_master_id: кампания (adv_campaigns rowid) и/или пользователь-рефовод.
-    ID в ?start=… совпадает с ref_master_id в referal_users.
+    Сводка по ref_master_id: пользователь-рефовод (не кампания).
+    Кампании и ссылки — через get_adv_campaign_dashboard / get_adv_link_dashboard.
     """
     ref_master_id = int(ref_master_id)
-    campaign = get_adv_campaign(ref_master_id)
+    if get_adv_campaign(ref_master_id):
+        return get_adv_campaign_dashboard(ref_master_id)
 
-    if campaign:
-        _rowid, name, description, link = campaign
-        campaign_name = name
-        campaign_description = description or ''
-        campaign_link = link
-        is_campaign = True
-    else:
-        campaign_name = f'Рефовод #{ref_master_id}'
-        campaign_description = ''
-        campaign_link = referral_link(ref_master_id)
-        is_campaign = False
+    campaign_name = f'Рефовод #{ref_master_id}'
+    campaign_description = ''
+    campaign_link = referral_link(ref_master_id)
+    is_campaign = False
 
     with sq.connect('database.db') as con:
         cur = con.cursor()
@@ -463,129 +840,25 @@ def get_ref_partner_dashboard(ref_master_id: int) -> dict | None:
         ref_amount = int(user_row[4]) if user_row else 0
         custom_ref_code = user_row[5] if user_row else None
 
-        cur.execute(
-            'SELECT COUNT(*) FROM referal_users WHERE ref_master_id = ?',
-            (ref_master_id,),
-        )
-        refs_total = int((cur.fetchone() or (0,))[0])
+        stats = _fetch_referral_stats(cur, ref_master_id)
 
-        cur.execute(
-            """
-            SELECT COUNT(DISTINCT r.referral_id)
-            FROM referal_users r
-            INNER JOIN transactions t ON t.user_id = r.referral_id
-                AND t.type IN ('CryptoBot', 'yookassa')
-            WHERE r.ref_master_id = ?
-            """,
-            (ref_master_id,),
-        )
-        paying_refs = int((cur.fetchone() or (0,))[0])
-
-        cur.execute(
-            """
-            SELECT COUNT(*), COALESCE(SUM(CAST(t.amount AS INTEGER)), 0)
-            FROM transactions t
-            JOIN referal_users r ON r.referral_id = t.user_id
-            WHERE r.ref_master_id = ?
-              AND t.type IN ('CryptoBot', 'yookassa')
-            """,
-            (ref_master_id,),
-        )
-        dep_row = cur.fetchone() or (0, 0)
-        deposits_count = int(dep_row[0] or 0)
-        deposits_total = int(dep_row[1] or 0)
-
-        cur.execute(
-            """
-            SELECT COUNT(*), COALESCE(SUM(CAST(t.amount AS INTEGER)), 0)
-            FROM transactions t
-            JOIN referal_users r ON r.referral_id = t.user_id
-            WHERE r.ref_master_id = ?
-              AND t.type IN ('CryptoBot', 'yookassa')
-              AND CAST(t.amount AS INTEGER) >= 149
-              AND date(t.date) >= date(r.registration_date)
-              AND date(t.date) <= date(r.registration_date, '+90 days')
-            """,
-            (ref_master_id,),
-        )
-        qual_row = cur.fetchone() or (0, 0)
-        qualified_deposits_count = int(qual_row[0] or 0)
-        qualified_deposits_total = int(qual_row[1] or 0)
-
-        cur.execute(
-            """
-            SELECT COUNT(*)
-            FROM transactions t
-            JOIN referal_users r ON r.referral_id = t.user_id
-            WHERE r.ref_master_id = ?
-              AND t.type IN ('CryptoBot', 'yookassa')
-              AND CAST(t.amount AS INTEGER) >= 149
-            """,
-            (ref_master_id,),
-        )
-        bonus_deposits_count = int((cur.fetchone() or (0,))[0] or 0)
-
-        cur.execute(
-            """
-            SELECT
-                r.referral_id,
-                COALESCE(r.referral_username, u.username, ''),
-                CAST(t.amount AS INTEGER),
-                t.type,
-                t.date,
-                CASE
-                    WHEN date(t.date) >= date(r.registration_date)
-                     AND date(t.date) <= date(r.registration_date, '+90 days')
-                    THEN 1 ELSE 0
-                END AS in_commission_window
-            FROM transactions t
-            JOIN referal_users r ON r.referral_id = t.user_id
-            LEFT JOIN users u ON u.id = r.referral_id
-            WHERE r.ref_master_id = ?
-              AND t.type IN ('CryptoBot', 'yookassa')
-            ORDER BY t.date DESC
-            LIMIT 20
-            """,
-            (ref_master_id,),
-        )
-        deposit_rows = [
-            {
-                'referral_id': row[0],
-                'referral_username': row[1] or '',
-                'amount': int(row[2] or 0),
-                'pay_type': row[3],
-                'date': row[4],
-                'in_window': bool(row[5]),
-            }
-            for row in cur.fetchall()
-        ]
-
-    if not campaign and not user_row and refs_total == 0:
+    if not user_row and stats['refs_total'] == 0:
         return None
 
     return {
         'ref_master_id': ref_master_id,
+        'campaign_id': None,
         'is_campaign': is_campaign,
+        'is_link': False,
         'campaign_name': campaign_name,
         'campaign_description': campaign_description,
         'campaign_link': campaign_link,
+        'links': [],
         'username': username,
         'role': role,
         'ref_balance': ref_balance,
         'ref_withdraw': ref_withdraw,
         'ref_amount': ref_amount,
         'custom_ref_code': custom_ref_code,
-        'refs_total': refs_total,
-        'paying_refs': paying_refs,
-        'deposits_count': deposits_count,
-        'deposits_total': deposits_total,
-        'qualified_deposits_count': qualified_deposits_count,
-        'qualified_deposits_total': qualified_deposits_total,
-        'bonus_deposits_count': bonus_deposits_count,
-        'deposit_rows': deposit_rows,
+        **stats,
     }
-
-
-def get_adv_campaign_dashboard(campaign_id: int) -> dict | None:
-    """Обратная совместимость: сводка по ID кампании / рефовода."""
-    return get_ref_partner_dashboard(campaign_id)

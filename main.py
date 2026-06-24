@@ -28,12 +28,14 @@ from check_subscription import is_subscribed
 from referrals import (
     REFMASTER_ROLE,
     REFMASTER_20_ROLE,
+    ADV_MANAGER_ROLE,
     REFMASTER_20_DEPOSIT_BONUS_RUB,
     REFMASTER_20_MIN_DEPOSIT_RUB,
     role_has_refmaster_ui,
     role_uses_deposit_share,
     role_uses_fixed_deposit_bonus,
     role_display_name,
+    user_is_adv_manager,
     apply_deposit_reward_to_ref_partner,
     should_grant_subscription_referral_bonus,
     mark_subscription_referral_bonus_used,
@@ -53,11 +55,18 @@ from databases import (
     upsert_subscription_days,
     referral_link,
     resolve_ref_master_id,
+    resolve_referral_start,
     set_custom_ref_code,
     normalize_ref_code,
     fetch_all_referrers_progress,
     fetch_refmaster_partner_rows,
     get_adv_campaign_dashboard,
+    get_adv_link_dashboard,
+    get_adv_campaign,
+    get_adv_campaign_link,
+    resolve_admin_adv_lookup,
+    create_adv_campaign_with_link,
+    add_adv_campaign_link,
     get_ref_partner_dashboard,
     list_adv_campaigns,
 )
@@ -109,6 +118,30 @@ logging.basicConfig(
 vpn = Vpn()
 
 ADMIN_IDS = (1979477416, 7562967579)
+
+
+def is_full_admin(user_id: int) -> bool:
+    return user_id in ADMIN_IDS
+
+
+def can_access_adv_campaigns(user_id: int) -> bool:
+    return is_full_admin(user_id) or user_is_adv_manager(user_id)
+
+
+def can_access_refmaster_payouts(user_id: int) -> bool:
+    return is_full_admin(user_id)
+
+
+def _adv2_menu_markup():
+    return build_ikb_adv2_menu()
+
+
+def _admin_panel_markup(user_id: int):
+    if is_full_admin(user_id):
+        return ikb_admin
+    if user_is_adv_manager(user_id):
+        return ikb_adv_manager_panel
+    return None
 
 _SUBSCRIPTION_URL_KEYS = ( # не уверен
     'subscriptionUrl',
@@ -283,7 +316,12 @@ async def _activate_trial_for_user(callback: CallbackQuery) -> bool:
     return True
 
 
-async def _register_referral(referral_id: int, ref_master_id: int, referral_username: str | None):
+async def _register_referral(
+    referral_id: int,
+    ref_master_id: int,
+    referral_username: str | None,
+    adv_link_id: int | None = None,
+):
     if referral_id == ref_master_id:
         return
     with sq.connect('database.db') as con:
@@ -308,8 +346,17 @@ async def _register_referral(referral_id: int, ref_master_id: int, referral_user
         ref_master_username_row = cur.fetchone()
         ref_master_username = ref_master_username_row[0] if ref_master_username_row else None
         cur.execute(
-            'INSERT OR IGNORE INTO referal_users (referral_id, ref_master_id, registration_date, referral_username, ref_master_username) VALUES (?, ?, ?, ?, ?)',
-            (referral_id, ref_master_id, registration_date, referral_username, ref_master_username),
+            'INSERT OR IGNORE INTO referal_users '
+            '(referral_id, ref_master_id, registration_date, referral_username, '
+            'ref_master_username, adv_link_id) VALUES (?, ?, ?, ?, ?, ?)',
+            (
+                referral_id,
+                ref_master_id,
+                registration_date,
+                referral_username,
+                ref_master_username,
+                adv_link_id,
+            ),
         )
         con.commit()
         cur.execute('UPDATE users SET ref_amount = ref_amount + 1 WHERE id = ?', (ref_master_id,))
@@ -326,14 +373,16 @@ async def start_command(message, command: CommandObject):
     #     await message.answer('Жми на кнопку и подключайся', reply_markup = get_ikb_connect_via_app(url))
 
     ref_master_id = None
+    adv_link_id = None
     parts = (message.text or '').split(maxsplit=1)
     if len(parts) > 1:
-        ref_master_id = resolve_ref_master_id(parts[1])
+        ref_master_id, adv_link_id = resolve_referral_start(parts[1])
     if ref_master_id:
         await _register_referral(
             message.from_user.id,
             ref_master_id,
             message.from_user.username,
+            adv_link_id,
         )
 
     await send_main_menu(message, message.from_user.id)
@@ -992,9 +1041,18 @@ async def bug_report_callback(callback: CallbackQuery):
 @dp.callback_query(lambda c: c.data == 'admin_back')
 async def admin_back_callback(callback: CallbackQuery, state: FSMContext):
     await state.clear()
+    markup = _admin_panel_markup(callback.from_user.id)
+    if not markup:
+        await callback.answer('Нет доступа', show_alert=True)
+        return
     await callback.answer("Назад")
     await callback.message.delete()
-    await callback.message.answer("👤 Админ панель", parse_mode='HTML', reply_markup=ikb_admin)
+    title = (
+        '👤 Админ панель'
+        if is_full_admin(callback.from_user.id)
+        else '📢 Панель рекламных кампаний'
+    )
+    await callback.message.answer(title, parse_mode='HTML', reply_markup=markup)
 
 @dp.message(F.text == 'funnel_reset', F.from_user.id.in_(ADMIN_IDS))
 async def admin_funnel_reset(message: Message):
@@ -1103,9 +1161,17 @@ async def shout_message(message: Message):
         pass
 
 
-@dp.message(F.text == 'admin', F.from_user.id.in_(ADMIN_IDS))
-async def admin_message (message: Message):
-    await message.answer("👤 Админ панель", parse_mode='HTML', reply_markup=ikb_admin)
+@dp.message(F.text == 'admin')
+async def admin_message(message: Message):
+    markup = _admin_panel_markup(message.from_user.id)
+    if not markup:
+        return
+    title = (
+        '👤 Админ панель'
+        if is_full_admin(message.from_user.id)
+        else '📢 Панель рекламных кампаний'
+    )
+    await message.answer(title, parse_mode='HTML', reply_markup=markup)
 
 
 @dp.callback_query((F.data == 'admin_funnel_stats') & F.from_user.id.in_(ADMIN_IDS))
@@ -1454,7 +1520,7 @@ async def admin_notify_referral_callback(callback: CallbackQuery):
     )
 
 
-@dp.callback_query(lambda c: c.data == 'admin_roles')
+@dp.callback_query(lambda c: c.data == 'admin_roles', F.from_user.id.in_(ADMIN_IDS))
 async def admin_roles_callback(callback: CallbackQuery):
     await callback.answer("👑 Роли") # на пол экрана хуйня высветится
     await callback.message.delete()
@@ -1464,11 +1530,15 @@ async def admin_roles_callback(callback: CallbackQuery):
             text='👑 Refmaster 2.0 (+50₽, подписка ≥149₽)',
             callback_data='admin_give_refmaster_20',
         )],
+        [InlineKeyboardButton(
+            text='📢 Менеджер по рекламе',
+            callback_data='admin_give_adv_manager',
+        )],
         [InlineKeyboardButton(text='Назад', callback_data='admin_back')],
     ])
     await callback.message.answer("👑 <b>Управление ролями</b>\n\nВыберите действие:", parse_mode='HTML', reply_markup=ikb_admin_roles)
 
-@dp.callback_query(lambda c: c.data == 'admin_give_refmaster')
+@dp.callback_query(lambda c: c.data == 'admin_give_refmaster', F.from_user.id.in_(ADMIN_IDS))
 async def admin_give_refmaster_callback(callback: CallbackQuery, state: FSMContext):
     await state.set_state(AdminRefmaster.waiting_user_id)
     await state.update_data(assign_role=REFMASTER_ROLE)
@@ -1482,7 +1552,7 @@ async def admin_give_refmaster_callback(callback: CallbackQuery, state: FSMConte
         reply_markup=ikb_admin_back,
     )
 
-@dp.callback_query(lambda c: c.data == 'admin_give_refmaster_20')
+@dp.callback_query(lambda c: c.data == 'admin_give_refmaster_20', F.from_user.id.in_(ADMIN_IDS))
 async def admin_give_refmaster_20_callback(callback: CallbackQuery, state: FSMContext):
     await state.set_state(AdminRefmaster.waiting_user_id)
     await state.update_data(assign_role=REFMASTER_20_ROLE)
@@ -1497,11 +1567,27 @@ async def admin_give_refmaster_20_callback(callback: CallbackQuery, state: FSMCo
         reply_markup=ikb_admin_back,
     )
 
+
+@dp.callback_query(lambda c: c.data == 'admin_give_adv_manager', F.from_user.id.in_(ADMIN_IDS))
+async def admin_give_adv_manager_callback(callback: CallbackQuery, state: FSMContext):
+    await state.set_state(AdminRefmaster.waiting_user_id)
+    await state.update_data(assign_role=ADV_MANAGER_ROLE)
+    await callback.answer('Менеджер по рекламе')
+    await callback.message.delete()
+    await callback.message.answer(
+        '📢 <b>Выдача роли «Менеджер по рекламе»</b>\n\n'
+        'Доступ: <b>Рекламные кампании 2.0</b> (создание, ссылки, статистика).\n'
+        'Без списка рефоводов и выплат.\n\n'
+        'Отправьте Telegram ID пользователя:',
+        parse_mode='HTML',
+        reply_markup=ikb_admin_back,
+    )
+
 @dp.message(AdminRefmaster.waiting_user_id, F.text.isdigit(), F.from_user.id.in_(ADMIN_IDS))
 async def admin_set_role_message(message: Message, state: FSMContext):
     data = await state.get_data()
     assign_role = data.get('assign_role')
-    if assign_role not in (REFMASTER_ROLE, REFMASTER_20_ROLE):
+    if assign_role not in (REFMASTER_ROLE, REFMASTER_20_ROLE, ADV_MANAGER_ROLE):
         await message.answer(
             '❌ Сессия устарела. Снова выберите роль в админке → Роли.',
             reply_markup=ikb_admin_back,
@@ -1655,21 +1741,68 @@ async def admin_referrals_callback(callback: CallbackQuery):
         df.to_excel('referals.xlsx')
         await callback.message.answer_document(FSInputFile('referals.xlsx'), reply_markup=ikb_admin_back)
 
-@dp.callback_query((F.data == 'adv_campaigns') & F.from_user.id.in_(ADMIN_IDS))
+@dp.callback_query(
+    lambda c: c.data == 'adv_campaigns' and can_access_refmaster_payouts(c.from_user.id),
+)
 async def adv_campaigns_callback(callback: CallbackQuery, state: FSMContext):
+    await state.clear()
+    await callback.message.delete()
+    await callback.message.answer(
+        '<b>Рекламные кампании</b>\n\n'
+        'Рефоводы, выплаты и поиск по ID рефовода / старой кампании.',
+        parse_mode='HTML',
+        reply_markup=build_ikb_adv_legacy_menu(),
+    )
+
+
+@dp.callback_query(
+    lambda c: c.data == 'adv2_campaigns' and can_access_adv_campaigns(c.from_user.id),
+)
+async def adv2_campaigns_callback(callback: CallbackQuery, state: FSMContext):
     await state.clear()
     await callback.message.delete()
     count = len(list_adv_campaigns())
     await callback.message.answer(
-        f'<b>Рекламные кампании</b>\n\nВсего в базе: <b>{count}</b>\n'
-        '<b>👑 Refmaster / 2.0 — выплаты</b> — все партнёры с ролями, долг и карточки.\n'
-        'Поиск по ID: кампания или Telegram ID рефовода.',
+        f'<b>Рекламные кампании 2.0</b>\n\n'
+        f'Кампаний в базе: <b>{count}</b>\n'
+        'У каждой кампании — несколько ссылок (<code>?start=lID</code>).\n'
+        'Статистика по кампании целиком или по отдельной ссылке.',
         parse_mode='HTML',
-        reply_markup=ikb_adv_campaigns_menu,
+        reply_markup=_adv2_menu_markup(),
     )
 
 
-async def _send_ref_partner_dashboard(message: Message, lookup_id: int, reply_markup):
+async def _send_adv_dashboard(
+    message: Message,
+    lookup_id: int,
+    reply_markup,
+    *,
+    hide_payouts: bool = False,
+):
+    dashboard = resolve_admin_adv_lookup(lookup_id)
+    if not dashboard:
+        await message.answer(
+            f'❌ По ID <b>{lookup_id}</b> ничего не найдено.',
+            parse_mode='HTML',
+            reply_markup=reply_markup,
+        )
+        return
+    text = format_admin_campaign_stats(dashboard, hide_payouts=hide_payouts)
+    if len(text) > 4000:
+        await message.answer(text[:4000] + '\n…', parse_mode='HTML', reply_markup=reply_markup)
+        await message.answer(text[4000:], parse_mode='HTML')
+    else:
+        await message.answer(text, parse_mode='HTML', reply_markup=reply_markup)
+    return dashboard
+
+
+async def _send_ref_partner_dashboard(
+    message: Message,
+    lookup_id: int,
+    reply_markup,
+    *,
+    hide_payouts: bool = False,
+):
     dashboard = get_ref_partner_dashboard(lookup_id)
     if not dashboard:
         await message.answer(
@@ -1679,25 +1812,77 @@ async def _send_ref_partner_dashboard(message: Message, lookup_id: int, reply_ma
             reply_markup=reply_markup,
         )
         return
-    text = format_admin_campaign_stats(dashboard)
+    text = format_admin_campaign_stats(dashboard, hide_payouts=hide_payouts)
     if len(text) > 4000:
         await message.answer(text[:4000] + '\n…', parse_mode='HTML', reply_markup=reply_markup)
         await message.answer(text[4000:], parse_mode='HTML')
     else:
         await message.answer(text, parse_mode='HTML', reply_markup=reply_markup)
+    return dashboard
 
 
-async def _send_campaign_dashboard(message: Message, campaign_id: int, reply_markup):
-    await _send_ref_partner_dashboard(message, campaign_id, reply_markup)
+async def _send_campaign_dashboard(
+    message: Message,
+    campaign_id: int,
+    reply_markup,
+    *,
+    hide_payouts: bool = False,
+):
+    dashboard = get_adv_campaign_dashboard(campaign_id)
+    if not dashboard:
+        await message.answer(
+            f'❌ Кампания <b>{campaign_id}</b> не найдена.',
+            parse_mode='HTML',
+            reply_markup=reply_markup,
+        )
+        return
+    markup = generate_ikb_campaign_detail(campaign_id, dashboard.get('links') or [])
+    text = format_admin_campaign_stats(dashboard, hide_payouts=hide_payouts)
+    if len(text) > 4000:
+        await message.answer(text[:4000] + '\n…', parse_mode='HTML', reply_markup=markup)
+        await message.answer(text[4000:], parse_mode='HTML')
+    else:
+        await message.answer(text, parse_mode='HTML', reply_markup=markup)
+    return dashboard
 
-@dp.callback_query(F.data == 'adv_new_campaign_create')
+
+async def _send_link_dashboard(
+    message: Message,
+    link_id: int,
+    *,
+    hide_payouts: bool = False,
+):
+    dashboard = get_adv_link_dashboard(link_id)
+    if not dashboard:
+        await message.answer(
+            f'❌ Ссылка <b>{link_id}</b> не найдена.',
+            parse_mode='HTML',
+            reply_markup=ikb_adv2_back,
+        )
+        return
+    campaign_id = dashboard['campaign_id']
+    markup = generate_ikb_link_detail_back(campaign_id)
+    text = format_admin_campaign_stats(dashboard, hide_payouts=hide_payouts)
+    if len(text) > 4000:
+        await message.answer(text[:4000] + '\n…', parse_mode='HTML', reply_markup=markup)
+        await message.answer(text[4000:], parse_mode='HTML')
+    else:
+        await message.answer(text, parse_mode='HTML', reply_markup=markup)
+    return dashboard
+
+@dp.callback_query(
+    lambda c: c.data == 'adv_new_campaign_create' and can_access_adv_campaigns(c.from_user.id),
+)
 async def create_adv_campaign(callback: CallbackQuery, state: FSMContext):
     await callback.message.delete()
     await state.set_state(AdvCampaign.waiting_name)
     await callback.message.answer("Введите название кампании:")
 
 @dp.message(AdvCampaign.waiting_name)
-async def get_campaign_name(message: Message,state: FSMContext):
+async def get_campaign_name(message: Message, state: FSMContext):
+    if not can_access_adv_campaigns(message.from_user.id):
+        await state.clear()
+        return
     name = message.text
     await state.update_data(campaign_name = name)
     await state.set_state(AdvCampaign.waiting_description)
@@ -1705,48 +1890,38 @@ async def get_campaign_name(message: Message,state: FSMContext):
 
 @dp.message(AdvCampaign.waiting_description)
 async def get_campaign_description(message: Message, state: FSMContext):
+    if not can_access_adv_campaigns(message.from_user.id):
+        await state.clear()
+        return
     description = message.text
     data = await state.get_data()
     name = data["campaign_name"]
 
-    with sq.connect('database.db') as con:
-        cur = con.cursor()
-
-        cur.execute("""
-            INSERT INTO adv_campaigns (campaign_name, campaign_description, campaign_link)
-            VALUES (?, ?, ?)
-        """, (name, description, ""))
-
-        row_id = cur.lastrowid
-        link = f"https://t.me/coffemaniaVPNbot?start={row_id}"
-
-        cur.execute("""
-            UPDATE adv_campaigns
-            SET campaign_link = ?
-            WHERE rowid = ?
-        """, (link, row_id))
-
-        con.commit()
+    campaign_id, link_id, link_url = create_adv_campaign_with_link(name, description)
 
     await state.clear()
 
     await message.answer(
         f'✅ <b>Кампания создана</b>\n\n'
-        f'ID: <code>{row_id}</code>\n'
-        f'Ссылка: <code>{link}</code>\n\n'
-        f'Отслеживание: админка → Рекламные кампании → «Найти по ID» → <code>{row_id}</code>',
+        f'Кампания ID: <code>{campaign_id}</code>\n'
+        f'Первая ссылка ID: <code>{link_id}</code>\n'
+        f'URL: <code>{link_url}</code>\n\n'
+        f'Добавьте ещё ссылки в карточке кампании. '
+        f'Статистика — по кампании целиком или по каждой ссылке.',
         parse_mode='HTML',
-        reply_markup=ikb_adv_back,
+        reply_markup=ikb_adv2_back,
     )
 
-@dp.callback_query(F.data == 'adv_get_campaigns')
+@dp.callback_query(
+    lambda c: c.data == 'adv_get_campaigns' and can_access_adv_campaigns(c.from_user.id),
+)
 async def get_campaigns(callback: CallbackQuery):
     await callback.message.delete()
     campaigns = list_adv_campaigns()
     if not campaigns:
         await callback.message.answer(
             'Кампаний пока нет. Создайте первую.',
-            reply_markup=ikb_adv_campaigns_menu,
+            reply_markup=_adv2_menu_markup(),
         )
         return
     await callback.message.answer(
@@ -1754,36 +1929,94 @@ async def get_campaigns(callback: CallbackQuery):
         reply_markup=generate_ikb_campaigns_list(),
     )
 
-@dp.callback_query((F.data == 'adv_lookup_by_id') & F.from_user.id.in_(ADMIN_IDS))
+@dp.callback_query(
+    lambda c: c.data == 'adv_lookup_by_id' and can_access_refmaster_payouts(c.from_user.id),
+)
 async def adv_lookup_by_id_callback(callback: CallbackQuery, state: FSMContext):
     await state.set_state(AdvCampaign.waiting_campaign_id)
+    await state.update_data(lookup_mode='legacy')
     await callback.message.delete()
     await callback.message.answer(
         '🔎 <b>Поиск по ID</b>\n\n'
         'Отправьте число:\n'
-        '• ID кампании из <code>?start=ID</code>\n'
-        '• или Telegram ID рефовода (Refmaster / 2.0)\n\n'
-        'Для Refmaster 2.0 увидите: <b>к выплате сейчас</b>, начисления +50₽/депозит, депозиты.',
+        '• ID старой кампании (<code>?start=ID</code>)\n'
+        '• или Telegram ID рефовода (Refmaster / 2.0)',
         parse_mode='HTML',
         reply_markup=ikb_adv_back,
     )
 
-@dp.message(AdvCampaign.waiting_campaign_id, F.from_user.id.in_(ADMIN_IDS))
+
+@dp.callback_query(
+    lambda c: c.data == 'adv2_lookup_by_id' and can_access_adv_campaigns(c.from_user.id),
+)
+async def adv2_lookup_by_id_callback(callback: CallbackQuery, state: FSMContext):
+    await state.set_state(AdvCampaign.waiting_campaign_id)
+    await state.update_data(lookup_mode='adv2')
+    await callback.message.delete()
+    await callback.message.answer(
+        '🔎 <b>Поиск по ID</b>\n\n'
+        'Отправьте число:\n'
+        '• ID кампании — статистика по всей кампании\n'
+        '• ID ссылки — по одной ссылке (<code>?start=lID</code>)',
+        parse_mode='HTML',
+        reply_markup=ikb_adv2_back,
+    )
+
+@dp.message(AdvCampaign.waiting_campaign_id)
 async def adv_campaign_id_lookup_message(message: Message, state: FSMContext):
+    data = await state.get_data()
+    lookup_mode = data.get('lookup_mode', 'adv2')
+    if lookup_mode == 'legacy':
+        if not can_access_refmaster_payouts(message.from_user.id):
+            await state.clear()
+            return
+    elif not can_access_adv_campaigns(message.from_user.id):
+        await state.clear()
+        return
+    back_markup = ikb_adv2_back if lookup_mode == 'adv2' else ikb_adv_back
+
     raw = (message.text or '').strip()
     if not raw.isdigit():
         await message.answer(
             '❌ ID должен быть числом. Пример: <code>12</code>',
             parse_mode='HTML',
-            reply_markup=ikb_adv_back,
+            reply_markup=back_markup,
         )
         return
-    campaign_id = int(raw)
-    await _send_campaign_dashboard(message, campaign_id, ikb_adv_back)
+    lookup_id = int(raw)
+    hide_payouts = not can_access_refmaster_payouts(message.from_user.id)
+
+    if lookup_mode == 'adv2':
+        if not (get_adv_campaign(lookup_id) or get_adv_campaign_link(lookup_id)):
+            await message.answer(
+                '❌ Не найдено. Введите ID кампании или ссылки.',
+                parse_mode='HTML',
+                reply_markup=back_markup,
+            )
+            return
+        if get_adv_campaign(lookup_id):
+            await _send_campaign_dashboard(
+                message, lookup_id, ikb_adv2_back, hide_payouts=hide_payouts,
+            )
+        else:
+            await _send_link_dashboard(message, lookup_id, hide_payouts=hide_payouts)
+    else:
+        if get_adv_campaign(lookup_id):
+            await _send_campaign_dashboard(
+                message, lookup_id, ikb_adv_back, hide_payouts=hide_payouts,
+            )
+        elif get_adv_campaign_link(lookup_id):
+            await _send_link_dashboard(message, lookup_id, hide_payouts=hide_payouts)
+        else:
+            await _send_adv_dashboard(
+                message, lookup_id, ikb_adv_back, hide_payouts=hide_payouts,
+            )
     await state.clear()
 
 
-@dp.callback_query((F.data == 'adv_refmasters') & F.from_user.id.in_(ADMIN_IDS))
+@dp.callback_query(
+    lambda c: c.data == 'adv_refmasters' and can_access_refmaster_payouts(c.from_user.id),
+)
 async def adv_refmasters_callback(callback: CallbackQuery):
     await callback.answer('Refmaster / 2.0')
     await callback.message.delete()
@@ -1799,7 +2032,7 @@ async def adv_refmasters_callback(callback: CallbackQuery):
 
 
 @dp.callback_query(
-    (F.data.startswith('adv_rm_')) & F.from_user.id.in_(ADMIN_IDS),
+    lambda c: c.data.startswith('adv_rm_') and can_access_refmaster_payouts(c.from_user.id),
 )
 async def adv_refmaster_detail_callback(callback: CallbackQuery):
     await callback.answer()
@@ -1814,7 +2047,9 @@ async def adv_refmaster_detail_callback(callback: CallbackQuery):
     )
 
 
-@dp.callback_query((F.data == 'adv_refmasters_excel') & F.from_user.id.in_(ADMIN_IDS))
+@dp.callback_query(
+    lambda c: c.data == 'adv_refmasters_excel' and can_access_refmaster_payouts(c.from_user.id),
+)
 async def adv_refmasters_excel_callback(callback: CallbackQuery):
     await callback.answer('Excel…')
     all_partners = fetch_refmaster_partner_rows()
@@ -1879,7 +2114,9 @@ async def adv_refmasters_excel_callback(callback: CallbackQuery):
             pass
 
 
-@dp.callback_query((F.data == 'adv_referrers_progress') & F.from_user.id.in_(ADMIN_IDS))
+@dp.callback_query(
+    lambda c: c.data == 'adv_referrers_progress' and can_access_refmaster_payouts(c.from_user.id),
+)
 async def adv_referrers_progress_callback(callback: CallbackQuery):
     await callback.answer('Собираем статистику рефоводов…')
     await callback.message.delete()
@@ -1995,16 +2232,68 @@ async def adv_referrers_progress_callback(callback: CallbackQuery):
         except OSError:
             pass
 
-@dp.callback_query(F.data.startswith('adv_cid_'))
+@dp.callback_query(
+    lambda c: c.data.startswith('adv_cid_') and can_access_adv_campaigns(c.from_user.id),
+)
 async def adv_campaign_by_id_callback(callback: CallbackQuery):
     await callback.answer()
     await callback.message.delete()
     try:
         campaign_id = int(callback.data.replace('adv_cid_', '', 1))
     except ValueError:
-        await callback.message.answer('❌ Неверный ID кампании.', reply_markup=ikb_adv_back)
+        await callback.message.answer('❌ Неверный ID кампании.', reply_markup=ikb_adv2_back)
         return
-    await _send_campaign_dashboard(callback.message, campaign_id, ikb_adv_back)
+    hide_payouts = not can_access_refmaster_payouts(callback.from_user.id)
+    await _send_campaign_dashboard(
+        callback.message,
+        campaign_id,
+        ikb_adv2_back,
+        hide_payouts=hide_payouts,
+    )
+
+
+@dp.callback_query(
+    lambda c: c.data.startswith('adv_lid_') and can_access_adv_campaigns(c.from_user.id),
+)
+async def adv_link_by_id_callback(callback: CallbackQuery):
+    await callback.answer()
+    await callback.message.delete()
+    try:
+        link_id = int(callback.data.replace('adv_lid_', '', 1))
+    except ValueError:
+        await callback.message.answer('❌ Неверный ID ссылки.', reply_markup=ikb_adv2_back)
+        return
+    hide_payouts = not can_access_refmaster_payouts(callback.from_user.id)
+    await _send_link_dashboard(callback.message, link_id, hide_payouts=hide_payouts)
+
+
+@dp.callback_query(
+    lambda c: c.data.startswith('adv_add_link_') and can_access_adv_campaigns(c.from_user.id),
+)
+async def adv_add_link_callback(callback: CallbackQuery):
+    await callback.answer('Создаём ссылку…')
+    try:
+        campaign_id = int(callback.data.replace('adv_add_link_', '', 1))
+    except ValueError:
+        await callback.message.answer('❌ Неверный ID кампании.', reply_markup=ikb_adv2_back)
+        return
+    if not get_adv_campaign(campaign_id):
+        await callback.message.answer('❌ Кампания не найдена.', reply_markup=ikb_adv2_back)
+        return
+    link_id, link_url = add_adv_campaign_link(campaign_id)
+    await callback.message.answer(
+        f'✅ <b>Новая ссылка</b>\n\n'
+        f'ID: <code>{link_id}</code>\n'
+        f'URL: <code>{link_url}</code>',
+        parse_mode='HTML',
+    )
+    hide_payouts = not can_access_refmaster_payouts(callback.from_user.id)
+    await _send_campaign_dashboard(
+        callback.message,
+        campaign_id,
+        ikb_adv2_back,
+        hide_payouts=hide_payouts,
+    )
 
 @dp.callback_query(F.data == 'ping_brokes')
 async def ping_broke_users(callback: CallbackQuery): # оповестить нищеебов ебаных

@@ -6,6 +6,7 @@ from datetime import date, timedelta
 
 REFMASTER_ROLE = 'refmaster'
 REFMASTER_20_ROLE = 'refmaster_20'
+ADV_MANAGER_ROLE = 'adv_manager'
 REFERRAL_COMMISSION_WINDOW_DAYS = 90
 REFMASTER_20_DEPOSIT_BONUS_RUB = 50
 REFMASTER_20_MIN_DEPOSIT_RUB = 149
@@ -50,12 +51,30 @@ def role_has_refmaster_ui(role: str | None) -> bool:
     return normalize_role(role) in REF_PARTNER_ROLES
 
 
+def role_is_adv_manager(role: str | None) -> bool:
+    return normalize_role(role) == ADV_MANAGER_ROLE
+
+
+def fetch_user_role(user_id: int) -> str:
+    with sq.connect('database.db') as con:
+        cur = con.cursor()
+        cur.execute('SELECT role FROM users WHERE id = ?', (user_id,))
+        row = cur.fetchone()
+    return normalize_role(row[0] if row else None)
+
+
+def user_is_adv_manager(user_id: int) -> bool:
+    return role_is_adv_manager(fetch_user_role(user_id))
+
+
 def role_display_name(role: str | None) -> str:
     r = normalize_role(role)
     if r == REFMASTER_ROLE:
         return 'Refmaster'
     if r == REFMASTER_20_ROLE:
         return 'Refmaster 2.0'
+    if r == ADV_MANAGER_ROLE:
+        return 'Менеджер по рекламе'
     return role or '—'
 
 
@@ -355,75 +374,13 @@ def format_refmaster_20_payout_block(dashboard: dict) -> str:
     )
 
 
-def format_admin_campaign_stats(dashboard: dict) -> str:
-    """HTML-карточка по ID (кампания / рефовод) для админки."""
-    master_id = dashboard.get('ref_master_id') or dashboard.get('campaign_id')
-    role = dashboard.get('role')
-    if role_has_refmaster_ui(role):
-        role_label = role_display_name(role)
-    elif role:
-        role_label = str(role)
-    else:
-        role_label = 'не задана'
-
-    role_hint = ''
-    if not role_has_refmaster_ui(role) and int(dashboard.get('deposits_count') or 0) > 0:
-        role_hint = (
-            f'\n⚠️ Назначьте роль Refmaster / 2.0 пользователю '
-            f'<code>{master_id}</code> (Админка → Роли), иначе бонусы не начисляются.\n'
-        )
-
+def _format_referral_stats_block(dashboard: dict, role) -> str:
     refs_total = int(dashboard.get('refs_total') or 0)
     paying_refs = int(dashboard.get('paying_refs') or 0)
     deposits_count = int(dashboard.get('deposits_count') or 0)
     deposits_total = int(dashboard.get('deposits_total') or 0)
     qualified_count = int(dashboard.get('qualified_deposits_count') or 0)
-    ref_balance = int(dashboard.get('ref_balance') or 0)
-    ref_withdraw = int(dashboard.get('ref_withdraw') or 0)
-    ref_amount = int(dashboard.get('ref_amount') or 0)
-    username = dashboard.get('username')
-    user_line = f'@{username}' if username else 'нет в users'
-    kind = 'Рекламная кампания' if dashboard.get('is_campaign') else 'Рефовод (Telegram ID)'
-    custom_code = dashboard.get('custom_ref_code')
-    code_line = f'Авторский код: <code>{custom_code}</code>\n' if custom_code else ''
-
-    payout_block = ''
-    stats_tail = ''
-
-    if role_uses_fixed_deposit_bonus(role):
-        payout_block = format_refmaster_20_payout_block(dashboard)
-        stats_tail = _format_deposit_rows_block(dashboard.get('deposit_rows') or [], role)
-    elif role_uses_deposit_share(role):
-        earned_est = int(deposits_total * 0.5)
-        pending = max(ref_balance - ref_withdraw, 0)
-        payout_block = (
-            f'\n<b>💸 Выплаты Refmaster 1.0</b>\n'
-            f'Оценка 50% от депозитов: <b>{earned_est} ₽</b>\n'
-            f'ref_balance: <b>{ref_balance} ₽</b> | выведено: <b>{ref_withdraw} ₽</b>\n'
-            f'<b>🔴 К выплате (оценка): {pending} ₽</b>\n'
-        )
-        stats_tail = _format_deposit_rows_block(dashboard.get('deposit_rows') or [], role)
-    else:
-        payout_block = (
-            f'\nМодель: <b>7 дней</b> подписки за первый депозит (без денежного ref_balance).\n'
-            f'ref_balance: <b>{ref_balance} ₽</b>\n'
-        )
-
-    desc = dashboard.get('campaign_description') or '—'
-    if dashboard.get('is_campaign'):
-        desc_block = f'{desc}\n\n'
-    else:
-        desc_block = ''
-
     return (
-        f'<b>{kind} · ID {master_id}</b>\n'
-        f'<b>{dashboard["campaign_name"]}</b>\n\n'
-        f'{desc_block}'
-        f'Ссылка: <code>{dashboard["campaign_link"]}</code>\n'
-        f'{code_line}'
-        f'Профиль users: {user_line}\n'
-        f'Роль: <b>{role_label}</b>{role_hint}\n'
-        f'Приглашено (ref_amount): <b>{ref_amount}</b>\n\n'
         f'<b>📊 Рефералы</b>\n'
         f'Всего: <b>{refs_total}</b> | с оплатой: <b>{paying_refs}</b> | '
         f'без оплаты: <b>{refs_total - paying_refs}</b>\n'
@@ -435,6 +392,131 @@ def format_admin_campaign_stats(dashboard: dict) -> str:
             else ''
         )
         + '\n'
+    )
+
+
+def _format_campaign_links_block(links: list) -> str:
+    if not links:
+        return '<b>🔗 Ссылки</b>\nПока нет ссылок.\n'
+    lines = ['<b>🔗 Ссылки кампании</b>']
+    for link in links:
+        lines.append(
+            f'• <b>#{link["id"]}</b> {link.get("link_name") or "—"} — '
+            f'реф. <b>{int(link.get("refs_total") or 0)}</b>, '
+            f'оплат <b>{int(link.get("paying_refs") or 0)}</b>, '
+            f'<b>{int(link.get("deposits_total") or 0)} ₽</b>\n'
+            f'  <code>{link.get("link") or ""}</code>'
+        )
+    lines.append(
+        '\n<i>Статистику по ссылке: кнопка ниже или поиск по ID ссылки.</i>'
+    )
+    return '\n'.join(lines) + '\n\n'
+
+
+def format_admin_campaign_stats(dashboard: dict, *, hide_payouts: bool = False) -> str:
+    """HTML-карточка: кампания / ссылка / рефовод для админки."""
+    master_id = dashboard.get('ref_master_id') or dashboard.get('campaign_id')
+    role = dashboard.get('role')
+    is_campaign = bool(dashboard.get('is_campaign'))
+    is_link = bool(dashboard.get('is_link'))
+
+    if is_link:
+        kind = 'Ссылка кампании'
+        header_id = dashboard.get('link_id')
+    elif is_campaign:
+        kind = 'Рекламная кампания (всего)'
+        header_id = master_id
+    else:
+        kind = 'Рефовод (Telegram ID)'
+        header_id = master_id
+
+    if role_has_refmaster_ui(role):
+        role_label = role_display_name(role)
+    elif role:
+        role_label = str(role)
+    else:
+        role_label = 'не задана'
+
+    role_hint = ''
+    if (
+        not hide_payouts
+        and not is_campaign
+        and not is_link
+        and not role_has_refmaster_ui(role)
+        and int(dashboard.get('deposits_count') or 0) > 0
+    ):
+        role_hint = (
+            f'\n⚠️ Назначьте роль Refmaster / 2.0 пользователю '
+            f'<code>{master_id}</code> (Админка → Роли), иначе бонусы не начисляются.\n'
+        )
+
+    ref_amount = int(dashboard.get('ref_amount') or 0)
+    username = dashboard.get('username')
+    user_line = f'@{username}' if username else 'нет в users'
+    custom_code = dashboard.get('custom_ref_code')
+    code_line = f'Авторский код: <code>{custom_code}</code>\n' if custom_code else ''
+
+    payout_block = ''
+    stats_tail = ''
+    deposits_total = int(dashboard.get('deposits_total') or 0)
+    ref_balance = int(dashboard.get('ref_balance') or 0)
+    ref_withdraw = int(dashboard.get('ref_withdraw') or 0)
+
+    if not hide_payouts and not is_campaign and not is_link:
+        if role_uses_fixed_deposit_bonus(role):
+            payout_block = format_refmaster_20_payout_block(dashboard)
+            stats_tail = _format_deposit_rows_block(dashboard.get('deposit_rows') or [], role)
+        elif role_uses_deposit_share(role):
+            earned_est = int(deposits_total * 0.5)
+            pending = max(ref_balance - ref_withdraw, 0)
+            payout_block = (
+                f'\n<b>💸 Выплаты Refmaster 1.0</b>\n'
+                f'Оценка 50% от депозитов: <b>{earned_est} ₽</b>\n'
+                f'ref_balance: <b>{ref_balance} ₽</b> | выведено: <b>{ref_withdraw} ₽</b>\n'
+                f'<b>🔴 К выплате (оценка): {pending} ₽</b>\n'
+            )
+            stats_tail = _format_deposit_rows_block(dashboard.get('deposit_rows') or [], role)
+        else:
+            payout_block = (
+                f'\nМодель: <b>7 дней</b> подписки за первый депозит (без денежного ref_balance).\n'
+                f'ref_balance: <b>{ref_balance} ₽</b>\n'
+            )
+
+    desc = dashboard.get('campaign_description') or '—'
+    desc_block = f'{desc}\n\n' if is_campaign or is_link else ''
+
+    links_block = ''
+    link_line = ''
+    meta_block = ''
+
+    if is_campaign:
+        links_block = _format_campaign_links_block(dashboard.get('links') or [])
+    elif is_link:
+        link_line = (
+            f'Кампания: <b>#{dashboard.get("campaign_id")}</b> · '
+            f'{dashboard.get("campaign_name")}\n'
+            f'Название ссылки: <b>{dashboard.get("link_name") or "—"}</b>\n'
+            f'Ссылка: <code>{dashboard.get("campaign_link") or ""}</code>\n'
+        )
+    else:
+        link_line = f'Ссылка: <code>{dashboard.get("campaign_link") or ""}</code>\n'
+        meta_block = (
+            f'{code_line}'
+            f'Профиль users: {user_line}\n'
+            f'Роль: <b>{role_label}</b>{role_hint}\n'
+            f'Приглашено (ref_amount): <b>{ref_amount}</b>\n\n'
+        )
+
+    stats_block = _format_referral_stats_block(dashboard, role)
+
+    return (
+        f'<b>{kind} · ID {header_id}</b>\n'
+        f'<b>{dashboard["campaign_name"]}</b>\n\n'
+        f'{desc_block}'
+        f'{links_block}'
+        f'{link_line}'
+        f'{meta_block}'
+        f'{stats_block}'
         f'{payout_block}'
         f'{stats_tail}'
     )
