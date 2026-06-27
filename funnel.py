@@ -12,6 +12,7 @@ from aiogram import F, Bot
 from aiogram.types import CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 
 from prices import WEEK_PLAN_DAYS, WEEK_PLAN_PRICE, SUBSCRIPTION_PLAN
+from bot_delivery import is_telegram_unreachable, is_user_bot_blocked, mark_user_bot_blocked
 from databases import upsert_subscription_days
 from emojis import get_emoji
 
@@ -325,10 +326,12 @@ def _fetch_funnel_rows() -> list[tuple]:
         cur = con.cursor()
         cur.execute(
             """
-            SELECT user_id, branch, first_seen_at, trial_started_at, trial_ended_at,
-                   nt_30m, nt_24h, nt_48h, nt_72h,
-                   pt_1h, pt_24h, pt_3d, pt_7d, extra_trial_once
-            FROM user_funnel
+            SELECT f.user_id, f.branch, f.first_seen_at, f.trial_started_at, f.trial_ended_at,
+                   f.nt_30m, f.nt_24h, f.nt_48h, f.nt_72h,
+                   f.pt_1h, f.pt_24h, f.pt_3d, f.pt_7d, f.extra_trial_once
+            FROM user_funnel f
+            INNER JOIN users u ON u.id = f.user_id
+            WHERE COALESCE(u.bot_blocked, 0) = 0
             """
         )
         return cur.fetchall()
@@ -640,12 +643,18 @@ MSG_SURVEY_CONFUSED = (
 
 
 async def _safe_send(bot: Bot, user_id: int, text: str, reply_markup=None) -> bool:
+    if is_user_bot_blocked(user_id):
+        return False
     try:
         await bot.send_message(user_id, text, parse_mode='HTML', reply_markup=reply_markup)
         logger.info('funnel sent to user_id=%s', user_id)
         return True
     except Exception as e:
-        logger.warning('funnel send failed user_id=%s: %s', user_id, e)
+        if is_telegram_unreachable(e):
+            mark_user_bot_blocked(user_id)
+            logger.info('funnel skip user_id=%s (blocked bot or deleted account)', user_id)
+        else:
+            logger.warning('funnel send failed user_id=%s: %s', user_id, e)
         return False
 
 

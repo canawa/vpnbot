@@ -224,7 +224,11 @@ async def _open_invoice_reminder_worker(
     confirmation_url: str | None = None,
     check_callback_data: str | None = None,
 ) -> None:
+    from bot_delivery import is_telegram_unreachable, is_user_bot_blocked, mark_user_bot_blocked
+
     await asyncio.sleep(OPEN_INVOICE_REMINDER_DELAY_SEC)
+    if is_user_bot_blocked(user_id):
+        return
     if is_yookassa_payment_settled(payment_id, tx_type):
         return
     try:
@@ -241,10 +245,17 @@ async def _open_invoice_reminder_worker(
             user_id, payment_id,
         )
     except Exception as e:
-        logger.warning(
-            'open invoice reminder failed user_id=%s payment_id=%s: %s',
-            user_id, payment_id, e,
-        )
+        if is_telegram_unreachable(e):
+            mark_user_bot_blocked(user_id)
+            logger.info(
+                'open invoice reminder skip user_id=%s (blocked bot or deleted account)',
+                user_id,
+            )
+        else:
+            logger.warning(
+                'open invoice reminder failed user_id=%s payment_id=%s: %s',
+                user_id, payment_id, e,
+            )
 
 
 def schedule_open_invoice_payment_reminder(

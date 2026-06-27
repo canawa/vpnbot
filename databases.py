@@ -197,6 +197,10 @@ def create_tables():
         except Exception as e:
             print(e)
         try:
+            cur.execute('ALTER TABLE users ADD COLUMN bot_blocked INTEGER DEFAULT 0;')
+        except Exception as e:
+            print(e)
+        try:
             cur.execute('ALTER TABLE referal_users ADD COLUMN adv_link_id INTEGER;')
         except Exception as e:
             print(e)

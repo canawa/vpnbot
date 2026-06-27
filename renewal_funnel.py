@@ -13,6 +13,7 @@ from aiogram import Bot
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 from prices import SUBSCRIPTION_PLAN, WEEK_PLAN_DAYS, WEEK_PLAN_PRICE
+from bot_delivery import is_telegram_unreachable, is_user_bot_blocked, mark_user_bot_blocked
 from funnel import log_funnel_event
 from emojis import get_emoji
 
@@ -266,16 +267,26 @@ MSG_P30D = (
 
 
 async def _safe_send(bot: Bot, user_id: int, text: str, markup) -> bool:
+    if is_user_bot_blocked(user_id):
+        return False
     try:
         await bot.send_message(user_id, text, parse_mode='HTML', reply_markup=markup)
         logger.info('renewal funnel sent to user_id=%s', user_id)
         return True
     except Exception as e:
-        logger.warning('renewal send failed user_id=%s: %s', user_id, e)
+        if is_telegram_unreachable(e):
+            mark_user_bot_blocked(user_id)
+            logger.info(
+                'renewal funnel skip user_id=%s (blocked bot or deleted account)', user_id,
+            )
+        else:
+            logger.warning('renewal send failed user_id=%s: %s', user_id, e)
         return False
 
 
 async def _process_user(bot: Bot, user_id: int, expires_at: str) -> None:
+    if is_user_bot_blocked(user_id):
+        return
     if not is_paid_subscriber(user_id):
         return
 
@@ -336,8 +347,10 @@ async def run_renewal_funnel_worker(bot: Bot) -> None:
                     """
                     SELECT s.user_id, s.subscription_expires_at
                     FROM subscriptions s
+                    INNER JOIN users u ON u.id = s.user_id
                     WHERE s.subscription_expires_at IS NOT NULL
                       AND TRIM(s.subscription_expires_at) != ''
+                      AND COALESCE(u.bot_blocked, 0) = 0
                     """
                 )
                 rows = cur.fetchall()

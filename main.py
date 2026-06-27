@@ -402,6 +402,8 @@ async def start_command(message, command: CommandObject):
     with sq.connect('database.db') as con:
         cur = con.cursor()
         cur.execute("INSERT OR IGNORE INTO users (id, username, balance, had_trial) VALUES (?, ?, ?, ?)", (message.from_user.id, message.from_user.username, 0, 0))
+        cur.execute('UPDATE users SET bot_blocked = 0 WHERE id = ?', (message.from_user.id,))
+        con.commit()
 
     funnel_on_first_seen(message.from_user.id)
     generate_ikb_main(message.from_user.id)
