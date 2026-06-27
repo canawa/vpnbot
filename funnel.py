@@ -12,7 +12,7 @@ from aiogram import F, Bot
 from aiogram.types import CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 
 from prices import WEEK_PLAN_DAYS, WEEK_PLAN_PRICE, SUBSCRIPTION_PLAN
-from bot_delivery import is_telegram_unreachable, is_user_bot_blocked, mark_user_bot_blocked
+from bot_delivery import is_telegram_unreachable, mark_user_bot_blocked
 from databases import upsert_subscription_days
 from emojis import get_emoji
 
@@ -32,8 +32,9 @@ TD_7D = timedelta(days=7)
 
 
 
-# Для теста с TD_* в минутах поставь FUNNEL_SLEEP_SEC=20 в .env
-FUNNEL_SLEEP_SEC = int(os.getenv('FUNNEL_SLEEP_SEC', '30'))
+# Минимальный шаг воронки — 30 мин (TD_30M). Тик 15 мин: письмо уйдёт в окне +0…+15 мин.
+# Для теста с TD_* в минутах: FUNNEL_SLEEP_SEC=30 в .env
+FUNNEL_SLEEP_SEC = int(os.getenv('FUNNEL_SLEEP_SEC', '900'))
 
 _FLAG_EVENT = {
     'nt_30m': 'msg_nt_30m',
@@ -332,6 +333,17 @@ def _fetch_funnel_rows() -> list[tuple]:
             FROM user_funnel f
             INNER JOIN users u ON u.id = f.user_id
             WHERE COALESCE(u.bot_blocked, 0) = 0
+              AND (
+                f.branch IN ('trial_active', 'paid')
+                OR (
+                  f.branch = 'no_trial'
+                  AND (f.nt_30m = 0 OR f.nt_24h = 0 OR f.nt_48h = 0 OR f.nt_72h = 0)
+                )
+                OR (
+                  f.branch = 'post_trial'
+                  AND (f.pt_1h = 0 OR f.pt_24h = 0 OR f.pt_3d = 0 OR f.pt_7d = 0)
+                )
+              )
             """
         )
         return cur.fetchall()
@@ -643,8 +655,6 @@ MSG_SURVEY_CONFUSED = (
 
 
 async def _safe_send(bot: Bot, user_id: int, text: str, reply_markup=None) -> bool:
-    if is_user_bot_blocked(user_id):
-        return False
     try:
         await bot.send_message(user_id, text, parse_mode='HTML', reply_markup=reply_markup)
         logger.info('funnel sent to user_id=%s', user_id)
