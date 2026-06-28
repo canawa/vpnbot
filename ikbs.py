@@ -326,7 +326,7 @@ def create_ikb_sub_after_buy(url):
             [InlineKeyboardButton(text='Подключиться', url=url, icon_custom_emoji_id=get_emoji('shield_emoji'), style='success')],
             [InlineKeyboardButton(text ='Продлить подписку', callback_data='buy_vpn', icon_custom_emoji_id=get_emoji('locate'))],
             [InlineKeyboardButton(text ='Докупить ГБ обхода LTE', callback_data='buy_lte_gigabytes', icon_custom_emoji_id=get_emoji('time'))],
-            [InlineKeyboardButton(text='Список устройств', callback_data='device_list', icon_custom_emoji_id = get_emoji('device'))],
+            [InlineKeyboardButton(text='Устройства', callback_data='device_list', icon_custom_emoji_id = get_emoji('device'))],
             [InlineKeyboardButton(text='Назад', callback_data='back', icon_custom_emoji_id=get_emoji('exit'))],
         ])
     return ikb_subscription_after_buy
