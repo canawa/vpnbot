@@ -273,7 +273,7 @@ try:
     PING_UNCONNECTED_PHOTO = FSInputFile('photos/ping_unconnected.jpg')
     PING_UNACTIVE_PHOTO=FSInputFile('photos/ping_unactive_photo.jpg')
     INVITE_MAX_COLORED_PHOTO=FSInputFile('photos/INVITE_MAX_COLORED.jpg')
-    DECISION_PHOTO=FSInputFile('photos/decision.jpg')
+    DECISION_PHOTO=FSInputFile('photos/5rub_decision_creative.png')
     TWO_DAYS_BONUS_PHOTO=FSInputFile('photos/2_days_bonus_photo.png')
 
 except FileNotFoundError:
@@ -2398,17 +2398,15 @@ async def ping_unactive_users(callback: CallbackQuery):
                 chat_id=user,
                 photo=DECISION_PHOTO,
                 caption=(
-                    "<tg-emoji emoji-id=\"5467389807556579005\">🙂</tg-emoji> Платить 150₽ за кофе — норм.\n"
-                    "Но 5 рублей в день за свободный интернет — «дорого»?\n\n"
-
-                    "За эти деньги у тебя:\n\n"
-
-                    "<tg-emoji emoji-id=\"5233346147560465779\">🟢</tg-emoji> YouTube без вечной загрузки\n"
-                    "<tg-emoji emoji-id=\"5233346147560465779\">🟢</tg-emoji> TikTok, Reels и нейросети без ограничений\n"
-                    "<tg-emoji emoji-id=\"5233346147560465779\">🟢</tg-emoji> Рабочий обход белых списков\n"
-                    "<tg-emoji emoji-id=\"5233346147560465779\">🟢</tg-emoji> 3 дня бесплатно, чтобы проверить самому\n\n"
-
-                    "Пока кто-то ищет «новый способ», наши пользователи просто открывают интернет и живут спокойно."
+                    '<tg-emoji emoji-id="5328108441963604719">🫣</tg-emoji> '
+                    'РКН ПОТРАТИЛ 3 МИЛЛАРДА РУБЛЕЙ НА БЛОКИРОВКИ....\n\n'
+                    '<tg-emoji emoji-id="5408899078903860316">😺</tg-emoji> '
+                    'А тебе достаточно 5 рублей в день с нашей подпиской чтобы комфортно пользоваться интернетом\n\n'
+                    'За эти деньги у тебя:\n\n'
+                    '<tg-emoji emoji-id="5233346147560465779">🟢</tg-emoji> YouTube без вечной загрузки\n'
+                    '<tg-emoji emoji-id="5233346147560465779">🟢</tg-emoji> TikTok, Reels и нейросети без ограничений\n'
+                    '<tg-emoji emoji-id="5233346147560465779">🟢</tg-emoji> Рабочий обход белых списков\n'
+                    '<tg-emoji emoji-id="5233346147560465779">🟢</tg-emoji> 3 дня бесплатно, чтобы проверить самому'
                 ),
                 parse_mode="HTML",
                 reply_markup=ikb_unactive_ping_button,
