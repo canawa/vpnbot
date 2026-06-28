@@ -349,8 +349,15 @@ ikb_sale = InlineKeyboardMarkup(inline_keyboard = [
 def create_ikb_devices(tg_id):
     devices = Vpn().get_hwid_devices(tg_id)
     ikb_devices = InlineKeyboardMarkup(inline_keyboard=[])
-    for device in devices:
-       ikb_devices.inline_keyboard.append([InlineKeyboardButton(text = f'Удалить {device["deviceModel"]}', callback_data = f'delete_device_{device["hwid"]}' , style='danger')])
+    for i, device in enumerate(devices):
+        # callback_data ≤ 64 байта; полный hwid часто длиннее
+        ikb_devices.inline_keyboard.append([
+            InlineKeyboardButton(
+                text=f'Удалить {device["deviceModel"]}',
+                callback_data=f'delete_device_{i}',
+                style='danger',
+            )
+        ])
     ikb_devices.inline_keyboard.append([InlineKeyboardButton(text='Назад', callback_data='back', icon_custom_emoji_id=get_emoji('exit'))])
     return ikb_devices
 

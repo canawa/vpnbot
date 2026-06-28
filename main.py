@@ -609,13 +609,31 @@ async def devices_list_callback(callback: CallbackQuery):
 
 @dp.callback_query(F.data.startswith('delete_device_'))
 async def delete_device(callback: CallbackQuery):
-    hwid = callback.data.replace('delete_device_', '')
+    try:
+        device_idx = int(callback.data.replace('delete_device_', '', 1))
+    except ValueError:
+        await callback.message.answer(
+            '❌ Не удалось определить устройство. Откройте список заново.',
+            reply_markup=ikb_back,
+        )
+        return
     await callback.message.delete()
     try:
+        devices = Vpn().get_hwid_devices(callback.from_user.id)
+        if device_idx < 0 or device_idx >= len(devices):
+            await callback.message.answer(
+                'Устройство уже удалено или список изменился. Откройте список снова.',
+                reply_markup=ikb_back,
+            )
+            return
+        hwid = devices[device_idx]['hwid']
         Vpn().delete_hwid_device(callback.from_user.id, hwid)
-        await callback.message.answer(text=hwid_deleted_text, parse_mode = 'HTML', reply_markup=ikb_back)
+        await callback.message.answer(text=hwid_deleted_text, parse_mode='HTML', reply_markup=ikb_back)
     except Exception as e:
-        await callback.message.answer(text=f'Ошибка удаления устройства: \n {e}\n\n Перешлите это сообщение в поддержку.', reply_markup=ikb_support)
+        await callback.message.answer(
+            text=f'Ошибка удаления устройства: \n {e}\n\n Перешлите это сообщение в поддержку.',
+            reply_markup=ikb_support,
+        )
 
 @dp.callback_query(lambda c: c.data == 'documents')
 async def documents_callback(callback: CallbackQuery):
