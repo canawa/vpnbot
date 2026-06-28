@@ -49,7 +49,7 @@ from referrals import (
     should_send_ref_partner_notification,
 )
 import locale
-from emojis import get_emoji
+from emojis import get_emoji, CHECK_EMOJI_HTML
 from databases import (
     create_tables,
     upsert_subscription_days,
@@ -121,6 +121,7 @@ vpn = Vpn()
 
 ADMIN_IDS = (1979477416, 7562967579)
 
+DEVICE_PRICE = 30
 
 def is_full_admin(user_id: int) -> bool:
     return user_id in ADMIN_IDS
@@ -248,7 +249,7 @@ def vpn_subscription_message_html(url: str) -> str:
         "- Подключите до 3 устройств одновременно\n" +
         "- Обходит белые списки и ограничения мобильного интернета\n" +
         "- Установка в два клика - никаких настроек\n\n" +
-        "<tg-emoji emoji-id=\"5310144251621809870\">✅</tg-emoji> В подписке от 25 ГБ трафика\n" +
+        f"{CHECK_EMOJI_HTML} В подписке от 25 ГБ трафика\n" +
         "- расходуется только на LTE серверах\n\n" +
         "<tg-emoji emoji-id=\"5420323339723881652\">⚠️</tg-emoji> В пробной подписке - 3 ГБ на 3 дня\n\n" +
         "<tg-emoji emoji-id=\"5375381102586247966\">🔗</tg-emoji> Твоя ссылка: "
@@ -320,7 +321,7 @@ async def _activate_trial_for_user(callback: CallbackQuery) -> bool:
     try:
         await callback.message.answer_photo(
             MY_KEYS_PHOTO,
-            caption=vpn_subscription_message_html(url) + '\n\n✅ <b>Бесплатный тестовый период выдан!</b>',
+            caption=vpn_subscription_message_html(url) + f'\n\n{CHECK_EMOJI_HTML} <b>Бесплатный тестовый период выдан!</b>',
             parse_mode='HTML',
             reply_markup=create_ikb_sub_after_buy(url),
         )
@@ -519,7 +520,7 @@ async def buy_gbs(callback: CallbackQuery):
         payment_id = payment.id
         confirmation_url = payment.confirmation.confirmation_url
         await callback.message.answer(
-            f'👉 Создали заявку на оплату, переходите по ссылке и оплатите.\n\n <b>❗ После оплаты нажмите на кнопку "Я оплатил"</b>',
+            f'👉 Создали заявку на оплату, переходите по ссылке и оплатите.\n\n<b>❗ После оплаты нажмите на кнопку "Я оплатил"</b>',
             parse_mode='HTML',
             reply_markup=create_yookassa_gb_payment(payment_id, gb_amount, confirmation_url, price))
         schedule_open_invoice_payment_reminder(
@@ -572,7 +573,7 @@ async def process_gb_addition(callback: CallbackQuery):
             success_text = f'Успешно добавили вам +{gb_amount} ГБ к LTE трафику!'
         elif status == 'already_processed':
             success_text = (
-                f'✅ Этот платёж уже обработан. +{gb_amount} ГБ должны быть на аккаунте.'
+                f'{CHECK_EMOJI_HTML} Этот платёж уже обработан. +{gb_amount} ГБ должны быть на аккаунте.'
             )
         else:
             await callback.message.answer(
@@ -779,7 +780,8 @@ def welcome_back_caption(has_active: bool, subscription_expires_at=None) -> str:
         "├ Множество серверов + обход LTE\n" 
         "├ До 3-х устройств\n"
         f"└ Подписка: {sub_line}\n" # sub_line - это строка с информацией о подписке
-        
+        "\nУправлять ключами можно также на сайте: coffeemaniavpn.ru"
+
     )
 
 
@@ -832,7 +834,7 @@ async def plan_trial(callback: CallbackQuery):
 
 @dp.callback_query(lambda c: c.data == 'subscribe_confirmed')
 async def subscribe_confirmed_callback(callback: CallbackQuery):
-    await callback.answer("✅ Я подписался") # на пол экрана хуйня высветится
+    await callback.answer("Я подписался") # на пол экрана хуйня высветится
     await callback.message.delete()
     if not await is_subscribed(bot, callback.from_user.id):
         await callback.message.answer(
@@ -844,7 +846,7 @@ async def subscribe_confirmed_callback(callback: CallbackQuery):
     ok = await _activate_trial_for_user(callback)
     if not ok:
         await callback.message.answer(
-            '✅ Подписка на канал подтверждена. Если ключ не пришёл — нажми «Попробовать бесплатно» ещё раз или напиши в поддержку.',
+            f'{CHECK_EMOJI_HTML} Подписка на канал подтверждена. Если ключ не пришёл — нажми «Попробовать бесплатно» ещё раз или напиши в поддержку.',
             parse_mode='HTML',
             reply_markup=ikb_back,
         )
@@ -961,7 +963,7 @@ async def check_payment_yookassa_callback(callback: CallbackQuery):
                 print(f'Ошибка отправки сообщения с ключом для {callback.from_user.id}: {e}')
         else:
             await callback.message.answer(
-                '✅ Оплата прошла успешно!\n\n'
+                f'{CHECK_EMOJI_HTML} Оплата прошла успешно!\n\n'
                 '⚠️ Не удалось автоматически выдать ключ. '
                 'Откройте «Моя подписка» — ключ там уже должен быть. '
                 'Если нет — напишите в поддержку.',
@@ -971,7 +973,7 @@ async def check_payment_yookassa_callback(callback: CallbackQuery):
 
     elif payment_state == 'already_processed':
         await callback.message.answer(
-            '✅ Этот платёж уже обработан ранее. Если доступ не появился, откройте «Моя подписка».',
+            f'{CHECK_EMOJI_HTML} Этот платёж уже обработан ранее. Если доступ не появился, откройте «Моя подписка».',
             parse_mode='HTML',
             reply_markup=ikb_my_sub,
         )
@@ -1124,7 +1126,7 @@ async def admin_setref_command(message: Message):
         await message.answer('USER_ID должен быть числом.', parse_mode='HTML')
         return
     ok, text = set_custom_ref_code(user_id, parts[2])
-    prefix = '✅ ' if ok else '❌ '
+    prefix = f'{CHECK_EMOJI_HTML} ' if ok else '❌ '
     await message.answer(prefix + text, parse_mode='HTML')
 
 
@@ -1140,7 +1142,7 @@ async def admin_delref_command(message: Message):
         await message.answer('USER_ID должен быть числом.', parse_mode='HTML')
         return
     ok, text = set_custom_ref_code(user_id, None)
-    prefix = '✅ ' if ok else '❌ '
+    prefix = f'{CHECK_EMOJI_HTML} ' if ok else '❌ '
     await message.answer(prefix + text, parse_mode='HTML')
 
 
@@ -1183,7 +1185,7 @@ async def shout_message(message: Message):
 
     summary = (
         f"🔊 Рассылка завершена\n"
-        f"✅ Отправлено: {sent}\n"
+        f"{CHECK_EMOJI_HTML} Отправлено: {sent}\n"
         f"🚫 Заблокировали бота: {blocked}\n"
         f"⚠️ Ошибок: {failed}\n"
         f"👥 Всего в базе: {len(result)}"
@@ -1362,7 +1364,7 @@ async def admin_notify_sale(callback: CallbackQuery):
                     "\n"
                     "Мы создали сервис, который работает по принципу «включил и забыл»:\n"
                     "\n"
-                    "<tg-emoji emoji-id='5436087613456918666'>✅</tg-emoji> Сервера переключаются автоматически.\n"
+                    f"{CHECK_EMOJI_HTML} Сервера переключаются автоматически.\n"
                     "<tg-emoji emoji-id='5307965711065292927'>🚀</tg-emoji> Одинаково стабильно летит ДАЖЕ ПРИ ГЛУШИЛКАХ\n"
                     "<tg-emoji emoji-id='5433895041242246420'>🎙</tg-emoji> Никаких настроек - всё просто работает.\n"
                     "\n"
@@ -1383,7 +1385,7 @@ async def admin_notify_sale(callback: CallbackQuery):
         await asyncio.sleep(0.05)  # 👈 маленький дилей
 
     await callback.message.answer(
-        f"Итого:\n\n✅ {success}\n\n❌ {fail}",
+        f"Итого:\n\n{CHECK_EMOJI_HTML} {success}\n\n❌ {fail}",
         reply_markup=ikb_admin_back
     )
 
@@ -1417,7 +1419,7 @@ async def admin_notify_trial_callback(callback: CallbackQuery):
                 print(e)
                 fail+=1
                 pass
-    await callback.message.answer(f"Итого: \n\n ✅ {success} \n\n ❌ {fail} ", parse_mode='HTML', reply_markup=ikb_admin_back)
+    await callback.message.answer(f"Итого: \n\n {CHECK_EMOJI_HTML} {success} \n\n ❌ {fail} ", parse_mode='HTML', reply_markup=ikb_admin_back)
 
 
 
@@ -1496,7 +1498,7 @@ async def we_need_refmasters_callback(callback: CallbackQuery):
 
     await callback.message.answer(
         f'<b>Рассылка «ищем рефоводов» завершена</b>\n\n'
-        f'✅ Отправлено: {sent}\n'
+        f'{CHECK_EMOJI_HTML} Отправлено: {sent}\n'
         f'🚫 Заблокировали бота: {blocked}\n'
         f'⚠️ Ошибок: {failed}\n'
         f'👥 Всего в базе: {total}',
@@ -1545,7 +1547,7 @@ async def admin_notify_referral_callback(callback: CallbackQuery):
             await asyncio.sleep(0.5)  # задержка 0.5 секунды
 
     await callback.message.answer(
-        f"✅ Уведомления отправлены!\n\n"
+        f"{CHECK_EMOJI_HTML} Уведомления отправлены!\n\n"
         f"📤 Отправлено: {sent_count}\n"
         f"❌ Ошибок: {failed_count}",
         parse_mode='HTML',
@@ -1638,7 +1640,7 @@ async def admin_set_role_message(message: Message, state: FSMContext):
             cur.execute('UPDATE users SET role = ? WHERE id = ?', (assign_role, user_id))
             con.commit()
             await message.answer(
-                f"✅ Роль {role_label} выдана:\n\n🆔 ID: {user_id}\n"
+                f"{CHECK_EMOJI_HTML} Роль {role_label} выдана:\n\n🆔 ID: {user_id}\n"
                 f"👤 Username: {user[1] if user[1] else 'Не указан'}",
                 parse_mode='HTML',
                 reply_markup=ikb_admin_back,
@@ -1718,7 +1720,7 @@ async def admin_custom_ref_user_id_message(message: Message, state: FSMContext):
     user_id = int(message.text.strip())
     if action == 'del':
         ok, text = set_custom_ref_code(user_id, None)
-        prefix = '✅ ' if ok else '❌ '
+        prefix = f'{CHECK_EMOJI_HTML} ' if ok else '❌ '
         await message.answer(prefix + text, parse_mode='HTML', reply_markup=ikb_admin_back)
         await state.clear()
         return
@@ -1755,7 +1757,7 @@ async def admin_custom_ref_code_message(message: Message, state: FSMContext):
         return
 
     ok, text = set_custom_ref_code(int(user_id), code)
-    prefix = '✅ ' if ok else '❌ '
+    prefix = f'{CHECK_EMOJI_HTML} ' if ok else '❌ '
     await message.answer(prefix + text, parse_mode='HTML', reply_markup=ikb_admin_back)
     await state.clear()
 
@@ -1940,7 +1942,7 @@ async def get_campaign_description(message: Message, state: FSMContext):
     await state.clear()
 
     await message.answer(
-        f'✅ <b>Кампания создана</b>\n\n'
+        f'{CHECK_EMOJI_HTML} <b>Кампания создана</b>\n\n'
         f'Кампания ID: <code>{campaign_id}</code>\n'
         f'Первая ссылка ID: <code>{link_id}</code>\n'
         f'URL: <code>{link_url}</code>\n\n'
@@ -2342,7 +2344,7 @@ async def adv_add_link_callback(callback: CallbackQuery):
         return
     link_id, link_url = add_adv_campaign_link(campaign_id)
     await callback.message.answer(
-        f'✅ <b>Новая ссылка</b>\n\n'
+        f'{CHECK_EMOJI_HTML} <b>Новая ссылка</b>\n\n'
         f'ID: <code>{link_id}</code>\n'
         f'URL: <code>{link_url}</code>',
         parse_mode='HTML',
@@ -2382,7 +2384,7 @@ async def ping_broke_users(callback: CallbackQuery): # оповестить ни
             pass
 
     await callback.message.answer(
-        f"✅ Рассылка завершена.\n"
+        f"{CHECK_EMOJI_HTML} Рассылка завершена.\n"
         f"Отправлено: {success}"
     )
 
@@ -2509,6 +2511,86 @@ async def give_2_days_bonus(callback: CallbackQuery):
         await callback.message.answer(
             '2 дня подписки выданы! Нажмите /start, чтобы открыть меню.',
             reply_markup=generate_ikb_main(tg_id),
+        )
+
+
+@dp.callback_query(F.data == 'buy_device')
+async def buy_hwid_device(callback: CallbackQuery):
+    await callback.message.delete()
+    try:
+        payment = await asyncio.to_thread(Payment.create, {
+            "amount": {
+                "value": f"{30}",
+                "currency": "RUB"
+            },
+            "confirmation": {
+                "type": "redirect",
+                "return_url": "https://t.me/coffemaniaVPNbot"
+            },
+            "capture": True,
+            "description": f"Покупка дополнительного устройства id={callback.from_user.id} username = {callback.from_user.username}",
+            "metadata": {
+                "user_id": callback.from_user.id,
+            }
+        }, uuid.uuid4())
+
+        payment_id = payment.id
+        confirmation_url = payment.confirmation.confirmation_url
+        await callback.message.answer(
+            f'👉 Создали заявку на оплату, переходите по ссылке и оплатите.\n\n<b>❗ После оплаты нажмите на кнопку "Я оплатил"</b>',
+            parse_mode='HTML',
+            reply_markup=get_ikb_device_payment(payment_id, confirmation_url, price=30))
+    except Exception as e:
+        logging.exception(e)
+        await callback.message.answer(
+            '❌ Не удалось создать заявку на оплату. Попробуйте позже или напишите в поддержку.',
+            parse_mode='HTML',
+            reply_markup=ikb_back,
+        )
+
+@dp.callback_query(F.data.startswith('device_yookassa_'))
+async def device_yookassa_check_payment(callback:CallbackQuery):
+    status = await asyncio.to_thread(
+        check_payment_yookassa_status,
+        30,
+        payment_id=callback.data.split('_')[-1],
+        user_id=callback.from_user.id
+    )
+    if status == 'paid':
+        try:
+            await asyncio.to_thread(vpn.add_hwid_devices, 1, callback.from_user.id)
+        except Exception as e:
+            logging.exception(e)
+            await callback.message.answer(
+                '❌ Оплата прошла, но не удалось добавить устройство. Напишите в поддержку.',
+                parse_mode='HTML',
+                reply_markup=ikb_back,
+            )
+            return
+        try:
+            await callback.message.delete()
+        except Exception:
+            pass
+        await callback.message.answer(
+            f'{CHECK_EMOJI_HTML} Успешно добавлено +1 устройство к текущей подписке.',
+            parse_mode='HTML',
+            reply_markup=ikb_back,
+        )
+    elif status == 'already_processed':
+        try:
+            await callback.message.delete()
+        except Exception:
+            pass
+        await callback.message.answer(
+            f'{CHECK_EMOJI_HTML} Этот платёж уже обработан. +1 устройство уже должно быть на аккаунте.',
+            parse_mode='HTML',
+            reply_markup=ikb_back,
+        )
+    else:
+        await callback.message.answer(
+            text='Ваша оплата не прошла. Попробуйте еще раз!',
+            parse_mode='HTML',
+            reply_markup=ikb_back,
         )
 
 async def main():

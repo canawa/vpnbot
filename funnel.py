@@ -14,7 +14,7 @@ from aiogram.types import CallbackQuery, InlineKeyboardMarkup, InlineKeyboardBut
 from prices import WEEK_PLAN_DAYS, WEEK_PLAN_PRICE, SUBSCRIPTION_PLAN
 from bot_delivery import is_telegram_unreachable, mark_user_bot_blocked
 from databases import upsert_subscription_days
-from emojis import get_emoji
+from emojis import get_emoji, CHECK_EMOJI_HTML
 
 logger = logging.getLogger(__name__)
 
@@ -826,7 +826,7 @@ async def grant_extra_trial_day(vpn, user_id: int) -> tuple[bool, str]:
                 con.commit()
             funnel_on_trial_started(user_id)
             log_funnel_event(user_id, 'extend_trial_ok')
-            return True, '✅ Добавили +1 день доступа. Открой «Моя подписка».'
+            return True, f'{CHECK_EMOJI_HTML} Добавили +1 день доступа. Открой «Моя подписка».'
         upsert_subscription_days(user_id, 1)
     except Exception as e:
         logger.exception('grant_extra_trial_day %s: %s', user_id, e)
@@ -844,7 +844,7 @@ async def grant_extra_trial_day(vpn, user_id: int) -> tuple[bool, str]:
         )
         con.commit()
     log_funnel_event(user_id, 'extend_trial_ok')
-    return True, '✅ Добавили +1 день доступа. Открой «Моя подписка».'
+    return True, f'{CHECK_EMOJI_HTML} Добавили +1 день доступа. Открой «Моя подписка».'
 
 
 def setup_funnel(dp, bot, vpn, *, trial_flow_cb):

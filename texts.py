@@ -1,4 +1,5 @@
 from vpn import *
+from emojis import CHECK_EMOJI_HTML
 def get_devices_list_text(tg_id):
     devices = Vpn().get_hwid_devices(tg_id)
     active_device_amount = len(devices)
@@ -7,7 +8,7 @@ def get_devices_list_text(tg_id):
 
     devices_list_text = (
         f"<b><tg-emoji emoji-id='5310037891051691834'>🌎</tg-emoji> У вас в подписке: {user_device_limit} устройств </b>\n"
-        f"<b><tg-emoji emoji-id='5436087613456918666'>✅</tg-emoji> Используется: {active_device_amount} / {user_device_limit} </b>\n\n"
+        f"<b>{CHECK_EMOJI_HTML} Используется: {active_device_amount} / {user_device_limit} </b>\n\n"
         "Вы можете управлять подключёнными устройствами ниже: "
         "отключать старые и добавлять новые в пределах лимита подписки."
     )

@@ -8,7 +8,11 @@ from vpn import *
 
 ikb_subscribe = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text='🔗 Подписаться на канал', url='https://t.me/coffemaniavpn')],
-    [InlineKeyboardButton(text='✅ Я подписался', callback_data='subscribe_confirmed')],
+    [InlineKeyboardButton(
+        text='Я подписался',
+        callback_data='subscribe_confirmed',
+        icon_custom_emoji_id=get_emoji('check'),
+    )],
 ])
 
 def generate_ikb_main(user_id):
@@ -358,6 +362,8 @@ def create_ikb_devices(tg_id):
                 style='danger',
             )
         ])
+    ikb_devices.inline_keyboard.append(
+        [InlineKeyboardButton(text='Купить +1 устройство (30 рублей)', callback_data='buy_device', icon_custom_emoji_id=get_emoji('tv_emoji'))])
     ikb_devices.inline_keyboard.append([InlineKeyboardButton(text='Назад', callback_data='back', icon_custom_emoji_id=get_emoji('exit'))])
     return ikb_devices
 
@@ -423,3 +429,13 @@ def get_ikb_2_days_bonus(tg_id):
         [InlineKeyboardButton(text='Получить 2 дня подписки', callback_data=f'2_days_bonus_{tg_id}', style='success')],
     ])
     return ikb_2_days_bonus
+
+def get_ikb_device_payment(payment_id, confirmation_url, price):
+    pid = str(payment_id).strip()
+    ikb_yookassa = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=f'👉 Перейти к оплате {price} ₽', url=confirmation_url)],
+        [InlineKeyboardButton(text='Я оплатил', callback_data=f'device_yookassa_{pid}',style='success')],
+        [InlineKeyboardButton(text='Отменить платеж!', callback_data='back', style='danger')],
+
+    ])
+    return ikb_yookassa

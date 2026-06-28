@@ -1,8 +1,7 @@
 # -*- coding: utf-8 -*-
 """Роли и начисления реферальной программы."""
 
-import sqlite3 as sq
-from datetime import date, timedelta
+from emojis import CHECK_EMOJI_HTML
 
 REFMASTER_ROLE = 'refmaster'
 REFMASTER_20_ROLE = 'refmaster_20'
@@ -251,7 +250,7 @@ def _format_deposit_rows_block(deposit_rows: list, role: str | None) -> str:
     for i, d in enumerate(deposit_rows[:15], 1):
         uname = d.get('referral_username') or ''
         who = f'@{uname}' if uname else f"id {d['referral_id']}"
-        window = '✅' if d.get('in_window') else '⛔ вне 90д'
+        window = CHECK_EMOJI_HTML if d.get('in_window') else '⛔ вне 90д'
         bonus_note = ''
         if (
             role_uses_fixed_deposit_bonus(role)

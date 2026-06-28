@@ -364,3 +364,36 @@ class Vpn:
 
         return body
 
+    def get_user_hwid_limit(self, tg_id):
+        body = requests.get(
+            f"{self.base_url}/api/users/by-telegram-id/{tg_id}",
+            headers={
+                "Authorization": f"Bearer {self.token}"
+            }
+        )
+        data = body.json()
+
+        return data['response'][0]['hwidDeviceLimit']
+
+    def add_hwid_devices(self, amount, tg_id):
+
+        response = requests.patch(
+            f"{self.base_url}/api/users",
+            headers={"Content-Type": "application/json", "Authorization": f"Bearer {self.token}"},
+            json={
+                "username": f'user_{tg_id}',
+                "hwidDeviceLimit": self.get_user_hwid_limit(tg_id) + amount, # ловим лимит и прибавляем количество девайсов которое хотим
+            }
+        )
+        try:
+            body = response.json()
+            return True
+        except Exception as e:
+            return {'errorCode': 'ERROR', 'message': str(e)}
+
+
+
+# print(Vpn().get_user_hwid_limit(1979477416))
+# print(len(Vpn().get_hwid_devices(1979477416)))
+# Vpn().add_hwid_devices(1, 1979477416)
+# print(Vpn().get_user_hwid_limit(1979477416))
