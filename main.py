@@ -498,7 +498,7 @@ async def buy_gbs(callback: CallbackQuery):
     gb_amount = int(callback.data.replace('gbs_', ''))
     price = GBS_PRICES.get(gb_amount)
     if price is None:
-        await callback.message.answer("<tg-emoji emoji-id="5210952531676504517">❌</tg-emoji> Неверный тариф", parse_mode='HTML')
+        await callback.message.answer("<tg-emoji emoji-id='5210952531676504517'>❌</tg-emoji> Неверный тариф", parse_mode='HTML')
         return
     try:
         payment = await asyncio.to_thread(Payment.create, {
@@ -768,15 +768,15 @@ async def support_callback(callback: CallbackQuery):
 
 def welcome_back_caption(has_active: bool, subscription_expires_at=None) -> str:
     if has_active and subscription_expires_at:
-        sub_line = f"🟢 Активна до <b>{subscription_expires_at}</b>"
+        sub_line = f"<tg-emoji emoji-id='5416081784641168838'>🟢</tg-emoji> Активна до <b>{subscription_expires_at}</b>"
     elif has_active:
-        sub_line = '🟢 Активна'
+        sub_line = '<tg-emoji emoji-id="5416081784641168838">🟢</tg-emoji> Активна'
     else:
-        sub_line = '🔴 Отсутствует'
+        sub_line = '<tg-emoji emoji-id="5411225014148014586">🔴</tg-emoji> Отсутствует'
     return (
         "👋 Добро пожаловать в Кофеманию\n"
         "\n"
-        "📦 Информация о подписке\n"
+        "<tg-emoji emoji-id='5472367477084134145'>📲</tg-emoji> Информация о подписке\n"
         "├ Множество серверов + обход LTE\n" 
         "├ До 3-х устройств\n"
         f"└ Подписка: {sub_line}\n" # sub_line - это строка с информацией о подписке
@@ -1150,7 +1150,7 @@ async def admin_delref_command(message: Message):
 async def shout_message(message: Message):
     text = (message.text or '')[6:].strip()
     if not text:
-        await message.answer("<tg-emoji emoji-id="5210952531676504517">❌</tg-emoji> Пустой текст. Пример: <code>shout Привет!</code>", parse_mode='HTML', reply_markup=ikb_back)
+        await message.answer("<tg-emoji emoji-id='5210952531676504517'>❌</tg-emoji> Пустой текст. Пример: <code>shout Привет!</code>", parse_mode='HTML', reply_markup=ikb_back)
         return
 
     with sq.connect('database.db') as con:
@@ -1385,7 +1385,7 @@ async def admin_notify_sale(callback: CallbackQuery):
         await asyncio.sleep(0.05)  # 👈 маленький дилей
 
     await callback.message.answer(
-        f"Итого:\n\n{CHECK_EMOJI_HTML} {success}\n\n<tg-emoji emoji-id="5210952531676504517">❌</tg-emoji> {fail}",
+        f"Итого:\n\n{CHECK_EMOJI_HTML} {success}\n\n<tg-emoji emoji-id='5210952531676504517'>❌</tg-emoji> {fail}",
         parse_mode='HTML', reply_markup=ikb_admin_back
     )
 
@@ -1419,7 +1419,7 @@ async def admin_notify_trial_callback(callback: CallbackQuery):
                 print(e)
                 fail+=1
                 pass
-    await callback.message.answer(f"Итого: \n\n {CHECK_EMOJI_HTML} {success} \n\n <tg-emoji emoji-id="5210952531676504517">❌</tg-emoji> {fail} ", parse_mode='HTML', reply_markup=ikb_admin_back)
+    await callback.message.answer(f"Итого: \n\n {CHECK_EMOJI_HTML} {success} \n\n <tg-emoji emoji-id='5210952531676504517'>❌</tg-emoji> {fail} ", parse_mode='HTML', reply_markup=ikb_admin_back)
 
 
 
@@ -1549,7 +1549,7 @@ async def admin_notify_referral_callback(callback: CallbackQuery):
     await callback.message.answer(
         f"{CHECK_EMOJI_HTML} Уведомления отправлены!\n\n"
         f"📤 Отправлено: {sent_count}\n"
-        f"<tg-emoji emoji-id="5210952531676504517">❌</tg-emoji> Ошибок: {failed_count}",
+        f"<tg-emoji emoji-id='5210952531676504517'>❌</tg-emoji> Ошибок: {failed_count}",
         parse_mode='HTML',
         reply_markup=ikb_admin_back
     )
@@ -1647,7 +1647,7 @@ async def admin_set_role_message(message: Message, state: FSMContext):
             )
         else:
             await message.answer(
-                f"<tg-emoji emoji-id="5210952531676504517">❌</tg-emoji> Пользователь с ID {user_id} не найден в базе данных.",
+                f"<tg-emoji emoji-id='5210952531676504517'>❌</tg-emoji> Пользователь с ID {user_id} не найден в базе данных.",
                 parse_mode='HTML',
                 reply_markup=ikb_admin_back,
             )
