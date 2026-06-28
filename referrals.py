@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 """Роли и начисления реферальной программы."""
 
+import sqlite3 as sq
+
 from emojis import CHECK_EMOJI_HTML
 
 REFMASTER_ROLE = 'refmaster'
