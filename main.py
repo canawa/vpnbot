@@ -49,7 +49,7 @@ from referrals import (
     should_send_ref_partner_notification,
 )
 import locale
-from emojis import get_emoji, CHECK_EMOJI_HTML
+from emojis import get_emoji, CHECK_EMOJI_HTML, CROSS_EMOJI_HTML
 from databases import (
     create_tables,
     upsert_subscription_days,
@@ -298,7 +298,7 @@ async def _activate_trial_for_user(callback: CallbackQuery) -> bool:
     uid = callback.from_user.id
     if not await is_subscribed(bot, uid):
         await callback.message.answer(
-            '<tg-emoji emoji-id="5210952531676504517">❌</tg-emoji> Вы не подписаны на канал!',
+            f'{CROSS_EMOJI_HTML} Вы не подписаны на канал!',
             parse_mode='HTML',
             reply_markup=ikb_subscribe,
         )
@@ -498,7 +498,7 @@ async def buy_gbs(callback: CallbackQuery):
     gb_amount = int(callback.data.replace('gbs_', ''))
     price = GBS_PRICES.get(gb_amount)
     if price is None:
-        await callback.message.answer("<tg-emoji emoji-id='5210952531676504517'>❌</tg-emoji> Неверный тариф", parse_mode='HTML')
+        await callback.message.answer(f"{CROSS_EMOJI_HTML} Неверный тариф", parse_mode='HTML')
         return
     try:
         payment = await asyncio.to_thread(Payment.create, {
@@ -534,7 +534,7 @@ async def buy_gbs(callback: CallbackQuery):
         )
     except Exception as e:
         await callback.message.answer(
-            '<tg-emoji emoji-id="5210952531676504517">❌</tg-emoji> Не удалось создать заявку. Напишите в техподдержку, мы обязательно поможем!',
+            f'{CROSS_EMOJI_HTML} Не удалось создать заявку. Напишите в техподдержку, мы обязательно поможем!',
             parse_mode='HTML', reply_markup=ikb_support,
         )
         print(f'process_deposit error: {type(e).__name__}: {e}')
@@ -599,7 +599,7 @@ async def process_gb_addition(callback: CallbackQuery):
         print(f'process_gb_addition error: {type(e).__name__}: {e}')
 
         await callback.message.answer(
-            '<tg-emoji emoji-id="5210952531676504517">❌</tg-emoji> Ошибка проверки оплаты',
+            f'{CROSS_EMOJI_HTML} Ошибка проверки оплаты',
             parse_mode='HTML', reply_markup=ikb_back
         )
 
@@ -614,7 +614,7 @@ async def delete_device(callback: CallbackQuery):
         device_idx = int(callback.data.replace('delete_device_', '', 1))
     except ValueError:
         await callback.message.answer(
-            '<tg-emoji emoji-id="5210952531676504517">❌</tg-emoji> Не удалось определить устройство. Откройте список заново.',
+            f'{CROSS_EMOJI_HTML} Не удалось определить устройство. Откройте список заново.',
             parse_mode='HTML', reply_markup=ikb_back,
         )
         return
@@ -838,7 +838,7 @@ async def subscribe_confirmed_callback(callback: CallbackQuery):
     await callback.message.delete()
     if not await is_subscribed(bot, callback.from_user.id):
         await callback.message.answer(
-            '<tg-emoji emoji-id="5210952531676504517">❌</tg-emoji> Вы не подписаны на канал! Подпишитесь на канал, чтобы получить бесплатный тестовый период!',
+            f'{CROSS_EMOJI_HTML} Вы не подписаны на канал! Подпишитесь на канал, чтобы получить бесплатный тестовый период!',
             parse_mode='HTML',
             reply_markup=ikb_subscribe,
         )
@@ -868,7 +868,7 @@ async def check_payment_yookassa_callback(callback: CallbackQuery):
 
     # теперь принимаем только новый формат
     if len(parts) != 4:
-        await callback.answer('<tg-emoji emoji-id="5210952531676504517">❌</tg-emoji> Устарела кнопка оплаты. Создайте платёж заново.', show_alert=True)
+        await callback.answer(f'{CROSS_EMOJI_HTML} Устарела кнопка оплаты. Создайте платёж заново.', show_alert=True)
         return
 
     _, amount_str, days_str, payment_id = parts
@@ -877,12 +877,12 @@ async def check_payment_yookassa_callback(callback: CallbackQuery):
         amount_rub = int(amount_str)
         paid_days = int(days_str)
     except ValueError:
-        await callback.answer('<tg-emoji emoji-id="5210952531676504517">❌</tg-emoji> Неверные данные в кнопке оплаты.', show_alert=True)
+        await callback.answer(f'{CROSS_EMOJI_HTML} Неверные данные в кнопке оплаты.', show_alert=True)
         return
 
     # expected_amount = SUBSCRIPTION_PLAN_PRICES.get(paid_days)
     # if expected_amount is None or expected_amount != amount_rub:
-    #     await callback.answer('<tg-emoji emoji-id="5210952531676504517">❌</tg-emoji> Сумма не соответствует тарифу. Создайте платёж заново.', show_alert=True)
+    #     await callback.answer(f'{CROSS_EMOJI_HTML} Сумма не соответствует тарифу. Создайте платёж заново.', show_alert=True)
     #     return
 
     try_log_open_invoice_check_click(callback.from_user.id, payment_id, 'yookassa')
@@ -995,7 +995,7 @@ async def process_deposit(callback: CallbackQuery):
 
     if len(parts) != 4:
         await callback.message.answer(
-            '<tg-emoji emoji-id="5210952531676504517">❌</tg-emoji> Неверные данные платежа. Выберите тариф заново.',
+            f'{CROSS_EMOJI_HTML} Неверные данные платежа. Выберите тариф заново.',
             parse_mode='HTML', reply_markup=ikb_back
         )
         return
@@ -1007,7 +1007,7 @@ async def process_deposit(callback: CallbackQuery):
         paid_days = int(days_str)
     except ValueError:
         await callback.message.answer(
-            '<tg-emoji emoji-id="5210952531676504517">❌</tg-emoji> Неверные данные суммы/тарифа. Выберите тариф заново.',
+            f'{CROSS_EMOJI_HTML} Неверные данные суммы/тарифа. Выберите тариф заново.',
             parse_mode='HTML', reply_markup=ikb_back
         )
         return
@@ -1061,7 +1061,7 @@ async def process_deposit(callback: CallbackQuery):
 
         except Exception as e:
             await callback.message.answer(
-                '<tg-emoji emoji-id="5210952531676504517">❌</tg-emoji> Не удалось создать заявку. Напишите в техподдержку, мы обязательно поможем!',
+                f'{CROSS_EMOJI_HTML} Не удалось создать заявку. Напишите в техподдержку, мы обязательно поможем!',
                 parse_mode='HTML', reply_markup=ikb_support,
             )
             print(f'process_deposit error: {type(e).__name__}: {e}')
@@ -1126,7 +1126,7 @@ async def admin_setref_command(message: Message):
         await message.answer('USER_ID должен быть числом.', parse_mode='HTML')
         return
     ok, text = set_custom_ref_code(user_id, parts[2])
-    prefix = f'{CHECK_EMOJI_HTML} ' if ok else '<tg-emoji emoji-id="5210952531676504517">❌</tg-emoji> '
+    prefix = f'{CHECK_EMOJI_HTML} ' if ok else f'{CROSS_EMOJI_HTML} '
     await message.answer(prefix + text, parse_mode='HTML')
 
 
@@ -1142,7 +1142,7 @@ async def admin_delref_command(message: Message):
         await message.answer('USER_ID должен быть числом.', parse_mode='HTML')
         return
     ok, text = set_custom_ref_code(user_id, None)
-    prefix = f'{CHECK_EMOJI_HTML} ' if ok else '<tg-emoji emoji-id="5210952531676504517">❌</tg-emoji> '
+    prefix = f'{CHECK_EMOJI_HTML} ' if ok else f'{CROSS_EMOJI_HTML} '
     await message.answer(prefix + text, parse_mode='HTML')
 
 
@@ -1150,7 +1150,7 @@ async def admin_delref_command(message: Message):
 async def shout_message(message: Message):
     text = (message.text or '')[6:].strip()
     if not text:
-        await message.answer("<tg-emoji emoji-id='5210952531676504517'>❌</tg-emoji> Пустой текст. Пример: <code>shout Привет!</code>", parse_mode='HTML', reply_markup=ikb_back)
+        await message.answer(f"{CROSS_EMOJI_HTML} Пустой текст. Пример: <code>shout Привет!</code>", parse_mode='HTML', reply_markup=ikb_back)
         return
 
     with sq.connect('database.db') as con:
@@ -1385,7 +1385,7 @@ async def admin_notify_sale(callback: CallbackQuery):
         await asyncio.sleep(0.05)  # 👈 маленький дилей
 
     await callback.message.answer(
-        f"Итого:\n\n{CHECK_EMOJI_HTML} {success}\n\n<tg-emoji emoji-id='5210952531676504517'>❌</tg-emoji> {fail}",
+        f"Итого:\n\n{CHECK_EMOJI_HTML} {success}\n\n{CROSS_EMOJI_HTML} {fail}",
         parse_mode='HTML', reply_markup=ikb_admin_back
     )
 
@@ -1419,7 +1419,7 @@ async def admin_notify_trial_callback(callback: CallbackQuery):
                 print(e)
                 fail+=1
                 pass
-    await callback.message.answer(f"Итого: \n\n {CHECK_EMOJI_HTML} {success} \n\n <tg-emoji emoji-id='5210952531676504517'>❌</tg-emoji> {fail} ", parse_mode='HTML', reply_markup=ikb_admin_back)
+    await callback.message.answer(f"Итого: \n\n {CHECK_EMOJI_HTML} {success} \n\n {CROSS_EMOJI_HTML} {fail} ", parse_mode='HTML', reply_markup=ikb_admin_back)
 
 
 
@@ -1549,7 +1549,7 @@ async def admin_notify_referral_callback(callback: CallbackQuery):
     await callback.message.answer(
         f"{CHECK_EMOJI_HTML} Уведомления отправлены!\n\n"
         f"📤 Отправлено: {sent_count}\n"
-        f"<tg-emoji emoji-id='5210952531676504517'>❌</tg-emoji> Ошибок: {failed_count}",
+        f"{CROSS_EMOJI_HTML} Ошибок: {failed_count}",
         parse_mode='HTML',
         reply_markup=ikb_admin_back
     )
@@ -1624,7 +1624,7 @@ async def admin_set_role_message(message: Message, state: FSMContext):
     assign_role = data.get('assign_role')
     if assign_role not in (REFMASTER_ROLE, REFMASTER_20_ROLE, ADV_MANAGER_ROLE):
         await message.answer(
-            '<tg-emoji emoji-id="5210952531676504517">❌</tg-emoji> Сессия устарела. Снова выберите роль в админке → Роли.',
+            f'{CROSS_EMOJI_HTML} Сессия устарела. Снова выберите роль в админке → Роли.',
             parse_mode='HTML', reply_markup=ikb_admin_back,
         )
         await state.clear()
@@ -1647,7 +1647,7 @@ async def admin_set_role_message(message: Message, state: FSMContext):
             )
         else:
             await message.answer(
-                f"<tg-emoji emoji-id='5210952531676504517'>❌</tg-emoji> Пользователь с ID {user_id} не найден в базе данных.",
+                f"{CROSS_EMOJI_HTML} Пользователь с ID {user_id} не найден в базе данных.",
                 parse_mode='HTML',
                 reply_markup=ikb_admin_back,
             )
@@ -1702,7 +1702,7 @@ async def admin_custom_ref_del_callback(callback: CallbackQuery, state: FSMConte
 async def admin_custom_ref_user_id_message(message: Message, state: FSMContext):
     if not (message.text or '').strip().isdigit():
         await message.answer(
-            '<tg-emoji emoji-id="5210952531676504517">❌</tg-emoji> ID должен быть числом (Telegram ID).',
+            f'{CROSS_EMOJI_HTML} ID должен быть числом (Telegram ID).',
             parse_mode='HTML', reply_markup=ikb_admin_back,
         )
         return
@@ -1711,7 +1711,7 @@ async def admin_custom_ref_user_id_message(message: Message, state: FSMContext):
     action = data.get('custom_ref_action')
     if action not in ('set', 'del'):
         await message.answer(
-            '<tg-emoji emoji-id="5210952531676504517">❌</tg-emoji> Сессия устарела. Админка → 🔗 Авторские ссылки.',
+            f'{CROSS_EMOJI_HTML} Сессия устарела. Админка → 🔗 Авторские ссылки.',
             parse_mode='HTML', reply_markup=ikb_admin_back,
         )
         await state.clear()
@@ -1720,7 +1720,7 @@ async def admin_custom_ref_user_id_message(message: Message, state: FSMContext):
     user_id = int(message.text.strip())
     if action == 'del':
         ok, text = set_custom_ref_code(user_id, None)
-        prefix = f'{CHECK_EMOJI_HTML} ' if ok else '<tg-emoji emoji-id="5210952531676504517">❌</tg-emoji> '
+        prefix = f'{CHECK_EMOJI_HTML} ' if ok else f'{CROSS_EMOJI_HTML} '
         await message.answer(prefix + text, parse_mode='HTML', reply_markup=ikb_admin_back)
         await state.clear()
         return
@@ -1741,7 +1741,7 @@ async def admin_custom_ref_code_message(message: Message, state: FSMContext):
     user_id = data.get('custom_ref_user_id')
     if not user_id:
         await message.answer(
-            '<tg-emoji emoji-id="5210952531676504517">❌</tg-emoji> Сессия устарела. Начните снова: Админка → 🔗 Авторские ссылки.',
+            f'{CROSS_EMOJI_HTML} Сессия устарела. Начните снова: Админка → 🔗 Авторские ссылки.',
             parse_mode='HTML', reply_markup=ikb_admin_back,
         )
         await state.clear()
@@ -1750,14 +1750,14 @@ async def admin_custom_ref_code_message(message: Message, state: FSMContext):
     code = (message.text or '').strip()
     if not normalize_ref_code(code):
         await message.answer(
-            '<tg-emoji emoji-id="5210952531676504517">❌</tg-emoji> Неверный код. Латиница, цифры, <code>_</code> и <code>-</code>, 1–64 символа.',
+            f'{CROSS_EMOJI_HTML} Неверный код. Латиница, цифры, <code>_</code> и <code>-</code>, 1–64 символа.',
             parse_mode='HTML',
             reply_markup=ikb_admin_back,
         )
         return
 
     ok, text = set_custom_ref_code(int(user_id), code)
-    prefix = f'{CHECK_EMOJI_HTML} ' if ok else '<tg-emoji emoji-id="5210952531676504517">❌</tg-emoji> '
+    prefix = f'{CHECK_EMOJI_HTML} ' if ok else f'{CROSS_EMOJI_HTML} '
     await message.answer(prefix + text, parse_mode='HTML', reply_markup=ikb_admin_back)
     await state.clear()
 
@@ -1818,7 +1818,7 @@ async def _send_adv_dashboard(
     dashboard = resolve_admin_adv_lookup(lookup_id)
     if not dashboard:
         await message.answer(
-            f'<tg-emoji emoji-id="5210952531676504517">❌</tg-emoji> По ID <b>{lookup_id}</b> ничего не найдено.',
+            f'{CROSS_EMOJI_HTML} По ID <b>{lookup_id}</b> ничего не найдено.',
             parse_mode='HTML',
             reply_markup=reply_markup,
         )
@@ -1842,7 +1842,7 @@ async def _send_ref_partner_dashboard(
     dashboard = get_ref_partner_dashboard(lookup_id)
     if not dashboard:
         await message.answer(
-            f'<tg-emoji emoji-id="5210952531676504517">❌</tg-emoji> По ID <b>{lookup_id}</b> ничего не найдено '
+            f'{CROSS_EMOJI_HTML} По ID <b>{lookup_id}</b> ничего не найдено '
             '(нет кампании, пользователя и рефералов).',
             parse_mode='HTML',
             reply_markup=reply_markup,
@@ -1867,7 +1867,7 @@ async def _send_campaign_dashboard(
     dashboard = get_adv_campaign_dashboard(campaign_id)
     if not dashboard:
         await message.answer(
-            f'<tg-emoji emoji-id="5210952531676504517">❌</tg-emoji> Кампания <b>{campaign_id}</b> не найдена.',
+            f'{CROSS_EMOJI_HTML} Кампания <b>{campaign_id}</b> не найдена.',
             parse_mode='HTML',
             reply_markup=reply_markup,
         )
@@ -1891,7 +1891,7 @@ async def _send_link_dashboard(
     dashboard = get_adv_link_dashboard(link_id)
     if not dashboard:
         await message.answer(
-            f'<tg-emoji emoji-id="5210952531676504517">❌</tg-emoji> Ссылка <b>{link_id}</b> не найдена.',
+            f'{CROSS_EMOJI_HTML} Ссылка <b>{link_id}</b> не найдена.',
             parse_mode='HTML',
             reply_markup=ikb_adv2_back,
         )
@@ -2019,7 +2019,7 @@ async def adv_campaign_id_lookup_message(message: Message, state: FSMContext):
     raw = (message.text or '').strip()
     if not raw.isdigit():
         await message.answer(
-            '<tg-emoji emoji-id="5210952531676504517">❌</tg-emoji> ID должен быть числом. Пример: <code>12</code>',
+            f'{CROSS_EMOJI_HTML} ID должен быть числом. Пример: <code>12</code>',
             parse_mode='HTML',
             reply_markup=back_markup,
         )
@@ -2032,7 +2032,7 @@ async def adv_campaign_id_lookup_message(message: Message, state: FSMContext):
     if lookup_mode == 'adv2':
         if get_adv_campaign(lookup_id):
             if not user_can_view_adv_campaign(uid, lookup_id, admin_sees_all=sees_all):
-                await message.answer('<tg-emoji emoji-id="5210952531676504517">❌</tg-emoji> Нет доступа к этой кампании.', parse_mode='HTML', reply_markup=back_markup)
+                await message.answer(f'{CROSS_EMOJI_HTML} Нет доступа к этой кампании.', parse_mode='HTML', reply_markup=back_markup)
                 await state.clear()
                 return
             await _send_campaign_dashboard(
@@ -2040,13 +2040,13 @@ async def adv_campaign_id_lookup_message(message: Message, state: FSMContext):
             )
         elif get_adv_campaign_link(lookup_id):
             if not user_can_view_adv_link(uid, lookup_id, admin_sees_all=sees_all):
-                await message.answer('<tg-emoji emoji-id="5210952531676504517">❌</tg-emoji> Нет доступа к этой ссылке.', parse_mode='HTML', reply_markup=back_markup)
+                await message.answer(f'{CROSS_EMOJI_HTML} Нет доступа к этой ссылке.', parse_mode='HTML', reply_markup=back_markup)
                 await state.clear()
                 return
             await _send_link_dashboard(message, lookup_id, hide_payouts=hide_payouts)
         else:
             await message.answer(
-                '<tg-emoji emoji-id="5210952531676504517">❌</tg-emoji> Не найдено. Введите ID кампании или ссылки.',
+                f'{CROSS_EMOJI_HTML} Не найдено. Введите ID кампании или ссылки.',
                 parse_mode='HTML',
                 reply_markup=back_markup,
             )
@@ -2090,7 +2090,7 @@ async def adv_refmaster_detail_callback(callback: CallbackQuery):
     try:
         partner_id = int(callback.data.replace('adv_rm_', '', 1))
     except ValueError:
-        await callback.message.answer('<tg-emoji emoji-id="5210952531676504517">❌</tg-emoji> Неверный ID.', parse_mode='HTML', reply_markup=ikb_adv_back)
+        await callback.message.answer(f'{CROSS_EMOJI_HTML} Неверный ID.', parse_mode='HTML', reply_markup=ikb_adv_back)
         return
     await _send_ref_partner_dashboard(
         callback.message, partner_id, ikb_adv_refmaster_detail_back,
@@ -2291,11 +2291,11 @@ async def adv_campaign_by_id_callback(callback: CallbackQuery):
     try:
         campaign_id = int(callback.data.replace('adv_cid_', '', 1))
     except ValueError:
-        await callback.message.answer('<tg-emoji emoji-id="5210952531676504517">❌</tg-emoji> Неверный ID кампании.', parse_mode='HTML', reply_markup=ikb_adv2_back)
+        await callback.message.answer(f'{CROSS_EMOJI_HTML} Неверный ID кампании.', parse_mode='HTML', reply_markup=ikb_adv2_back)
         return
     uid = callback.from_user.id
     if not user_can_view_adv_campaign(uid, campaign_id, admin_sees_all=_user_sees_all_adv_campaigns(uid)):
-        await callback.message.answer('<tg-emoji emoji-id="5210952531676504517">❌</tg-emoji> Нет доступа к этой кампании.', parse_mode='HTML', reply_markup=ikb_adv2_back)
+        await callback.message.answer(f'{CROSS_EMOJI_HTML} Нет доступа к этой кампании.', parse_mode='HTML', reply_markup=ikb_adv2_back)
         return
     hide_payouts = not can_access_refmaster_payouts(callback.from_user.id)
     await _send_campaign_dashboard(
@@ -2315,11 +2315,11 @@ async def adv_link_by_id_callback(callback: CallbackQuery):
     try:
         link_id = int(callback.data.replace('adv_lid_', '', 1))
     except ValueError:
-        await callback.message.answer('<tg-emoji emoji-id="5210952531676504517">❌</tg-emoji> Неверный ID ссылки.', parse_mode='HTML', reply_markup=ikb_adv2_back)
+        await callback.message.answer(f'{CROSS_EMOJI_HTML} Неверный ID ссылки.', parse_mode='HTML', reply_markup=ikb_adv2_back)
         return
     uid = callback.from_user.id
     if not user_can_view_adv_link(uid, link_id, admin_sees_all=_user_sees_all_adv_campaigns(uid)):
-        await callback.message.answer('<tg-emoji emoji-id="5210952531676504517">❌</tg-emoji> Нет доступа к этой ссылке.', parse_mode='HTML', reply_markup=ikb_adv2_back)
+        await callback.message.answer(f'{CROSS_EMOJI_HTML} Нет доступа к этой ссылке.', parse_mode='HTML', reply_markup=ikb_adv2_back)
         return
     hide_payouts = not can_access_refmaster_payouts(callback.from_user.id)
     await _send_link_dashboard(callback.message, link_id, hide_payouts=hide_payouts)
@@ -2333,14 +2333,14 @@ async def adv_add_link_callback(callback: CallbackQuery):
     try:
         campaign_id = int(callback.data.replace('adv_add_link_', '', 1))
     except ValueError:
-        await callback.message.answer('<tg-emoji emoji-id="5210952531676504517">❌</tg-emoji> Неверный ID кампании.', parse_mode='HTML', reply_markup=ikb_adv2_back)
+        await callback.message.answer(f'{CROSS_EMOJI_HTML} Неверный ID кампании.', parse_mode='HTML', reply_markup=ikb_adv2_back)
         return
     if not get_adv_campaign(campaign_id):
-        await callback.message.answer('<tg-emoji emoji-id="5210952531676504517">❌</tg-emoji> Кампания не найдена.', parse_mode='HTML', reply_markup=ikb_adv2_back)
+        await callback.message.answer(f'{CROSS_EMOJI_HTML} Кампания не найдена.', parse_mode='HTML', reply_markup=ikb_adv2_back)
         return
     uid = callback.from_user.id
     if not user_can_view_adv_campaign(uid, campaign_id, admin_sees_all=_user_sees_all_adv_campaigns(uid)):
-        await callback.message.answer('<tg-emoji emoji-id="5210952531676504517">❌</tg-emoji> Нет доступа к этой кампании.', parse_mode='HTML', reply_markup=ikb_adv2_back)
+        await callback.message.answer(f'{CROSS_EMOJI_HTML} Нет доступа к этой кампании.', parse_mode='HTML', reply_markup=ikb_adv2_back)
         return
     link_id, link_url = add_adv_campaign_link(campaign_id)
     await callback.message.answer(
@@ -2480,11 +2480,11 @@ async def give_2_days_bonus(callback: CallbackQuery):
     try:
         tg_id = int(callback.data.replace('2_days_bonus_', '', 1))
     except ValueError:
-        await callback.answer('<tg-emoji emoji-id="5210952531676504517">❌</tg-emoji> Неверная кнопка.', show_alert=True)
+        await callback.answer(f'{CROSS_EMOJI_HTML} Неверная кнопка.', show_alert=True)
         return
 
     if tg_id != callback.from_user.id:
-        await callback.answer('<tg-emoji emoji-id="5210952531676504517">❌</tg-emoji> Это предложение не для вас.', show_alert=True)
+        await callback.answer(f'{CROSS_EMOJI_HTML} Это предложение не для вас.', show_alert=True)
         return
 
     try:
@@ -2543,7 +2543,7 @@ async def buy_hwid_device(callback: CallbackQuery):
     except Exception as e:
         logging.exception(e)
         await callback.message.answer(
-            '<tg-emoji emoji-id="5210952531676504517">❌</tg-emoji> Не удалось создать заявку на оплату. Попробуйте позже или напишите в поддержку.',
+            f'{CROSS_EMOJI_HTML} Не удалось создать заявку на оплату. Попробуйте позже или напишите в поддержку.',
             parse_mode='HTML',
             reply_markup=ikb_back,
         )
@@ -2562,7 +2562,7 @@ async def device_yookassa_check_payment(callback:CallbackQuery):
         except Exception as e:
             logging.exception(e)
             await callback.message.answer(
-                '<tg-emoji emoji-id="5210952531676504517">❌</tg-emoji> Оплата прошла, но не удалось добавить устройство. Напишите в поддержку.',
+                f'{CROSS_EMOJI_HTML} Оплата прошла, но не удалось добавить устройство. Напишите в поддержку.',
                 parse_mode='HTML',
                 reply_markup=ikb_back,
             )

@@ -1,7 +1,9 @@
 CHECK_EMOJI_HTML = '<tg-emoji emoji-id="5206607081334906820">✔️</tg-emoji>'
+CROSS_EMOJI_HTML = '<tg-emoji emoji-id="5210952531676504517">❌</tg-emoji>'
 
 ids = {
     'check': '5206607081334906820',
+    'cross': '5210952531676504517',
     'germany': '5215512004533448175',
     'finland': '5215546669214492963',
     'france': '5215473547396280989',
