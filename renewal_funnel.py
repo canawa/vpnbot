@@ -14,21 +14,102 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 from prices import SUBSCRIPTION_PLAN, WEEK_PLAN_DAYS, WEEK_PLAN_PRICE
 from bot_delivery import is_telegram_unreachable, is_user_bot_blocked, mark_user_bot_blocked
-from funnel import log_funnel_event
+from databases import db_connect, db_retry
 from emojis import get_emoji
 
 logger = logging.getLogger(__name__)
 
 SUPPORT_URL = 'https://t.me/coffeemaniasup2'
 RENEWAL_SLEEP_SEC = int(os.getenv('RENEWAL_SLEEP_SEC', '300'))
+RENEWAL_USER_DELAY_SEC = float(os.getenv('RENEWAL_USER_DELAY_SEC', '0.35'))
 
 P30 = SUBSCRIPTION_PLAN.get(30, 149)
 P90 = SUBSCRIPTION_PLAN.get(90, 399)
 P360 = SUBSCRIPTION_PLAN.get(360, 899)
 
+_renewal_db_lock = asyncio.Lock()
+
 
 def _connect():
-    return sq.connect('database.db')
+    return db_connect()
+
+
+def _log_event_in_tx(cur, user_id: int, event_type: str) -> None:
+    cur.execute(
+        'INSERT INTO funnel_events (user_id, event_type, meta, created_at) VALUES (?, ?, ?, ?)',
+        (user_id, event_type, None, datetime.now().isoformat()),
+    )
+
+
+def _ensure_row(user_id: int, expires_at: str) -> None:
+    now = datetime.now().isoformat()
+
+    def _write():
+        with _connect() as con:
+            cur = con.cursor()
+            cur.execute('SELECT 1 FROM user_renewal_funnel WHERE user_id = ?', (user_id,))
+            if cur.fetchone():
+                cur.execute(
+                    'UPDATE user_renewal_funnel SET subscription_expires_at = ? WHERE user_id = ?',
+                    (expires_at, user_id),
+                )
+            else:
+                cur.execute(
+                    """
+                    INSERT INTO user_renewal_funnel (user_id, subscription_expires_at, entered_at)
+                    VALUES (?, ?, ?)
+                    """,
+                    (user_id, expires_at, now),
+                )
+                _log_event_in_tx(cur, user_id, 'renewal_entered')
+            con.commit()
+
+    db_retry(_write)
+
+
+def renewal_on_paid(user_id: int) -> None:
+    now = datetime.now().isoformat()
+
+    def _write():
+        with _connect() as con:
+            cur = con.cursor()
+            cur.execute(
+                """
+                UPDATE user_renewal_funnel
+                SET stopped = 1, stopped_at = ?
+                WHERE user_id = ?
+                """,
+                (now, user_id),
+            )
+            if cur.rowcount:
+                _log_event_in_tx(cur, user_id, 'renewal_stopped_paid')
+            con.commit()
+
+    db_retry(_write)
+
+
+def _clear_cycle_after_renewal(user_id: int, expires_at: str) -> None:
+    """После оплаты подписка снова далеко в будущем — сброс флагов для следующего цикла."""
+
+    def _write():
+        with _connect() as con:
+            cur = con.cursor()
+            cur.execute(
+                """
+                UPDATE user_renewal_funnel
+                SET stopped = 0, stopped_at = NULL,
+                    rn_m7 = 0, rn_m3 = 0, rn_d0 = 0,
+                    rn_p1d = 0, rn_p3d = 0, rn_p7d = 0, rn_p30d = 0,
+                    subscription_expires_at = ?
+                WHERE user_id = ? AND stopped = 1
+                """,
+                (expires_at, user_id),
+            )
+            if cur.rowcount:
+                _log_event_in_tx(cur, user_id, 'renewal_cycle_reset')
+                con.commit()
+
+    db_retry(_write)
 
 
 def _parse_date(value: str | None) -> date | None:
@@ -43,6 +124,24 @@ def _parse_date(value: str | None) -> date | None:
         return date.fromisoformat(text[:10])
     except Exception:
         return None
+
+
+def _fetch_paid_subscriber_ids() -> set[int]:
+    with _connect() as con:
+        cur = con.cursor()
+        ids: set[int] = set()
+        cur.execute(
+            """
+            SELECT DISTINCT user_id FROM transactions
+            WHERE type IN ('yookassa', 'CryptoBot')
+            """
+        )
+        ids.update(row[0] for row in cur.fetchall())
+        cur.execute(
+            'SELECT user_id FROM user_funnel WHERE last_paid_at IS NOT NULL'
+        )
+        ids.update(row[0] for row in cur.fetchall())
+    return ids
 
 
 def is_paid_subscriber(user_id: int) -> bool:
@@ -70,63 +169,6 @@ def renewal_funnel_handles_notifications(user_id: int) -> bool:
     return is_paid_subscriber(user_id)
 
 
-def _ensure_row(user_id: int, expires_at: str) -> None:
-    now = datetime.now().isoformat()
-    with _connect() as con:
-        cur = con.cursor()
-        cur.execute('SELECT 1 FROM user_renewal_funnel WHERE user_id = ?', (user_id,))
-        if cur.fetchone():
-            cur.execute(
-                'UPDATE user_renewal_funnel SET subscription_expires_at = ? WHERE user_id = ?',
-                (expires_at, user_id),
-            )
-        else:
-            cur.execute(
-                """
-                INSERT INTO user_renewal_funnel (user_id, subscription_expires_at, entered_at)
-                VALUES (?, ?, ?)
-                """,
-                (user_id, expires_at, now),
-            )
-            log_funnel_event(user_id, 'renewal_entered')
-        con.commit()
-
-
-def renewal_on_paid(user_id: int) -> None:
-    with _connect() as con:
-        cur = con.cursor()
-        cur.execute(
-            """
-            UPDATE user_renewal_funnel
-            SET stopped = 1, stopped_at = ?
-            WHERE user_id = ?
-            """,
-            (datetime.now().isoformat(), user_id),
-        )
-        con.commit()
-    log_funnel_event(user_id, 'renewal_stopped_paid')
-
-
-def _clear_cycle_after_renewal(user_id: int, expires_at: str) -> None:
-    """После оплаты подписка снова далеко в будущем — сброс флагов для следующего цикла."""
-    with _connect() as con:
-        cur = con.cursor()
-        cur.execute(
-            """
-            UPDATE user_renewal_funnel
-            SET stopped = 0, stopped_at = NULL,
-                rn_m7 = 0, rn_m3 = 0, rn_d0 = 0,
-                rn_p1d = 0, rn_p3d = 0, rn_p7d = 0, rn_p30d = 0,
-                subscription_expires_at = ?
-            WHERE user_id = ? AND stopped = 1
-            """,
-            (expires_at, user_id),
-        )
-        if cur.rowcount:
-            con.commit()
-            log_funnel_event(user_id, 'renewal_cycle_reset')
-
-
 def _load_flags(user_id: int) -> tuple[int, ...] | None:
     with _connect() as con:
         cur = con.cursor()
@@ -149,10 +191,24 @@ def _mark_flag(user_id: int, column: str) -> None:
     allowed = {'rn_m7', 'rn_m3', 'rn_d0', 'rn_p1d', 'rn_p3d', 'rn_p7d', 'rn_p30d'}
     if column not in allowed:
         return
-    with _connect() as con:
-        con.execute(f'UPDATE user_renewal_funnel SET {column} = 1 WHERE user_id = ?', (user_id,))
-        con.commit()
-    log_funnel_event(user_id, f'renewal_{column}')
+
+    def _write():
+        with _connect() as con:
+            cur = con.cursor()
+            cur.execute(
+                f'UPDATE user_renewal_funnel SET {column} = 1 WHERE user_id = ?',
+                (user_id,),
+            )
+            _log_event_in_tx(cur, user_id, f'renewal_{column}')
+            con.commit()
+
+    db_retry(_write)
+
+
+async def _run_db(fn, *args):
+    """Сериализуем обращения воронки продления к SQLite."""
+    async with _renewal_db_lock:
+        return await asyncio.to_thread(fn, *args)
 
 
 def ikb_renew_buy() -> InlineKeyboardMarkup:
@@ -287,8 +343,6 @@ async def _safe_send(bot: Bot, user_id: int, text: str, markup) -> bool:
 async def _process_user(bot: Bot, user_id: int, expires_at: str) -> None:
     if is_user_bot_blocked(user_id):
         return
-    if not is_paid_subscriber(user_id):
-        return
 
     exp_d = _parse_date(expires_at)
     if not exp_d:
@@ -298,72 +352,87 @@ async def _process_user(bot: Bot, user_id: int, expires_at: str) -> None:
     days_until = (exp_d - today).days
 
     if days_until > 7:
-        _clear_cycle_after_renewal(user_id, expires_at)
+        await _run_db(_clear_cycle_after_renewal, user_id, expires_at)
         return
 
-    _ensure_row(user_id, expires_at)
-    loaded = _load_flags(user_id)
+    await _run_db(_ensure_row, user_id, expires_at)
+    loaded = await _run_db(_load_flags, user_id)
     if not loaded:
         return
     stopped, rn_m7, rn_m3, rn_d0, rn_p1d, rn_p3d, rn_p7d, rn_p30d = loaded
     if stopped:
         return
 
-    # Одно письмо за проход; catch-up если воркер пропустил точный день.
+    flag_to_mark: str | None = None
+    msg: str | None = None
+    markup = None
+
     if days_until >= 0:
         if not rn_m7 and days_until <= 7:
-            if await _safe_send(bot, user_id, MSG_M7, ikb_renew_buy()):
-                _mark_flag(user_id, 'rn_m7')
+            msg, markup, flag_to_mark = MSG_M7, ikb_renew_buy(), 'rn_m7'
         elif not rn_m3 and days_until <= 3:
-            if await _safe_send(bot, user_id, MSG_M3, ikb_renew_buy()):
-                _mark_flag(user_id, 'rn_m3')
+            msg, markup, flag_to_mark = MSG_M3, ikb_renew_buy(), 'rn_m3'
         elif not rn_d0 and days_until == 0:
-            if await _safe_send(bot, user_id, MSG_D0, ikb_renew_buy()):
-                _mark_flag(user_id, 'rn_d0')
+            msg, markup, flag_to_mark = MSG_D0, ikb_renew_buy(), 'rn_d0'
     else:
         days_past = -days_until
         if not rn_p1d and days_past >= 1:
-            if await _safe_send(bot, user_id, MSG_P1D, ikb_restore()):
-                _mark_flag(user_id, 'rn_p1d')
+            msg, markup, flag_to_mark = MSG_P1D, ikb_restore(), 'rn_p1d'
         elif not rn_p3d and days_past >= 3:
-            if await _safe_send(bot, user_id, MSG_P3D, ikb_renew_plans()):
-                _mark_flag(user_id, 'rn_p3d')
+            msg, markup, flag_to_mark = MSG_P3D, ikb_renew_plans(), 'rn_p3d'
         elif not rn_p7d and days_past >= 7:
-            if await _safe_send(bot, user_id, MSG_P7D, ikb_enough()):
-                _mark_flag(user_id, 'rn_p7d')
+            msg, markup, flag_to_mark = MSG_P7D, ikb_enough(), 'rn_p7d'
         elif not rn_p30d and days_past >= 30:
-            if await _safe_send(bot, user_id, MSG_P30D, ikb_year_60_marketing()):
-                _mark_flag(user_id, 'rn_p30d')
+            msg, markup, flag_to_mark = MSG_P30D, ikb_year_60_marketing(), 'rn_p30d'
+
+    if not msg or not flag_to_mark:
+        return
+
+    if await _safe_send(bot, user_id, msg, markup):
+        await _run_db(_mark_flag, user_id, flag_to_mark)
 
 
 async def run_renewal_funnel_worker(bot: Bot) -> None:
-    logger.info('renewal funnel worker started, sleep=%ss', RENEWAL_SLEEP_SEC)
+    logger.info(
+        'renewal funnel worker started, sleep=%ss, user_delay=%ss',
+        RENEWAL_SLEEP_SEC,
+        RENEWAL_USER_DELAY_SEC,
+    )
     await asyncio.sleep(8)
     while True:
         try:
-            with _connect() as con:
-                cur = con.cursor()
-                cur.execute(
-                    """
-                    SELECT s.user_id, s.subscription_expires_at
-                    FROM subscriptions s
-                    INNER JOIN users u ON u.id = s.user_id
-                    WHERE s.subscription_expires_at IS NOT NULL
-                      AND TRIM(s.subscription_expires_at) != ''
-                      AND COALESCE(u.bot_blocked, 0) = 0
-                    """
-                )
-                rows = cur.fetchall()
+            rows = await _run_db(_load_subscription_rows)
+            paid_ids = await _run_db(_fetch_paid_subscriber_ids)
 
-            for row in rows:
-                uid, exp = row[0], row[1]
-                if not is_paid_subscriber(uid):
+            for uid, exp in rows:
+                if uid not in paid_ids:
                     continue
-                await _process_user(bot, uid, exp)
-                await asyncio.sleep(0.05)
+                try:
+                    await _process_user(bot, uid, exp)
+                except sq.OperationalError as e:
+                    logger.warning('renewal funnel db locked user_id=%s: %s', uid, e)
+                except Exception as e:
+                    logger.exception('renewal funnel user_id=%s: %s', uid, e)
+                await asyncio.sleep(RENEWAL_USER_DELAY_SEC)
         except Exception as e:
             logger.exception('renewal funnel worker error: %s', e)
         await asyncio.sleep(RENEWAL_SLEEP_SEC)
+
+
+def _load_subscription_rows() -> list[tuple[int, str]]:
+    with _connect() as con:
+        cur = con.cursor()
+        cur.execute(
+            """
+            SELECT s.user_id, s.subscription_expires_at
+            FROM subscriptions s
+            INNER JOIN users u ON u.id = s.user_id
+            WHERE s.subscription_expires_at IS NOT NULL
+              AND TRIM(s.subscription_expires_at) != ''
+              AND COALESCE(u.bot_blocked, 0) = 0
+            """
+        )
+        return cur.fetchall()
 
 
 def fetch_renewal_stats() -> tuple[str, list[dict]]:

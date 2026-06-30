@@ -1,10 +1,36 @@
+import os
 import re
 import sqlite3 as sq
+import time
 from datetime import datetime, timedelta
 
 BOT_USERNAME = 'coffemaniaVPNbot'
 _REF_CODE_RE = re.compile(r'^[A-Za-z0-9_-]{1,64}$')
 ADV_LINK_START_PREFIX = 'l'
+
+_DB_TIMEOUT_SEC = float(os.getenv('SQLITE_TIMEOUT_SEC', '30'))
+
+
+def db_connect():
+    """SQLite с ожиданием блокировки (не WAL)."""
+    return sq.connect('database.db', timeout=_DB_TIMEOUT_SEC)
+
+
+def db_retry(fn, *, attempts: int = 10, base_delay: float = 0.2):
+    """Повтор при database is locked / database is busy."""
+    last_err = None
+    for attempt in range(attempts):
+        try:
+            return fn()
+        except sq.OperationalError as e:
+            msg = str(e).lower()
+            if 'locked' not in msg and 'busy' not in msg:
+                raise
+            last_err = e
+            time.sleep(base_delay * (attempt + 1))
+    if last_err is not None:
+        raise last_err
+    return None
 
 
 def upsert_subscription_days(user_id: int, duration_days: int = None, expires_at: str = None) -> str:
