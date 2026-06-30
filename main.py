@@ -78,6 +78,7 @@ from payments import (
     check_payment_yookassa_status,
     rub_to_usdt,
     schedule_open_invoice_payment_reminder,
+    answer_if_payment_check_rate_limited,
 )
 from logging.handlers import RotatingFileHandler
 import logging
@@ -550,6 +551,9 @@ async def process_gb_addition(callback: CallbackQuery):
         gb_amount = int(data[1])
         price = int(data[2])
 
+        if await answer_if_payment_check_rate_limited(callback, pid):
+            return
+
         try_log_open_invoice_check_click(callback.from_user.id, pid, 'yookassa_gb')
 
         status = await asyncio.to_thread(
@@ -884,6 +888,9 @@ async def check_payment_yookassa_callback(callback: CallbackQuery):
     # if expected_amount is None or expected_amount != amount_rub:
     #     await callback.answer(f'{CROSS_EMOJI_HTML} Сумма не соответствует тарифу. Создайте платёж заново.', show_alert=True)
     #     return
+
+    if await answer_if_payment_check_rate_limited(callback, payment_id):
+        return
 
     try_log_open_invoice_check_click(callback.from_user.id, payment_id, 'yookassa')
 
@@ -2548,10 +2555,13 @@ async def buy_hwid_device(callback: CallbackQuery):
 
 @dp.callback_query(F.data.startswith('device_yookassa_'))
 async def device_yookassa_check_payment(callback:CallbackQuery):
+    payment_id = callback.data.split('_')[-1]
+    if await answer_if_payment_check_rate_limited(callback, payment_id):
+        return
     status = await asyncio.to_thread(
         check_payment_yookassa_status,
         30,
-        payment_id=callback.data.split('_')[-1],
+        payment_id=payment_id,
         user_id=callback.from_user.id
     )
     if status == 'paid':

@@ -2,6 +2,7 @@ import asyncio
 import os
 import logging
 import sqlite3 as sq
+import time
 from datetime import date, datetime
 
 import dotenv
@@ -45,6 +46,47 @@ def check_payment_status(invoice_id):
         if inv['invoice_id'] == invoice_id:
             return inv['status'], float(inv['amount']) * rub_to_usdt
     return None, None
+
+PAYMENT_CHECK_COOLDOWN_SEC = float(os.getenv('PAYMENT_CHECK_COOLDOWN_SEC', '8'))
+_payment_check_last: dict[tuple[int, str], float] = {}
+_payment_check_lock = asyncio.Lock()
+
+
+async def answer_if_payment_check_rate_limited(callback, payment_id: str) -> bool:
+    """
+    Защита от спама кнопки «Я оплатил» / «Проверить».
+    Возвращает True, если нажатие нужно проигнорировать.
+    """
+    pid = str(payment_id).strip()
+    if not pid:
+        return False
+    user_id = callback.from_user.id
+    now = time.monotonic()
+    wait_secs: int | None = None
+    async with _payment_check_lock:
+        key = (user_id, pid)
+        last = _payment_check_last.get(key)
+        if last is not None:
+            wait = PAYMENT_CHECK_COOLDOWN_SEC - (now - last)
+            if wait > 0:
+                wait_secs = max(1, int(wait + 0.99))
+            else:
+                _payment_check_last[key] = now
+        else:
+            _payment_check_last[key] = now
+        if wait_secs is None and len(_payment_check_last) > 5000:
+            cutoff = now - PAYMENT_CHECK_COOLDOWN_SEC * 2
+            for k, t in list(_payment_check_last.items()):
+                if t < cutoff:
+                    del _payment_check_last[k]
+    if wait_secs is not None:
+        await callback.answer(
+            f'Подождите {wait_secs} сек. перед повторной проверкой.',
+            show_alert=True,
+        )
+        return True
+    return False
+
 
 def check_payment_yookassa_status(amount, payment_id, user_id, tx_type='yookassa'):
     """
