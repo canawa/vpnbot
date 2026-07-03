@@ -71,6 +71,8 @@ from databases import (
     list_adv_campaigns,
     user_can_view_adv_campaign,
     user_can_view_adv_link,
+    grant_month_promo_99,
+    month_promo_99_active,
 )
 from payments import (
     get_pay_link,
@@ -276,6 +278,7 @@ try:
     INVITE_MAX_COLORED_PHOTO=FSInputFile('photos/INVITE_MAX_COLORED.jpg')
     DECISION_PHOTO=FSInputFile('photos/5rub_decision_creative.png')
     TWO_DAYS_BONUS_PHOTO=FSInputFile('photos/2_days_bonus_photo.png')
+    FUNNEL_SALE_PHOTO=FSInputFile('photos/funnel.jpg')
 
 except FileNotFoundError:
     print("Photo files not found")
@@ -991,7 +994,7 @@ async def check_payment_yookassa_callback(callback: CallbackQuery):
         )
     else:
         await callback.message.answer(
-            '👀 Ожидаем оплату, оплатите и попробуйте снова!',
+            '<tg-emoji emoji-id="5210956306952758910">👀</tg-emoji> Ожидаем оплату, оплатите и попробуйте снова!',
             parse_mode='HTML',
         )
 
@@ -1018,6 +1021,14 @@ async def process_deposit(callback: CallbackQuery):
             parse_mode='HTML', reply_markup=ikb_back
         )
         return
+
+    if amount == MONTH_PROMO_PRICE and paid_days == VPN_SUBSCRIPTION_DAYS_PAID:
+        if not await asyncio.to_thread(month_promo_99_active, callback.from_user.id):
+            await callback.answer(
+                f'Акция {MONTH_PROMO_PRICE}₽ истекла. Месяц сейчас — {MONTH_PRICE}₽.',
+                show_alert=True,
+            )
+            return
 
     try:
         await callback.message.delete()
@@ -2425,6 +2436,85 @@ async def ping_unactive_users(callback: CallbackQuery):
             logging.exception(
                 f"Ошибка при отправке сообщения пользователю {user}: {e}"
             )
+
+
+FUNNEL_SUMMER_SALE_CAPTION = (
+    '<b><tg-emoji emoji-id="5388885025225739902">⛱</tg-emoji>  Сегодня в твоем городе +30!</b>\n\n'
+    'Наши цены растаяли для тебя и поэтому скидка на месячную подписку 30%! '
+    '<tg-emoji emoji-id="5472237253675719485">😱</tg-emoji>\n\n'
+    'Подключайся скорее по такой приятной цене!'
+    '<tg-emoji emoji-id="5354974523257033543">🔥</tg-emoji>\n\n'
+    '<b>Акция действует 24 часа и только для тебя </b>'
+)   
+
+
+def _fetch_users_without_active_subscription() -> list[int]:
+    today_str = date.today().isoformat()
+    with sq.connect('database.db') as con:
+        cur = con.cursor()
+        cur.execute(
+            """
+            SELECT u.id
+            FROM users u
+            LEFT JOIN subscriptions s ON s.user_id = u.id
+            WHERE COALESCE(u.bot_blocked, 0) = 0
+              AND (
+                    s.subscription_expires_at IS NULL
+                    OR TRIM(s.subscription_expires_at) = ''
+                    OR date(s.subscription_expires_at) < date(?)
+              )
+            """,
+            (today_str,),
+        )
+        return [row[0] for row in cur.fetchall()]
+
+
+PROMO_BROADCAST_DELAY_SEC = float(os.getenv('PROMO_BROADCAST_DELAY_SEC', '0.3'))
+
+
+@dp.callback_query(F.data == 'ping_funnel_sale')
+async def ping_funnel_sale_users(callback: CallbackQuery):
+    await callback.answer('Рассылка скидки 99₽…')
+    try:
+        await callback.message.delete()
+    except Exception:
+        pass
+
+    user_ids = await asyncio.to_thread(_fetch_users_without_active_subscription)
+    success = 0
+    failed = 0
+    promo_granted = 0
+
+    for user_id in user_ids:
+        try:
+            await bot.send_photo(
+                chat_id=user_id,
+                photo=FUNNEL_SALE_PHOTO,
+                caption=FUNNEL_SUMMER_SALE_CAPTION,
+                parse_mode='HTML',
+                reply_markup=ikb_funnel_summer_sale,
+            )
+            await asyncio.to_thread(
+                grant_month_promo_99, user_id, hours=MONTH_PROMO_HOURS,
+            )
+            success += 1
+            promo_granted += 1
+        except Exception as e:
+            failed += 1
+            logging.exception(
+                'ping_funnel_sale user_id=%s: %s', user_id, e,
+            )
+        await asyncio.sleep(PROMO_BROADCAST_DELAY_SEC)
+
+    await callback.message.answer(
+        f'{CHECK_EMOJI_HTML} Рассылка «скидка 99₽» завершена.\n\n'
+        f'Без активной подписки: {len(user_ids)}\n'
+        f'Отправлено: {success}\n'
+        f'Акция {MONTH_PROMO_HOURS}ч выдана: {promo_granted}\n'
+        f'Ошибок: {failed}',
+        parse_mode='HTML',
+        reply_markup=ikb_admin_back,
+    )
 
 
 @dp.callback_query(F.data == 'admin_give_2_days_bonus')

@@ -33,6 +33,36 @@ def db_retry(fn, *, attempts: int = 10, base_delay: float = 0.2):
     return None
 
 
+def grant_month_promo_99(user_id: int, *, hours: int = 24) -> str:
+    """Выдаёт персональную скидку 99₽ на месяц на указанное число часов."""
+    expires = (datetime.now() + timedelta(hours=int(hours))).isoformat()
+
+    def _write():
+        with db_connect() as con:
+            con.execute(
+                'UPDATE users SET promo_99_until = ? WHERE id = ?',
+                (expires, user_id),
+            )
+            con.commit()
+
+    db_retry(_write)
+    return expires
+
+
+def month_promo_99_active(user_id: int) -> bool:
+    with db_connect() as con:
+        cur = con.cursor()
+        cur.execute('SELECT promo_99_until FROM users WHERE id = ?', (user_id,))
+        row = cur.fetchone()
+    if not row or not row[0]:
+        return False
+    try:
+        until = datetime.fromisoformat(str(row[0]).strip())
+        return until > datetime.now()
+    except Exception:
+        return False
+
+
 def upsert_subscription_days(user_id: int, duration_days: int = None, expires_at: str = None) -> str:
     if expires_at:
         expires = expires_at
@@ -232,6 +262,10 @@ def create_tables():
             print(e)
         try:
             cur.execute('ALTER TABLE adv_campaigns ADD COLUMN owner_id INTEGER;')
+        except Exception as e:
+            print(e)
+        try:
+            cur.execute('ALTER TABLE users ADD COLUMN promo_99_until TEXT;')
         except Exception as e:
             print(e)
         _migrate_adv_campaign_links(cur)

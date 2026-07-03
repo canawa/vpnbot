@@ -3,7 +3,7 @@ import sqlite3 as sq
 from emojis import get_emoji
 from datetime import datetime
 
-from prices import SUBSCRIPTION_PLAN, SUBSCRIPTION_PLAN_LEGACY
+from prices import SUBSCRIPTION_PLAN, SUBSCRIPTION_PLAN_LEGACY, MONTH_PRICE, MONTH_PROMO_PRICE
 from vpn import *
 
 ikb_subscribe = InlineKeyboardMarkup(inline_keyboard=[
@@ -125,6 +125,7 @@ ikb_admin = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text='Рекламные кампании 2.0', callback_data='adv2_campaigns')],
     [InlineKeyboardButton(text='📊 Статистика воронки', callback_data='admin_funnel_stats')],
     [InlineKeyboardButton(text='Рассказать челам что 5р в день', callback_data='ping_unactive')],
+    [InlineKeyboardButton(text='Рассылка скидка 99₽ (без подписки)', callback_data='ping_funnel_sale')],
     # [InlineKeyboardButton(text='оповесть бомжей о снижении', callback_data='ping_brokes')]
     [InlineKeyboardButton(text='Рассказать что ищем рефоводов', callback_data='we_need_refmasters')],
     [InlineKeyboardButton(text='Выдать 2 дня подписки инактив юзерам', callback_data='admin_give_2_days_bonus')],
@@ -369,6 +370,14 @@ def create_ikb_devices(tg_id):
 
 ikb_unactive_ping_button = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text='Подключить VPN', callback_data='buy_vpn', icon_custom_emoji_id=get_emoji('plus'), style='success')],
+])
+
+ikb_funnel_summer_sale = InlineKeyboardMarkup(inline_keyboard=[
+    [InlineKeyboardButton(
+        text=f'Купить на месяц · {MONTH_PRICE}₽ → {MONTH_PROMO_PRICE}₽',
+        callback_data=f'deposit_{MONTH_PROMO_PRICE}_30_card',
+        style='success',
+    )],
 ])
 
 ikb_ping_brokes = InlineKeyboardMarkup(inline_keyboard=[
