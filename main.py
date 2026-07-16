@@ -31,6 +31,7 @@ from referrals import (
     ADV_MANAGER_ROLE,
     REFMASTER_20_DEPOSIT_BONUS_RUB,
     REFMASTER_20_MIN_DEPOSIT_RUB,
+    SUBSCRIPTION_REFERRAL_BONUS_DAYS,
     role_has_refmaster_ui,
     role_uses_deposit_share,
     role_uses_fixed_deposit_bonus,
@@ -717,7 +718,7 @@ async def referral_callback(callback: CallbackQuery):
                 reply_markup=get_ikb_referral(referral_link(callback.from_user.id), with_settings=True),
             )
             return
-    await callback.message.answer_photo(INVITE_FRIEND_PHOTO, caption=f"🤝 <b>Пригласить друга</b>\n\nВаша реферальная ссылка:\n<code>{referral_link(callback.from_user.id)}</code>\n\nВсего приведено друзей: {ref_amount}\n\n<tg-emoji emoji-id='5407064977544583568'>👌</tg-emoji><b>Приглашайте друзей — за каждого пользователя, который купит подписку по вашему приглашению, вы получите +7 дней к своей подписке!</b>", parse_mode='HTML', reply_markup=get_ikb_referral(referral_link(callback.from_user.id)))
+    await callback.message.answer_photo(INVITE_FRIEND_PHOTO, caption=f"🤝 <b>Пригласить друга</b>\n\nВаша реферальная ссылка:\n<code>{referral_link(callback.from_user.id)}</code>\n\nВсего приведено друзей: {ref_amount}\n\n<tg-emoji emoji-id='5407064977544583568'>👌</tg-emoji><b>Приглашайте друзей — за каждого пользователя, который купит подписку по вашему приглашению, вы получите +{SUBSCRIPTION_REFERRAL_BONUS_DAYS} дней к своей подписке!</b>", parse_mode='HTML', reply_markup=get_ikb_referral(referral_link(callback.from_user.id)))
 
 
 @dp.callback_query(lambda c: c.data == 'ref_settings')
@@ -935,11 +936,16 @@ async def check_payment_yookassa_callback(callback: CallbackQuery):
                 if ref_master_id_sub is not None:
                     mark_subscription_referral_bonus_used(cur, callback.from_user.id)
                     try:
-                        await asyncio.to_thread(vpn.renew_subscription, ref_master_id_sub, 7)
+                        await asyncio.to_thread(
+                            vpn.renew_subscription,
+                            ref_master_id_sub,
+                            SUBSCRIPTION_REFERRAL_BONUS_DAYS,
+                        )
                         await bot.send_message(
                             ref_master_id_sub,
                             '<tg-emoji emoji-id="5416117059207572332">➡️</tg-emoji> '
-                            'Ваш реферал совершил депозит, вы получили бонусом 7 дней подписки!',
+                            f'Ваш реферал совершил депозит, вы получили бонусом '
+                            f'{SUBSCRIPTION_REFERRAL_BONUS_DAYS} дней подписки!',
                             parse_mode='HTML',
                             reply_markup=ikb_my_sub,
                         )
@@ -2241,7 +2247,7 @@ async def adv_referrers_progress_callback(callback: CallbackQuery):
             share_col = ''
             fixed_col = ref_share_est if ref_share_est is not None else ''
         else:
-            model_note = '7 дней за 1-й депозит'
+            model_note = f'{SUBSCRIPTION_REFERRAL_BONUS_DAYS} дней за 1-й депозит'
             share_col = ''
             fixed_col = ''
         in_users = username is not None
