@@ -86,6 +86,7 @@ from logging.handlers import RotatingFileHandler
 import logging
 from sync_remna_expire_from_keys_once import get_user_by_tg_id
 from vpn import Vpn
+from bot_delivery import is_telegram_unreachable, is_user_bot_blocked, mark_user_bot_blocked
 
 
 import sys
@@ -1599,7 +1600,7 @@ async def admin_give_refmaster_callback(callback: CallbackQuery, state: FSMConte
     await callback.message.delete()
     await callback.message.answer(
         "👑 <b>Выдача роли Refmaster</b>\n"
-        "Модель: <b>50% от каждого депозита реферала</b> (90 дней) на реф. баланс.\n\n"
+        "Модель: <b>50% от каждого депозита реферала</b> на реф. баланс.\n\n"
         "Отправьте ID пользователя:",
         parse_mode='HTML',
         reply_markup=ikb_admin_back,
@@ -1614,7 +1615,7 @@ async def admin_give_refmaster_20_callback(callback: CallbackQuery, state: FSMCo
     await callback.message.answer(
         "👑 <b>Выдача роли Refmaster 2.0</b>\n"
         f"Модель: <b>+{REFMASTER_20_DEPOSIT_BONUS_RUB} ₽</b> за продление подписки реферала "
-        f"от <b>{REFMASTER_20_MIN_DEPOSIT_RUB} ₽</b> (90 дней, без ГБ), <b>без</b> доли 50%.\n\n"
+        f"от <b>{REFMASTER_20_MIN_DEPOSIT_RUB} ₽</b> (без ГБ), <b>без</b> доли 50%.\n\n"
         "Отправьте ID пользователя:",
         parse_mode='HTML',
         reply_markup=ikb_admin_back,
@@ -2155,7 +2156,7 @@ async def adv_refmasters_excel_callback(callback: CallbackQuery):
             'Депозитов': p['deposits_count'],
             'Сумма депозитов ₽': p['deposits_total'],
             'Квалиф. деп (≥149)': p['bonus_deposits_count'],
-            'Деп в окне 90д (2.0)': p['qualified_deposits_count'],
+            'Квалиф. деп (2.0)': p['qualified_deposits_count'],
             'Оценка начислений ₽': est if est is not None else '',
             'ref_amount': p['ref_amount'],
         })
@@ -2411,6 +2412,8 @@ async def ping_unactive_users(callback: CallbackQuery):
     users = vpn.get_unactive_users()
 
     for user in users:
+        if await asyncio.to_thread(is_user_bot_blocked, user):
+            continue
         try:
             await bot.send_photo(
                 chat_id=user,
@@ -2433,9 +2436,13 @@ async def ping_unactive_users(callback: CallbackQuery):
             await asyncio.sleep(0.1)
 
         except Exception as e:
-            logging.exception(
-                f"Ошибка при отправке сообщения пользователю {user}: {e}"
-            )
+            if is_telegram_unreachable(e):
+                await asyncio.to_thread(mark_user_bot_blocked, user)
+                logging.info(
+                    'ping_unactive skip user_id=%s (blocked bot or deleted)', user,
+                )
+            else:
+                logging.warning('ping_unactive user_id=%s: %s', user, e)
 
 
 FUNNEL_SUMMER_SALE_CAPTION = (
@@ -2483,9 +2490,12 @@ async def ping_funnel_sale_users(callback: CallbackQuery):
     user_ids = await asyncio.to_thread(_fetch_users_without_active_subscription)
     success = 0
     failed = 0
+    blocked = 0
     promo_granted = 0
 
     for user_id in user_ids:
+        if await asyncio.to_thread(is_user_bot_blocked, user_id):
+            continue
         try:
             await bot.send_photo(
                 chat_id=user_id,
@@ -2500,10 +2510,16 @@ async def ping_funnel_sale_users(callback: CallbackQuery):
             success += 1
             promo_granted += 1
         except Exception as e:
-            failed += 1
-            logging.exception(
-                'ping_funnel_sale user_id=%s: %s', user_id, e,
-            )
+            if is_telegram_unreachable(e):
+                await asyncio.to_thread(mark_user_bot_blocked, user_id)
+                blocked += 1
+                logging.info(
+                    'ping_funnel_sale skip user_id=%s (blocked bot or deleted)',
+                    user_id,
+                )
+            else:
+                failed += 1
+                logging.warning('ping_funnel_sale user_id=%s: %s', user_id, e)
         await asyncio.sleep(PROMO_BROADCAST_DELAY_SEC)
 
     await callback.message.answer(
@@ -2511,6 +2527,7 @@ async def ping_funnel_sale_users(callback: CallbackQuery):
         f'Без активной подписки: {len(user_ids)}\n'
         f'Отправлено: {success}\n'
         f'Акция {MONTH_PROMO_HOURS}ч выдана: {promo_granted}\n'
+        f'🚫 Заблокировали бота: {blocked}\n'
         f'Ошибок: {failed}',
         parse_mode='HTML',
         reply_markup=ikb_admin_back,

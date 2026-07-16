@@ -8,7 +8,6 @@ from emojis import CHECK_EMOJI_HTML
 REFMASTER_ROLE = 'refmaster'
 REFMASTER_20_ROLE = 'refmaster_20'
 ADV_MANAGER_ROLE = 'adv_manager'
-REFERRAL_COMMISSION_WINDOW_DAYS = 90
 REFMASTER_20_DEPOSIT_BONUS_RUB = 50
 REFMASTER_20_MIN_DEPOSIT_RUB = 149
 
@@ -127,16 +126,6 @@ def should_send_ref_partner_notification(
     return ref_notify_enabled(ref_master_id, kind)
 
 
-def referral_commission_active(registration_date_str: str | None) -> bool:
-    if not registration_date_str:
-        return False
-    try:
-        registration_date = date.fromisoformat(registration_date_str)
-    except ValueError:
-        return False
-    return date.today() <= registration_date + timedelta(days=REFERRAL_COMMISSION_WINDOW_DAYS)
-
-
 def fetch_ref_master_for_referral(cur, referral_id: int) -> tuple[int, str] | None:
     cur.execute(
         'SELECT ref_master_id, registration_date FROM referal_users WHERE referral_id = ?',
@@ -145,10 +134,7 @@ def fetch_ref_master_for_referral(cur, referral_id: int) -> tuple[int, str] | No
     row = cur.fetchone()
     if not row:
         return None
-    ref_master_id, registration_date_str = row[0], row[1]
-    if not referral_commission_active(registration_date_str):
-        return None
-    return ref_master_id, registration_date_str
+    return row[0], row[1]
 
 
 def fetch_ref_master_role(cur, ref_master_id: int) -> str:
@@ -252,19 +238,19 @@ def _format_deposit_rows_block(deposit_rows: list, role: str | None) -> str:
     for i, d in enumerate(deposit_rows[:15], 1):
         uname = d.get('referral_username') or ''
         who = f'@{uname}' if uname else f"id {d['referral_id']}"
-        window = CHECK_EMOJI_HTML if d.get('in_window') else '⛔ вне 90д'
         bonus_note = ''
         if (
             role_uses_fixed_deposit_bonus(role)
-            and d.get('in_window')
+            and d.get('counts_for_bonus')
             and is_refmaster_20_qualifying_deposit(d['amount'], d.get('pay_type'))
         ):
             bonus_note = f' → +{REFMASTER_20_DEPOSIT_BONUS_RUB}₽'
-        elif role_uses_deposit_share(role) and d.get('in_window'):
+        elif role_uses_deposit_share(role) and d.get('counts_for_bonus'):
             bonus_note = f' → +{d["amount"] // 2}₽'
+        accrual_mark = CHECK_EMOJI_HTML if d.get('counts_for_bonus') else ''
         lines.append(
             f'{i}. {who} — <b>{d["amount"]}₽</b> ({d.get("pay_type", "")}) '
-            f'{d.get("date", "")[:10]} {window}{bonus_note}'
+            f'{d.get("date", "")[:10]} {accrual_mark}{bonus_note}'
         )
     if len(deposit_rows) > 15:
         lines.append(f'<i>…ещё {len(deposit_rows) - 15} в истории</i>')
@@ -327,7 +313,7 @@ def format_refmasters_overview(partners: list[dict], *, all_roles_count: int = 0
 
         if role_uses_fixed_deposit_bonus(p.get('role')):
             accrual_note = (
-                f'начисл. 90д: {p["qualified_deposits_count"]}×'
+                f'начисл.: {p["qualified_deposits_count"]}×'
                 f'{REFMASTER_20_DEPOSIT_BONUS_RUB}₽'
             )
         elif role_uses_deposit_share(p.get('role')):
@@ -351,10 +337,8 @@ def format_refmaster_20_payout_block(dashboard: dict) -> str:
     ref_balance = int(dashboard.get('ref_balance') or 0)
     ref_withdraw = int(dashboard.get('ref_withdraw') or 0)
     pending = max(ref_balance - ref_withdraw, 0)
-    bonus_count = int(dashboard.get('bonus_deposits_count') or 0)
     qualified_count = int(dashboard.get('qualified_deposits_count') or 0)
     expected_accrual = qualified_count * REFMASTER_20_DEPOSIT_BONUS_RUB
-    expected_all_time = bonus_count * REFMASTER_20_DEPOSIT_BONUS_RUB
     delta = ref_balance - expected_accrual
     delta_sign = '+' if delta >= 0 else ''
 
@@ -366,11 +350,9 @@ def format_refmaster_20_payout_block(dashboard: dict) -> str:
         f'<b>🔴 К выплате сейчас: {pending} ₽</b>\n\n'
         f'<b>Начисления (+{REFMASTER_20_DEPOSIT_BONUS_RUB}₽ за продление от '
         f'{REFMASTER_20_MIN_DEPOSIT_RUB}₽, без ГБ):</b>\n'
-        f'• Квалиф. депозитов всего: <b>{bonus_count}</b> '
-        f'(оценка ×{REFMASTER_20_DEPOSIT_BONUS_RUB}₽ = <b>{expected_all_time} ₽</b>)\n'
-        f'• В окне 90 дней (бот реально начисляет): <b>{qualified_count}</b> '
-        f'→ <b>{expected_accrual} ₽</b>\n'
-        f'• Сверка ref_balance с окном 90д: <b>{delta_sign}{delta} ₽</b>\n'
+        f'• Квалиф. депозитов: <b>{qualified_count}</b> '
+        f'→ ожидаемые начисления <b>{expected_accrual} ₽</b>\n'
+        f'• Сверка ref_balance: <b>{delta_sign}{delta} ₽</b>\n'
         f'  <i>(+ — на балансе больше ожидания; − — часть ещё не доначислена)</i>\n'
     )
 
@@ -385,10 +367,10 @@ def _format_referral_stats_block(dashboard: dict, role) -> str:
         f'<b>📊 Рефералы</b>\n'
         f'Всего: <b>{refs_total}</b> | с оплатой: <b>{paying_refs}</b> | '
         f'без оплаты: <b>{refs_total - paying_refs}</b>\n'
-        f'Депозитов: <b>{deposits_count}</b> на <b>{deposits_total} ₽</b>\n'
-        f'Депозитов в окне 90д: <b>{qualified_count}</b>'
+        f'Депозитов: <b>{deposits_count}</b> на <b>{deposits_total} ₽</b>'
         + (
-            f' (квалиф. +{REFMASTER_20_DEPOSIT_BONUS_RUB}₽: от {REFMASTER_20_MIN_DEPOSIT_RUB}₽, подписка)'
+            f'\nКвалиф. депозитов (+{REFMASTER_20_DEPOSIT_BONUS_RUB}₽: от '
+            f'{REFMASTER_20_MIN_DEPOSIT_RUB}₽, подписка): <b>{qualified_count}</b>'
             if role_uses_fixed_deposit_bonus(role)
             else ''
         )
