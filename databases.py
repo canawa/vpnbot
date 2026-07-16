@@ -473,6 +473,7 @@ def fetch_refmaster_partner_rows() -> list[dict]:
                       AND t.type IN ('CryptoBot', 'yookassa')
                       AND CAST(t.amount AS INTEGER) >= 149
                       AND date(t.date) >= date(r.registration_date)
+                      AND date(t.date) <= date(r.registration_date, '+90 days')
                 ) AS qualified_deposits_count
             FROM users u
             WHERE LOWER(TRIM(COALESCE(u.role, ''))) IN ('refmaster', 'refmaster_20')
@@ -764,6 +765,7 @@ def _fetch_referral_stats(cur, ref_master_id: int, adv_link_id: int | None = Non
           AND t.type IN ('CryptoBot', 'yookassa')
           AND CAST(t.amount AS INTEGER) >= 149
           AND date(t.date) >= date(r.registration_date)
+          AND date(t.date) <= date(r.registration_date, '+90 days')
         """,
         params,
     )
@@ -793,8 +795,10 @@ def _fetch_referral_stats(cur, ref_master_id: int, adv_link_id: int | None = Non
             t.type,
             t.date,
             CASE
-                WHEN date(t.date) >= date(r.registration_date) THEN 1 ELSE 0
-            END AS counts_for_bonus
+                WHEN date(t.date) >= date(r.registration_date)
+                 AND date(t.date) <= date(r.registration_date, '+90 days')
+                THEN 1 ELSE 0
+            END AS in_commission_window
         FROM transactions t
         JOIN referal_users r ON r.referral_id = t.user_id
         LEFT JOIN users u ON u.id = r.referral_id
@@ -812,7 +816,7 @@ def _fetch_referral_stats(cur, ref_master_id: int, adv_link_id: int | None = Non
             'amount': int(row[2] or 0),
             'pay_type': row[3],
             'date': row[4],
-            'counts_for_bonus': bool(row[5]),
+            'in_window': bool(row[5]),
         }
         for row in cur.fetchall()
     ]

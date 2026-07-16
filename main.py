@@ -1600,7 +1600,7 @@ async def admin_give_refmaster_callback(callback: CallbackQuery, state: FSMConte
     await callback.message.delete()
     await callback.message.answer(
         "👑 <b>Выдача роли Refmaster</b>\n"
-        "Модель: <b>50% от каждого депозита реферала</b> на реф. баланс.\n\n"
+        "Модель: <b>50% от каждого депозита реферала</b> (90 дней) на реф. баланс.\n\n"
         "Отправьте ID пользователя:",
         parse_mode='HTML',
         reply_markup=ikb_admin_back,
@@ -1615,7 +1615,7 @@ async def admin_give_refmaster_20_callback(callback: CallbackQuery, state: FSMCo
     await callback.message.answer(
         "👑 <b>Выдача роли Refmaster 2.0</b>\n"
         f"Модель: <b>+{REFMASTER_20_DEPOSIT_BONUS_RUB} ₽</b> за продление подписки реферала "
-        f"от <b>{REFMASTER_20_MIN_DEPOSIT_RUB} ₽</b> (без ГБ), <b>без</b> доли 50%.\n\n"
+        f"от <b>{REFMASTER_20_MIN_DEPOSIT_RUB} ₽</b> (90 дней, без ГБ), <b>без</b> доли 50%.\n\n"
         "Отправьте ID пользователя:",
         parse_mode='HTML',
         reply_markup=ikb_admin_back,
@@ -2156,7 +2156,7 @@ async def adv_refmasters_excel_callback(callback: CallbackQuery):
             'Депозитов': p['deposits_count'],
             'Сумма депозитов ₽': p['deposits_total'],
             'Квалиф. деп (≥149)': p['bonus_deposits_count'],
-            'Квалиф. деп (2.0)': p['qualified_deposits_count'],
+            'Деп в окне 90д (2.0)': p['qualified_deposits_count'],
             'Оценка начислений ₽': est if est is not None else '',
             'ref_amount': p['ref_amount'],
         })
