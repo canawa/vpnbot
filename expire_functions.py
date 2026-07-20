@@ -12,6 +12,7 @@ from vpn import Vpn, panel_user_record
 from ikbs import *
 from aiogram.exceptions import TelegramForbiddenError
 from renewal_funnel import renewal_funnel_handles_notifications
+from bot_delivery import is_telegram_unreachable, mark_user_bot_blocked
 
 TRIAL_UNCONNECTED_SLEEP_SEC = int(os.getenv('TRIAL_UNCONNECTED_SLEEP_SEC', '86400'))
 DAY_BEFORE_PHOTO_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'day_before.jpg')
@@ -72,6 +73,8 @@ async def check_expired_subscriptions_table(bot):
                         print(f'{user_id}: subscriptions table — expired today notified')
                     except Exception as e:
                         print(f"subscriptions expired notify {user_id}: {e}")
+                        if is_telegram_unreachable(e):
+                            mark_user_bot_blocked(user_id)
                         continue
 
         except Exception as e:
@@ -132,6 +135,8 @@ async def check_expiring_tomorrow_subscriptions_table(bot):
                         print(f'{user_id}: subscriptions table — expiring tomorrow notified')
                     except Exception as e:
                         print(f"subscriptions tomorrow notify {user_id}: {e}")
+                        if is_telegram_unreachable(e):
+                            mark_user_bot_blocked(user_id)
                         continue
 
         except Exception as e:

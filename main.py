@@ -297,6 +297,13 @@ def format_date_ru(dt) -> str:
     return f"{dt.day} {MONTHS_RU[dt.month]} {dt.year}"
 
 
+async def safe_delete_message(message) -> bool:
+    """Удаление сообщения без падения хендлера (старые/рассылочные сообщения)."""
+    try:
+        await message.delete()
+        return True
+    except Exception:
+        return False
 
 
 async def _activate_trial_for_user(callback: CallbackQuery) -> bool:
@@ -418,7 +425,7 @@ async def start_command(message, command: CommandObject):
 # ОБРАБОТЧИКИ КОЛЛБЭКОВ
 @dp.callback_query(lambda c: c.data == 'buy_vpn')
 async def buy_vpn_callback(callback: CallbackQuery):
-    await callback.message.delete()
+    await safe_delete_message(callback.message)
     await callback.answer("🛒 Раздел покупки VPN") # на пол экрана хуйня высветится
     await callback.message.answer_photo(BUY_VPN_PHOTO, caption= (
         '<b>В подписку входит:</b>\n  \n'
@@ -436,7 +443,7 @@ async def buy_vpn_callback(callback: CallbackQuery):
 @dp.callback_query(lambda c: c.data == 'my_subscription')
 async def my_sub_callback(callback: CallbackQuery):
     await callback.answer('Моя подписка')
-    await callback.message.delete()
+    await safe_delete_message(callback.message)
     uid = callback.from_user.id
     try:
         result = vpn.get_user_by_tg_id(uid)
@@ -495,12 +502,12 @@ async def my_sub_callback(callback: CallbackQuery):
 
 @dp.callback_query(F.data == 'buy_lte_gigabytes')
 async def lte_gigabytes(callback: CallbackQuery):
-    await callback.message.delete()
+    await safe_delete_message(callback.message)
     await callback.message.answer_photo(BUY_GBS_PHOTO, caption=buy_gbs_text, parse_mode='HTML', reply_markup=ikb_gbs_variants)
 
 @dp.callback_query(F.data.startswith('gbs_'))
 async def buy_gbs(callback: CallbackQuery):
-    await callback.message.delete()
+    await safe_delete_message(callback.message)
     gb_amount = int(callback.data.replace('gbs_', ''))
     price = GBS_PRICES.get(gb_amount)
     if price is None:
@@ -593,7 +600,7 @@ async def process_gb_addition(callback: CallbackQuery):
             return
 
         try:
-            await callback.message.delete()
+            await safe_delete_message(callback.message)
         except Exception:
             pass
 
@@ -614,7 +621,7 @@ async def process_gb_addition(callback: CallbackQuery):
 
 @dp.callback_query(F.data == 'device_list')
 async def devices_list_callback(callback: CallbackQuery):
-    await callback.message.delete()
+    await safe_delete_message(callback.message)
     await callback.message.answer_photo(DEVICES_PHOTO, caption=get_devices_list_text(callback.from_user.id), parse_mode='HTML', reply_markup = create_ikb_devices(callback.from_user.id))
 
 @dp.callback_query(F.data.startswith('delete_device_'))
@@ -627,7 +634,7 @@ async def delete_device(callback: CallbackQuery):
             parse_mode='HTML', reply_markup=ikb_back,
         )
         return
-    await callback.message.delete()
+    await safe_delete_message(callback.message)
     try:
         devices = Vpn().get_hwid_devices(callback.from_user.id)
         if device_idx < 0 or device_idx >= len(devices):
@@ -647,7 +654,7 @@ async def delete_device(callback: CallbackQuery):
 
 @dp.callback_query(lambda c: c.data == 'documents')
 async def documents_callback(callback: CallbackQuery):
-    await callback.message.delete()
+    await safe_delete_message(callback.message)
     await callback.message.answer_photo(DOCUMENTS_PHOTO, parse_mode='HTML', reply_markup=ikb_documents)
 
 # ДЛЯ ДОКУМЕНТОВ КОЛБЕК НЕ НУЖЕН, ОНИ ОТКРЫВАЮТСЯ КАК СТАТЬЯ
@@ -655,7 +662,7 @@ async def documents_callback(callback: CallbackQuery):
 @dp.callback_query(lambda c: c.data == 'referral')
 async def referral_callback(callback: CallbackQuery):
     await callback.answer("🤝 Реферальная программа") # на пол экрана хуйня высветится
-    await callback.message.delete()
+    await safe_delete_message(callback.message)
     with sq.connect('database.db') as con:
         cur = con.cursor()
         cur.execute("SELECT ref_amount, role FROM users WHERE id = ?", (callback.from_user.id,)) # вытащить реферальное количество из базы данных текущего пользователя
@@ -718,7 +725,7 @@ async def referral_callback(callback: CallbackQuery):
                 reply_markup=get_ikb_referral(referral_link(callback.from_user.id), with_settings=True),
             )
             return
-    await callback.message.answer_photo(INVITE_FRIEND_PHOTO, caption=f"🤝 <b>Пригласить друга</b>\n\nВаша реферальная ссылка:\n<code>{referral_link(callback.from_user.id)}</code>\n\nВсего приведено друзей: {ref_amount}\n\n<tg-emoji emoji-id='5407064977544583568'>👌</tg-emoji><b>Приглашайте друзей — за каждого пользователя, который купит подписку по вашему приглашению, вы получите +{SUBSCRIPTION_REFERRAL_BONUS_DAYS} дней к своей подписке!</b>", parse_mode='HTML', reply_markup=get_ikb_referral(referral_link(callback.from_user.id)))
+    await callback.message.answer_photo(INVITE_FRIEND_PHOTO, caption=f"🤝 <b>Пригласить друга</b>\n\nВаша реферальная ссылка:\n<code>{referral_link(callback.from_user.id)}</code>\n\nВсего приведено друзей: {ref_amount}\n\n<tg-emoji emoji-id='5407064977544583568'>👌</tg-emoji><b>Приглашайте друзей — за каждого пользователя, который купит подписку по вашему приглашению, вы получите +{SUBSCRIPTION_REFERRAL_BONUS_DAYS} дня к своей подписке!</b>", parse_mode='HTML', reply_markup=get_ikb_referral(referral_link(callback.from_user.id)))
 
 
 @dp.callback_query(lambda c: c.data == 'ref_settings')
@@ -735,7 +742,7 @@ async def ref_settings_callback(callback: CallbackQuery):
         return
     notify_referral, notify_deposit = get_ref_notify_prefs(uid)
     try:
-        await callback.message.delete()
+        await safe_delete_message(callback.message)
     except Exception:
         pass
     await callback.message.answer(
@@ -771,7 +778,7 @@ async def ref_toggle_notify_callback(callback: CallbackQuery):
 @dp.callback_query(lambda c: c.data == 'support')
 async def support_callback(callback: CallbackQuery):
     await callback.answer("ℹ️ Поддержка") # на пол экрана хуйня высветится
-    await callback.message.delete()
+    await safe_delete_message(callback.message)
     await callback.message.answer("ℹ️ <b>Поддержка</b>\n\nЕсли у вас возникли вопросы, напишите нам в поддержку!", parse_mode='HTML', reply_markup=ikb_support)
 
 
@@ -833,18 +840,18 @@ async def send_main_menu(message: Message, user_id: int) -> None:
 @dp.callback_query(lambda c: c.data == 'back')
 async def back_callback(callback: CallbackQuery):
     await callback.answer("Назад") # на пол экрана хуйня высветится
-    await callback.message.delete()
+    await safe_delete_message(callback.message)
     await send_main_menu(callback.message, callback.from_user.id)
 
 @dp.callback_query(lambda c: c.data == 'trial')
 async def plan_trial(callback: CallbackQuery):
-    await callback.message.delete()
+    await safe_delete_message(callback.message)
     await _activate_trial_for_user(callback)
 
 @dp.callback_query(lambda c: c.data == 'subscribe_confirmed')
 async def subscribe_confirmed_callback(callback: CallbackQuery):
     await callback.answer("Я подписался") # на пол экрана хуйня высветится
-    await callback.message.delete()
+    await safe_delete_message(callback.message)
     if not await is_subscribed(bot, callback.from_user.id):
         await callback.message.answer(
             f'{CROSS_EMOJI_HTML} Вы не подписаны на канал! Подпишитесь на канал, чтобы получить бесплатный тестовый период!',
@@ -945,7 +952,7 @@ async def check_payment_yookassa_callback(callback: CallbackQuery):
                             ref_master_id_sub,
                             '<tg-emoji emoji-id="5416117059207572332">➡️</tg-emoji> '
                             f'Ваш реферал совершил депозит, вы получили бонусом '
-                            f'{SUBSCRIPTION_REFERRAL_BONUS_DAYS} дней подписки!',
+                            f'{SUBSCRIPTION_REFERRAL_BONUS_DAYS} дня подписки!',
                             parse_mode='HTML',
                             reply_markup=ikb_my_sub,
                         )
@@ -964,7 +971,7 @@ async def check_payment_yookassa_callback(callback: CallbackQuery):
             print(f'Ошибка при выдаче подписки после оплаты для {callback.from_user.id}: {e}')
 
         try:
-            await callback.message.delete()
+            await safe_delete_message(callback.message)
         except Exception:
             pass
 
@@ -1038,7 +1045,7 @@ async def process_deposit(callback: CallbackQuery):
             return
 
     try:
-        await callback.message.delete()
+        await safe_delete_message(callback.message)
     except:
         pass
 
@@ -1095,7 +1102,7 @@ async def process_deposit(callback: CallbackQuery):
 @dp.callback_query(lambda c: c.data == 'bug_report')
 async def bug_report_callback(callback: CallbackQuery):
     await callback.answer("⚠️ Баг репорт") # на пол экрана хуйня высветится
-    await callback.message.delete()
+    await safe_delete_message(callback.message)
     await callback.message.answer("⚠️ <b>Баг репорт</b>\n\nhttps://forms.gle/Pwdm8uzAgtu9T2296!", parse_mode='HTML', reply_markup=ikb_back)
 
 @dp.callback_query(lambda c: c.data == 'admin_back')
@@ -1106,7 +1113,7 @@ async def admin_back_callback(callback: CallbackQuery, state: FSMContext):
         await callback.answer('Нет доступа', show_alert=True)
         return
     await callback.answer("Назад")
-    await callback.message.delete()
+    await safe_delete_message(callback.message)
     title = (
         '👤 Админ панель'
         if is_full_admin(callback.from_user.id)
@@ -1237,7 +1244,7 @@ async def admin_message(message: Message):
 @dp.callback_query((F.data == 'admin_funnel_stats') & F.from_user.id.in_(ADMIN_IDS))
 async def admin_funnel_stats_callback(callback: CallbackQuery):
     await callback.answer('Собираем статистику воронки…')
-    await callback.message.delete()
+    await safe_delete_message(callback.message)
 
     summary, users_rows, events_rows = fetch_funnel_stats()
     renewal_summary, renewal_rows = fetch_renewal_stats()
@@ -1277,7 +1284,7 @@ async def admin_funnel_stats_callback(callback: CallbackQuery):
 @dp.callback_query(F.data == 'admin_users')
 async def admin_users_callback(callback: CallbackQuery):
     await callback.answer("👤 Пользователи") # на пол экрана хуйня высветится
-    await callback.message.delete() # удаляем соо на котором нажали на кнопку
+    await safe_delete_message(callback.message) # удаляем соо на котором нажали на кнопку
     with sq.connect('database.db') as con:
         cur = con.cursor()
         today = date.today()
@@ -1327,7 +1334,7 @@ async def admin_users_callback(callback: CallbackQuery):
 @dp.callback_query(lambda c: c.data == 'admin_payments')
 async def admin_payments_callback(callback: CallbackQuery):
     await callback.answer("🔄 Оплаты") # на пол экрана хуйня высветится
-    await callback.message.delete()
+    await safe_delete_message(callback.message)
     with sq.connect('database.db') as con:
         cur = con.cursor()
         cur.execute('SELECT transactions.id, users.username, transactions.amount, transactions.type, transactions.date FROM transactions JOIN users ON transactions.user_id = users.id')
@@ -1346,7 +1353,7 @@ async def admin_payments_callback(callback: CallbackQuery):
 @dp.callback_query(F.data == 'admin_keys')
 async def admin_keys_callback(callback: CallbackQuery):
     await callback.answer("🔑 Подписки") # на пол экрана хуйня высветится
-    await callback.message.delete()
+    await safe_delete_message(callback.message)
     with sq.connect('database.db') as con:
         cur = con.cursor()
         cur.execute('SELECT user_id, subscription_expires_at, runout_notified , expiring_tomorrow_notified FROM subscriptions')
@@ -1364,7 +1371,7 @@ async def admin_keys_callback(callback: CallbackQuery):
 
 @dp.callback_query(lambda c: c.data == 'admin_notify_sale')
 async def admin_notify_sale(callback: CallbackQuery):
-    await callback.message.delete()
+    await safe_delete_message(callback.message)
 
     with sq.connect('database.db') as con:
         cur = con.cursor()
@@ -1418,7 +1425,7 @@ async def admin_notify_sale(callback: CallbackQuery):
 @dp.callback_query(lambda c: c.data == 'admin_notify_trial')
 async def admin_notify_trial_callback(callback: CallbackQuery):
     await callback.answer("🔊 Напомнить юзерам о бесплатном тестовом периоде") # на пол экрана хуйня высветится
-    await callback.message.delete()
+    await safe_delete_message(callback.message)
     with sq.connect('database.db') as con:
         cur = con.cursor()
         cur.execute('SELECT id FROM users WHERE had_trial != 1 AND has_active_subscription = 0')
@@ -1513,7 +1520,7 @@ async def _broadcast_html_to_all_users(text: str, reply_markup=None) -> tuple[in
 )
 async def we_need_refmasters_callback(callback: CallbackQuery):
     await callback.answer('Рассылка о партнёрке…')
-    await callback.message.delete()
+    await safe_delete_message(callback.message)
     await callback.message.answer('⏳ Рассылаем сообщение всем пользователям…', parse_mode='HTML')
 
     sent, blocked, failed, total = await _broadcast_html_to_all_users(
@@ -1535,7 +1542,7 @@ async def we_need_refmasters_callback(callback: CallbackQuery):
 @dp.callback_query(lambda c: c.data == 'admin_notify_referral')
 async def admin_notify_referral_callback(callback: CallbackQuery):
     await callback.answer("🤝 Напомнить о рефке") # на пол экрана хуйня высветится
-    await callback.message.delete()
+    await safe_delete_message(callback.message)
     with sq.connect('database.db') as con:
         cur = con.cursor()
         cur.execute('SELECT id FROM users')
@@ -1583,7 +1590,7 @@ async def admin_notify_referral_callback(callback: CallbackQuery):
 @dp.callback_query(lambda c: c.data == 'admin_roles', F.from_user.id.in_(ADMIN_IDS))
 async def admin_roles_callback(callback: CallbackQuery):
     await callback.answer("👑 Роли") # на пол экрана хуйня высветится
-    await callback.message.delete()
+    await safe_delete_message(callback.message)
     ikb_admin_roles = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text='👑 Refmaster (50% с депозитов)', callback_data='admin_give_refmaster')],
         [InlineKeyboardButton(
@@ -1603,7 +1610,7 @@ async def admin_give_refmaster_callback(callback: CallbackQuery, state: FSMConte
     await state.set_state(AdminRefmaster.waiting_user_id)
     await state.update_data(assign_role=REFMASTER_ROLE)
     await callback.answer("👑 Refmaster")
-    await callback.message.delete()
+    await safe_delete_message(callback.message)
     await callback.message.answer(
         "👑 <b>Выдача роли Refmaster</b>\n"
         "Модель: <b>50% от каждого депозита реферала</b> (90 дней) на реф. баланс.\n\n"
@@ -1617,7 +1624,7 @@ async def admin_give_refmaster_20_callback(callback: CallbackQuery, state: FSMCo
     await state.set_state(AdminRefmaster.waiting_user_id)
     await state.update_data(assign_role=REFMASTER_20_ROLE)
     await callback.answer("👑 Refmaster 2.0")
-    await callback.message.delete()
+    await safe_delete_message(callback.message)
     await callback.message.answer(
         "👑 <b>Выдача роли Refmaster 2.0</b>\n"
         f"Модель: <b>+{REFMASTER_20_DEPOSIT_BONUS_RUB} ₽</b> за продление подписки реферала "
@@ -1633,7 +1640,7 @@ async def admin_give_adv_manager_callback(callback: CallbackQuery, state: FSMCon
     await state.set_state(AdminRefmaster.waiting_user_id)
     await state.update_data(assign_role=ADV_MANAGER_ROLE)
     await callback.answer('Менеджер по рекламе')
-    await callback.message.delete()
+    await safe_delete_message(callback.message)
     await callback.message.answer(
         '📢 <b>Выдача роли «Менеджер по рекламе»</b>\n\n'
         'Доступ: <b>Рекламные кампании 2.0</b> (создание, ссылки, статистика).\n'
@@ -1681,7 +1688,7 @@ async def admin_set_role_message(message: Message, state: FSMContext):
 @dp.callback_query(F.data == 'admin_custom_ref', F.from_user.id.in_(ADMIN_IDS))
 async def admin_custom_ref_menu_callback(callback: CallbackQuery):
     await callback.answer('🔗 Авторские ссылки')
-    await callback.message.delete()
+    await safe_delete_message(callback.message)
     ikb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text='✏️ Задать код', callback_data='admin_custom_ref_set')],
         [InlineKeyboardButton(text='🗑 Снять код', callback_data='admin_custom_ref_del')],
@@ -1702,7 +1709,7 @@ async def admin_custom_ref_set_callback(callback: CallbackQuery, state: FSMConte
     await state.set_state(AdminCustomRef.waiting_user_id)
     await state.update_data(custom_ref_action='set')
     await callback.answer('Задать код')
-    await callback.message.delete()
+    await safe_delete_message(callback.message)
     await callback.message.answer(
         '✏️ <b>Задать авторский код</b>\n\nОтправьте <b>Telegram ID</b> рефовода:',
         parse_mode='HTML',
@@ -1715,7 +1722,7 @@ async def admin_custom_ref_del_callback(callback: CallbackQuery, state: FSMConte
     await state.set_state(AdminCustomRef.waiting_user_id)
     await state.update_data(custom_ref_action='del')
     await callback.answer('Снять код')
-    await callback.message.delete()
+    await safe_delete_message(callback.message)
     await callback.message.answer(
         '🗑 <b>Снять авторский код</b>\n\nОтправьте <b>Telegram ID</b> рефовода:',
         parse_mode='HTML',
@@ -1790,7 +1797,7 @@ async def admin_custom_ref_code_message(message: Message, state: FSMContext):
 @dp.callback_query(lambda c: c.data == 'admin_referrals')
 async def admin_referrals_callback(callback: CallbackQuery):
     await callback.answer("👉🏼 Рефералы") # на пол экрана хуйня высветится
-    await callback.message.delete()
+    await safe_delete_message(callback.message)
     with sq.connect('database.db') as con:
         cur = con.cursor()
         cur.execute("""SELECT u.id, u.username, u2.id, u2.username, r.ref_master_id,  r.referral_id FROM referal_users as r 
@@ -1806,7 +1813,7 @@ async def admin_referrals_callback(callback: CallbackQuery):
 )
 async def adv_campaigns_callback(callback: CallbackQuery, state: FSMContext):
     await state.clear()
-    await callback.message.delete()
+    await safe_delete_message(callback.message)
     await callback.message.answer(
         '<b>Рекламные кампании</b>\n\n'
         'Рефоводы, выплаты и поиск по ID рефовода / старой кампании.',
@@ -1820,7 +1827,7 @@ async def adv_campaigns_callback(callback: CallbackQuery, state: FSMContext):
 )
 async def adv2_campaigns_callback(callback: CallbackQuery, state: FSMContext):
     await state.clear()
-    await callback.message.delete()
+    await safe_delete_message(callback.message)
     count = len(_adv_campaigns_for_user(callback.from_user.id))
     label = 'Кампаний' if _user_sees_all_adv_campaigns(callback.from_user.id) else 'Ваших кампаний'
     await callback.message.answer(
@@ -1935,7 +1942,7 @@ async def _send_link_dashboard(
     lambda c: c.data == 'adv_new_campaign_create' and can_access_adv_campaigns(c.from_user.id),
 )
 async def create_adv_campaign(callback: CallbackQuery, state: FSMContext):
-    await callback.message.delete()
+    await safe_delete_message(callback.message)
     await state.set_state(AdvCampaign.waiting_name)
     await callback.message.answer("Введите название кампании:")
 
@@ -1981,7 +1988,7 @@ async def get_campaign_description(message: Message, state: FSMContext):
     lambda c: c.data == 'adv_get_campaigns' and can_access_adv_campaigns(c.from_user.id),
 )
 async def get_campaigns(callback: CallbackQuery):
-    await callback.message.delete()
+    await safe_delete_message(callback.message)
     uid = callback.from_user.id
     campaigns = _adv_campaigns_for_user(uid)
     if not campaigns:
@@ -2001,7 +2008,7 @@ async def get_campaigns(callback: CallbackQuery):
 async def adv_lookup_by_id_callback(callback: CallbackQuery, state: FSMContext):
     await state.set_state(AdvCampaign.waiting_campaign_id)
     await state.update_data(lookup_mode='legacy')
-    await callback.message.delete()
+    await safe_delete_message(callback.message)
     await callback.message.answer(
         '🔎 <b>Поиск по ID</b>\n\n'
         'Отправьте число:\n'
@@ -2018,7 +2025,7 @@ async def adv_lookup_by_id_callback(callback: CallbackQuery, state: FSMContext):
 async def adv2_lookup_by_id_callback(callback: CallbackQuery, state: FSMContext):
     await state.set_state(AdvCampaign.waiting_campaign_id)
     await state.update_data(lookup_mode='adv2')
-    await callback.message.delete()
+    await safe_delete_message(callback.message)
     await callback.message.answer(
         '🔎 <b>Поиск по ID</b>\n\n'
         'Отправьте число:\n'
@@ -2094,7 +2101,7 @@ async def adv_campaign_id_lookup_message(message: Message, state: FSMContext):
 )
 async def adv_refmasters_callback(callback: CallbackQuery):
     await callback.answer('Refmaster / 2.0')
-    await callback.message.delete()
+    await safe_delete_message(callback.message)
     all_partners = fetch_refmaster_partner_rows()
     partners = filter_refmaster_partners_with_pending(all_partners)
     text = format_refmasters_overview(partners, all_roles_count=len(all_partners))
@@ -2111,7 +2118,7 @@ async def adv_refmasters_callback(callback: CallbackQuery):
 )
 async def adv_refmaster_detail_callback(callback: CallbackQuery):
     await callback.answer()
-    await callback.message.delete()
+    await safe_delete_message(callback.message)
     try:
         partner_id = int(callback.data.replace('adv_rm_', '', 1))
     except ValueError:
@@ -2194,7 +2201,7 @@ async def adv_refmasters_excel_callback(callback: CallbackQuery):
 )
 async def adv_referrers_progress_callback(callback: CallbackQuery):
     await callback.answer('Собираем статистику рефоводов…')
-    await callback.message.delete()
+    await safe_delete_message(callback.message)
 
     rows = fetch_all_referrers_progress()
     if not rows:
@@ -2247,7 +2254,7 @@ async def adv_referrers_progress_callback(callback: CallbackQuery):
             share_col = ''
             fixed_col = ref_share_est if ref_share_est is not None else ''
         else:
-            model_note = f'{SUBSCRIPTION_REFERRAL_BONUS_DAYS} дней за 1-й депозит'
+            model_note = f'{SUBSCRIPTION_REFERRAL_BONUS_DAYS} дня за 1-й депозит'
             share_col = ''
             fixed_col = ''
         in_users = username is not None
@@ -2312,7 +2319,7 @@ async def adv_referrers_progress_callback(callback: CallbackQuery):
 )
 async def adv_campaign_by_id_callback(callback: CallbackQuery):
     await callback.answer()
-    await callback.message.delete()
+    await safe_delete_message(callback.message)
     try:
         campaign_id = int(callback.data.replace('adv_cid_', '', 1))
     except ValueError:
@@ -2336,7 +2343,7 @@ async def adv_campaign_by_id_callback(callback: CallbackQuery):
 )
 async def adv_link_by_id_callback(callback: CallbackQuery):
     await callback.answer()
-    await callback.message.delete()
+    await safe_delete_message(callback.message)
     try:
         link_id = int(callback.data.replace('adv_lid_', '', 1))
     except ValueError:
@@ -2384,7 +2391,7 @@ async def adv_add_link_callback(callback: CallbackQuery):
 
 @dp.callback_query(F.data == 'ping_brokes')
 async def ping_broke_users(callback: CallbackQuery): # оповестить нищеебов ебаных
-    await callback.message.delete()
+    await safe_delete_message(callback.message)
 
     with sq.connect('database.db') as con:
         cur = con.cursor()
@@ -2489,7 +2496,7 @@ PROMO_BROADCAST_DELAY_SEC = float(os.getenv('PROMO_BROADCAST_DELAY_SEC', '0.3'))
 async def ping_funnel_sale_users(callback: CallbackQuery):
     await callback.answer('Рассылка скидки 99₽…')
     try:
-        await callback.message.delete()
+        await safe_delete_message(callback.message)
     except Exception:
         pass
 
@@ -2542,7 +2549,7 @@ async def ping_funnel_sale_users(callback: CallbackQuery):
 
 @dp.callback_query(F.data == 'admin_give_2_days_bonus')
 async def admin_give_2_days_bonus(callback: CallbackQuery):
-    await callback.message.delete()
+    await safe_delete_message(callback.message)
     try:
         users = await asyncio.to_thread(vpn.get_unactive_users)
     except Exception as e:
@@ -2591,7 +2598,7 @@ async def admin_give_2_days_bonus(callback: CallbackQuery):
 @dp.callback_query(F.data.startswith('2_days_bonus_'))
 async def give_2_days_bonus(callback: CallbackQuery):
     try:
-        await callback.message.delete()
+        await safe_delete_message(callback.message)
     except Exception:
         pass
 
@@ -2634,7 +2641,7 @@ async def give_2_days_bonus(callback: CallbackQuery):
 
 @dp.callback_query(F.data == 'buy_device')
 async def buy_hwid_device(callback: CallbackQuery):
-    await callback.message.delete()
+    await safe_delete_message(callback.message)
     try:
         payment = await asyncio.to_thread(Payment.create, {
             "amount": {
@@ -2689,7 +2696,7 @@ async def device_yookassa_check_payment(callback:CallbackQuery):
             )
             return
         try:
-            await callback.message.delete()
+            await safe_delete_message(callback.message)
         except Exception:
             pass
         await callback.message.answer(
@@ -2699,7 +2706,7 @@ async def device_yookassa_check_payment(callback:CallbackQuery):
         )
     elif status == 'already_processed':
         try:
-            await callback.message.delete()
+            await safe_delete_message(callback.message)
         except Exception:
             pass
         await callback.message.answer(

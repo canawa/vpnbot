@@ -1,11 +1,23 @@
 """Доставка в Telegram: пропуск пользователей, заблокировавших бота или удаливших аккаунт."""
-from aiogram.exceptions import TelegramForbiddenError, TelegramNotFound
+from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError, TelegramNotFound
 
 from databases import db_connect, db_retry
 
+_UNREACHABLE_MARKERS = (
+    'bot was blocked',
+    'user is deactivated',
+    'chat not found',
+    'user_bot_to_bot_disabled',
+)
+
 
 def is_telegram_unreachable(exc: BaseException) -> bool:
-    return isinstance(exc, (TelegramForbiddenError, TelegramNotFound))
+    if isinstance(exc, (TelegramForbiddenError, TelegramNotFound)):
+        return True
+    if isinstance(exc, TelegramBadRequest):
+        msg = str(exc).lower()
+        return any(marker in msg for marker in _UNREACHABLE_MARKERS)
+    return False
 
 
 def is_user_bot_blocked(user_id: int) -> bool:

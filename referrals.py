@@ -2,6 +2,7 @@
 """Роли и начисления реферальной программы."""
 
 import sqlite3 as sq
+from datetime import date, timedelta
 
 from emojis import CHECK_EMOJI_HTML
 
@@ -12,7 +13,7 @@ REFERRAL_COMMISSION_WINDOW_DAYS = 90
 REFMASTER_20_DEPOSIT_BONUS_RUB = 50
 REFMASTER_20_MIN_DEPOSIT_RUB = 149
 # Обычный рефовод: дни подписки за первый депозит приглашённого друга
-SUBSCRIPTION_REFERRAL_BONUS_DAYS = 30
+SUBSCRIPTION_REFERRAL_BONUS_DAYS = 3
 
 TX_TYPE_YOOKASSA_SUBSCRIPTION = 'yookassa'
 TX_TYPE_YOOKASSA_GB = 'yookassa_gb'
@@ -481,7 +482,7 @@ def format_admin_campaign_stats(dashboard: dict, *, hide_payouts: bool = False) 
             stats_tail = _format_deposit_rows_block(dashboard.get('deposit_rows') or [], role)
         else:
             payout_block = (
-                f'\nМодель: <b>{SUBSCRIPTION_REFERRAL_BONUS_DAYS} дней</b> подписки за первый депозит (без денежного ref_balance).\n'
+                f'\nМодель: <b>{SUBSCRIPTION_REFERRAL_BONUS_DAYS} дня</b> подписки за первый депозит (без денежного ref_balance).\n'
                 f'ref_balance: <b>{ref_balance} ₽</b>\n'
             )
 
