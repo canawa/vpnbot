@@ -88,6 +88,14 @@ def create_tables():
     with sq.connect('database.db') as con:
         cur = con.cursor()
 
+        def _ensure_column(table: str, column: str, col_def: str) -> None:
+            """ADD COLUMN только если колонки ещё нет (без спама duplicate column)."""
+            cur.execute(f'PRAGMA table_info({table})')
+            existing = {row[1] for row in cur.fetchall()}
+            if column in existing:
+                return
+            cur.execute(f'ALTER TABLE {table} ADD COLUMN {column} {col_def}')
+
         # USERS
         cur.execute("""
         CREATE TABLE IF NOT EXISTS users (
@@ -228,46 +236,15 @@ def create_tables():
         """)
 
         con.commit()
-        try:
-            cur.execute('ALTER TABLE users ADD COLUMN is_legacy INTEGER DEFAULT 0;')
-        except Exception as e:
-            print(e)
-        try:
-            cur.execute('ALTER TABLE users ADD COLUMN custom_ref_code TEXT;')
-        except Exception as e:
-            print(e)
-        try:
-            cur.execute('ALTER TABLE user_funnel ADD COLUMN survey_answer TEXT;')
-        except Exception as e:
-            print(e)
-        try:
-            cur.execute(
-                'ALTER TABLE users ADD COLUMN ref_notify_new_referral INTEGER DEFAULT 1;'
-            )
-        except Exception as e:
-            print(e)
-        try:
-            cur.execute(
-                'ALTER TABLE users ADD COLUMN ref_notify_new_deposit INTEGER DEFAULT 1;'
-            )
-        except Exception as e:
-            print(e)
-        try:
-            cur.execute('ALTER TABLE users ADD COLUMN bot_blocked INTEGER DEFAULT 0;')
-        except Exception as e:
-            print(e)
-        try:
-            cur.execute('ALTER TABLE referal_users ADD COLUMN adv_link_id INTEGER;')
-        except Exception as e:
-            print(e)
-        try:
-            cur.execute('ALTER TABLE adv_campaigns ADD COLUMN owner_id INTEGER;')
-        except Exception as e:
-            print(e)
-        try:
-            cur.execute('ALTER TABLE users ADD COLUMN promo_99_until TEXT;')
-        except Exception as e:
-            print(e)
+        _ensure_column('users', 'is_legacy', 'INTEGER DEFAULT 0')
+        _ensure_column('users', 'custom_ref_code', 'TEXT')
+        _ensure_column('user_funnel', 'survey_answer', 'TEXT')
+        _ensure_column('users', 'ref_notify_new_referral', 'INTEGER DEFAULT 1')
+        _ensure_column('users', 'ref_notify_new_deposit', 'INTEGER DEFAULT 1')
+        _ensure_column('users', 'bot_blocked', 'INTEGER DEFAULT 0')
+        _ensure_column('referal_users', 'adv_link_id', 'INTEGER')
+        _ensure_column('adv_campaigns', 'owner_id', 'INTEGER')
+        _ensure_column('users', 'promo_99_until', 'TEXT')
         _migrate_adv_campaign_links(cur)
         cur.execute(
             """

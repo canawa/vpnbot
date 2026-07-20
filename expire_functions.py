@@ -6,7 +6,6 @@ from datetime import timedelta
 import asyncio
 
 from aiogram.types import FSInputFile
-from main import PING_UNCONNECTED_PHOTO
 from texts import PING_CAPTION
 from vpn import Vpn, panel_user_record
 from ikbs import *
@@ -15,7 +14,9 @@ from renewal_funnel import renewal_funnel_handles_notifications
 from bot_delivery import is_telegram_unreachable, mark_user_bot_blocked
 
 TRIAL_UNCONNECTED_SLEEP_SEC = int(os.getenv('TRIAL_UNCONNECTED_SLEEP_SEC', '86400'))
-DAY_BEFORE_PHOTO_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'day_before.jpg')
+_BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DAY_BEFORE_PHOTO_PATH = os.path.join(_BASE_DIR, 'day_before.jpg')
+PING_UNCONNECTED_PHOTO = FSInputFile(os.path.join(_BASE_DIR, 'photos', 'ping_unconnected.jpg'))
 
 EXPIRING_TOMORROW_CAPTION = (
     'Эй, завтра твой VPN отключится 👀\n\n'
