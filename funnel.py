@@ -773,10 +773,10 @@ def reset_funnel_for_test(user_id: int) -> str:
 
 async def run_funnel_worker(bot: Bot) -> None:
     logger.info('funnel worker started, sleep=%ss', FUNNEL_SLEEP_SEC)
-    await asyncio.sleep(5)
+    await asyncio.sleep(30)
     while True:
         try:
-            rows = _fetch_funnel_rows()
+            rows = await asyncio.to_thread(_fetch_funnel_rows)
             logger.info('funnel tick, users=%s', len(rows))
             for row in rows:
                 await _process_one_user(bot, row)

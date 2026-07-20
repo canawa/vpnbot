@@ -88,14 +88,6 @@ def create_tables():
     with sq.connect('database.db') as con:
         cur = con.cursor()
 
-        def _ensure_column(table: str, column: str, col_def: str) -> None:
-            """ADD COLUMN только если колонки ещё нет (без спама duplicate column)."""
-            cur.execute(f'PRAGMA table_info({table})')
-            existing = {row[1] for row in cur.fetchall()}
-            if column in existing:
-                return
-            cur.execute(f'ALTER TABLE {table} ADD COLUMN {column} {col_def}')
-
         # USERS
         cur.execute("""
         CREATE TABLE IF NOT EXISTS users (
@@ -236,45 +228,11 @@ def create_tables():
         """)
 
         con.commit()
-        _ensure_column('users', 'is_legacy', 'INTEGER DEFAULT 0')
-        _ensure_column('users', 'custom_ref_code', 'TEXT')
-        _ensure_column('user_funnel', 'survey_answer', 'TEXT')
-        _ensure_column('users', 'ref_notify_new_referral', 'INTEGER DEFAULT 1')
-        _ensure_column('users', 'ref_notify_new_deposit', 'INTEGER DEFAULT 1')
-        _ensure_column('users', 'bot_blocked', 'INTEGER DEFAULT 0')
-        _ensure_column('referal_users', 'adv_link_id', 'INTEGER')
-        _ensure_column('adv_campaigns', 'owner_id', 'INTEGER')
-        _ensure_column('users', 'promo_99_until', 'TEXT')
         _migrate_adv_campaign_links(cur)
         cur.execute(
             """
             CREATE UNIQUE INDEX IF NOT EXISTS ux_users_custom_ref_code
             ON users(custom_ref_code) WHERE custom_ref_code IS NOT NULL
-            """
-        )
-        con.commit()
-        cur.execute(
-            """
-            INSERT OR IGNORE INTO user_funnel (user_id, branch, first_seen_at)
-            SELECT
-                u.id,
-                CASE
-                    WHEN EXISTS (
-                        SELECT 1 FROM subscriptions s
-                        WHERE s.user_id = u.id
-                          AND date(s.subscription_expires_at) >= date('now')
-                    ) AND COALESCE(u.had_trial, 0) = 0 THEN 'paid'
-                    WHEN EXISTS (
-                        SELECT 1 FROM subscriptions s
-                        WHERE s.user_id = u.id
-                          AND date(s.subscription_expires_at) >= date('now')
-                    ) THEN 'trial_active'
-                    WHEN COALESCE(u.had_trial, 0) = 1 THEN 'post_trial'
-                    ELSE 'no_trial'
-                END,
-                datetime('now')
-            FROM users u
-            WHERE u.id NOT IN (SELECT user_id FROM user_funnel)
             """
         )
         con.commit()

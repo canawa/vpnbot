@@ -341,7 +341,7 @@ async def _safe_send(bot: Bot, user_id: int, text: str, markup) -> bool:
 
 
 async def _process_user(bot: Bot, user_id: int, expires_at: str) -> None:
-    if is_user_bot_blocked(user_id):
+    if await _run_db(is_user_bot_blocked, user_id):
         return
 
     exp_d = _parse_date(expires_at)
@@ -398,7 +398,7 @@ async def run_renewal_funnel_worker(bot: Bot) -> None:
         RENEWAL_SLEEP_SEC,
         RENEWAL_USER_DELAY_SEC,
     )
-    await asyncio.sleep(8)
+    await asyncio.sleep(40)
     while True:
         try:
             rows = await _run_db(_load_subscription_rows)
