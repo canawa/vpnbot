@@ -2,6 +2,7 @@
 """Роли и начисления реферальной программы."""
 
 import sqlite3 as sq
+from datetime import date, datetime, timedelta
 
 from emojis import CHECK_EMOJI_HTML
 
@@ -130,8 +131,12 @@ def should_send_ref_partner_notification(
 def referral_commission_active(registration_date_str: str | None) -> bool:
     if not registration_date_str:
         return False
+    text = str(registration_date_str).strip()
     try:
-        registration_date = date.fromisoformat(registration_date_str)
+        if 'T' in text or ' ' in text:
+            registration_date = datetime.fromisoformat(text.replace('Z', '+00:00')).date()
+        else:
+            registration_date = date.fromisoformat(text[:10])
     except ValueError:
         return False
     return date.today() <= registration_date + timedelta(days=REFERRAL_COMMISSION_WINDOW_DAYS)
