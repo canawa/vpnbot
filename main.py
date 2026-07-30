@@ -102,6 +102,7 @@ from funnel import (
     fetch_funnel_stats,
     try_log_open_invoice_check_click,
     try_log_open_invoice_reminder_paid,
+    log_funnel_event,
 )
 from renewal_funnel import renewal_on_paid, run_renewal_funnel_worker, fetch_renewal_stats
 locale.setlocale(locale.LC_TIME, 'ru_RU.UTF-8')
@@ -2615,6 +2616,12 @@ async def give_2_days_bonus(callback: CallbackQuery):
             reply_markup=generate_ikb_main(tg_id),
         )
         return
+
+    try:
+        log_funnel_event(tg_id, 'click_bonus_2d')
+        funnel_on_trial_started(tg_id)
+    except Exception as e:
+        logging.exception('funnel sync after 2_days_bonus tg_id=%s: %s', tg_id, e)
 
     try:
         await send_main_menu(callback.message, callback.from_user.id)

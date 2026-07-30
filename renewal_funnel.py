@@ -1,7 +1,6 @@
 """
 Воронка на продление подписки (платные пользователи).
-Цены фиксированные: 149 / 399 / 899 / 50₽ неделя — без таймеров и реальных скидок.
-В тексте может быть «скидка 60%», кнопка года ведёт на 899₽.
+Цены из prices.py: месяц / 3 мес / год / неделя — без таймерных скидок.
 """
 import asyncio
 import logging
@@ -25,7 +24,10 @@ RENEWAL_USER_DELAY_SEC = float(os.getenv('RENEWAL_USER_DELAY_SEC', '0.35'))
 
 P30 = SUBSCRIPTION_PLAN.get(30, 149)
 P90 = SUBSCRIPTION_PLAN.get(90, 399)
-P360 = SUBSCRIPTION_PLAN.get(360, 899)
+P360 = SUBSCRIPTION_PLAN.get(360, 1199)
+P360_PER_MONTH = max(1, round(P360 / 12))
+# vs 12× месяц: экономия ≈33% при текущих ценах
+P360_SAVE_PCT = max(0, round((1 - P360 / (P30 * 12)) * 100)) if P30 else 0
 
 _renewal_db_lock = asyncio.Lock()
 
@@ -261,9 +263,10 @@ def ikb_renew_plans() -> InlineKeyboardMarkup:
 
 
 def ikb_year_60_marketing() -> InlineKeyboardMarkup:
+    save = f' (−{P360_SAVE_PCT}%)' if P360_SAVE_PCT > 0 else ''
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(
-            text=f'🔥 Забрать год за {P360}₽ (−60%)',
+            text=f'🔥 Забрать год за {P360}₽{save}',
             callback_data=f'deposit_{P360}_360_card',
             style='success',
         )],
@@ -303,7 +306,7 @@ MSG_P3D = (
     'Всё ещё без VPN? Держи актуальные тарифы:\n\n'
     f'• 1 месяц — <b>{P30} ₽</b>\n'
     f'• 3 месяца — <b>{P90} ₽</b>\n'
-    f'• <b>1 год — {P360} ₽</b> (≈75 ₽/мес)\n'
+    f'• <b>1 год — {P360} ₽</b> (≈{P360_PER_MONTH} ₽/мес)\n'
     f'• Неделя — <b>{WEEK_PLAN_PRICE} ₽</b>\n\n'
     'Чем дольше — тем спокойнее. Подключи снова 👇'
 )
@@ -317,8 +320,10 @@ MSG_P30D = (
     'Прошёл месяц. Мы соскучились 👋\n\n'
     'Не знаем, что пошло не так — может, цена, может просто не дошли руки.\n\n'
     'Если что-то остановило — напишите в поддержку, разберёмся.\n\n'
-    f'А если просто отложил — наш лучший вариант: <b>год со скидкой 60%</b> '
-    f'всего за <b>{P360} ₽</b> (обычно дороже, сейчас фиксированная цена на год).'
+    f'А если просто отложил — наш лучший вариант: <b>год за {P360} ₽</b> '
+    f'(≈{P360_PER_MONTH} ₽/мес'
+    + (f', −{P360_SAVE_PCT}% к помесячной оплате' if P360_SAVE_PCT else '')
+    + ').'
 )
 
 

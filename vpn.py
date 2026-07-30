@@ -304,7 +304,53 @@ class Vpn:
 
         user_data = panel_user_record(panel_user)
         if not user_data:
-            return {'errorCode': 'USER_NOT_FOUND', 'message': 'User not found in panel'}
+            new_expire = now + timedelta(days=2)
+            response = requests.post(
+                f"{self.base_url}/api/users",
+                headers={"Content-Type": "application/json", "Authorization": f"Bearer {self.token}"},
+                json={
+                    "username": f'user_{tg_id}',
+                    "status": "ACTIVE",
+                    "expireAt": new_expire.isoformat(),
+                    "createdAt": now.isoformat(),
+                    "telegramId": tg_id,
+                    "hwidDeviceLimit": 3,
+                    "trafficLimitBytes": BONUS_2_DAYS_TRAFFIC_BYTES,
+                    "trafficLimitStrategy": "MONTH_ROLLING",
+                    "activeInternalSquads": [
+                        "6f11955f-6b95-4f96-bba4-3d866de8ce83",
+                        "ffa0ca48-bb6e-447b-a404-f1808b09c967",
+                    ],
+                },
+            )
+            try:
+                body = response.json()
+            except Exception as e:
+                return {'errorCode': 'ERROR', 'message': str(e)}
+
+            if not isinstance(body, dict):
+                if response.ok:
+                    body = {}
+                else:
+                    return {'errorCode': 'HTTP_ERROR', 'message': response.text or str(body)}
+
+            if body.get('errorCode'):
+                return body
+
+            if not response.ok:
+                return {'errorCode': 'HTTP_ERROR', 'message': response.text or 'POST failed'}
+
+            try:
+                upsert_subscription_days(tg_id, expires_at=new_expire.isoformat())
+                with sq.connect('database.db') as con:
+                    con.execute('UPDATE users SET had_trial = 1 WHERE id = ?', (tg_id,))
+                    con.commit()
+            except Exception as e:
+                return {'errorCode': 'DB_ERROR', 'message': str(e)}
+
+            if isinstance(body, dict):
+                body = {**body, 'created': True}
+            return body
 
         panel_expire = None
         expire_raw = user_data.get('expireAt')
@@ -359,6 +405,9 @@ class Vpn:
 
         try:
             upsert_subscription_days(tg_id, expires_at=new_expire.isoformat())
+            with sq.connect('database.db') as con:
+                con.execute('UPDATE users SET had_trial = 1 WHERE id = ?', (tg_id,))
+                con.commit()
         except Exception as e:
             return {'errorCode': 'DB_ERROR', 'message': str(e)}
 

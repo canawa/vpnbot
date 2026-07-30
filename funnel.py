@@ -1,6 +1,6 @@
 """
 Воронка на покупку (без таймерных скидок).
-Тарифы: 50₽/неделя, 899₽/год + стандартная линейка.
+Тарифы: 50₽/неделя, 1199₽/год + стандартная линейка.
 """
 import asyncio
 import logging
@@ -9,7 +9,7 @@ import sqlite3 as sq
 from datetime import datetime, date, timedelta
 
 from aiogram import F, Bot
-from aiogram.types import CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton, FSInputFile
 
 from prices import WEEK_PLAN_DAYS, WEEK_PLAN_PRICE, SUBSCRIPTION_PLAN
 from bot_delivery import is_telegram_unreachable, mark_user_bot_blocked
@@ -28,9 +28,9 @@ TD_72H = timedelta(hours=72)
 TD_1H = timedelta(hours=1)
 TD_3D = timedelta(days=3)
 TD_7D = timedelta(days=7)
+TD_14D = timedelta(days=14)
 
-
-
+TWO_DAYS_BONUS_PHOTO_PATH = 'photos/2_days_bonus_photo.png'
 
 # Минимальный шаг воронки — 30 мин (TD_30M). Тик 15 мин: письмо уйдёт в окне +0…+15 мин.
 # Для теста с TD_* в минутах: FUNNEL_SLEEP_SEC=30 в .env
@@ -45,6 +45,7 @@ _FLAG_EVENT = {
     'pt_24h': 'msg_pt_24h',
     'pt_3d': 'msg_pt_3d',
     'pt_7d': 'msg_pt_7d',
+    'bonus_2d': 'msg_bonus_2d',
 }
 
 
@@ -294,6 +295,7 @@ def _mark_flag(user_id: int, column: str) -> None:
     allowed = {
         'nt_30m', 'nt_24h', 'nt_48h', 'nt_72h',
         'pt_1h', 'pt_24h', 'pt_3d', 'pt_7d',
+        'bonus_2d',
     }
     if column not in allowed:
         return
@@ -329,7 +331,8 @@ def _fetch_funnel_rows() -> list[tuple]:
             """
             SELECT f.user_id, f.branch, f.first_seen_at, f.trial_started_at, f.trial_ended_at,
                    f.nt_30m, f.nt_24h, f.nt_48h, f.nt_72h,
-                   f.pt_1h, f.pt_24h, f.pt_3d, f.pt_7d, f.extra_trial_once
+                   f.pt_1h, f.pt_24h, f.pt_3d, f.pt_7d, f.extra_trial_once,
+                   COALESCE(f.bonus_2d, 0)
             FROM user_funnel f
             INNER JOIN users u ON u.id = f.user_id
             WHERE COALESCE(u.bot_blocked, 0) = 0
@@ -337,11 +340,17 @@ def _fetch_funnel_rows() -> list[tuple]:
                 f.branch IN ('trial_active', 'paid')
                 OR (
                   f.branch = 'no_trial'
-                  AND (f.nt_30m = 0 OR f.nt_24h = 0 OR f.nt_48h = 0 OR f.nt_72h = 0)
+                  AND (
+                    f.nt_30m = 0 OR f.nt_24h = 0 OR f.nt_48h = 0 OR f.nt_72h = 0
+                    OR COALESCE(f.bonus_2d, 0) = 0
+                  )
                 )
                 OR (
                   f.branch = 'post_trial'
-                  AND (f.pt_1h = 0 OR f.pt_24h = 0 OR f.pt_3d = 0 OR f.pt_7d = 0)
+                  AND (
+                    f.pt_1h = 0 OR f.pt_24h = 0 OR f.pt_3d = 0 OR f.pt_7d = 0
+                    OR COALESCE(f.bonus_2d, 0) = 0
+                  )
                 )
               )
             """
@@ -367,6 +376,7 @@ def fetch_funnel_stats() -> tuple[str, list[dict], list[dict]]:
                 uf.nt_30m, uf.nt_24h, uf.nt_48h, uf.nt_72h,
                 uf.pt_1h, uf.pt_24h, uf.pt_3d, uf.pt_7d,
                 uf.extra_trial_once,
+                COALESCE(uf.bonus_2d, 0),
                 (SELECT COUNT(*) FROM funnel_events fe WHERE fe.user_id = uf.user_id) AS events_count
             FROM user_funnel uf
             LEFT JOIN users u ON u.id = uf.user_id
@@ -400,7 +410,7 @@ def fetch_funnel_stats() -> tuple[str, list[dict], list[dict]]:
             survey_answer,
             nt_30m, nt_24h, nt_48h, nt_72h,
             pt_1h, pt_24h, pt_3d, pt_7d,
-            extra_once, events_count,
+            extra_once, bonus_2d, events_count,
         ) = r
         branch = branch or 'no_trial'
         by_branch[branch] = by_branch.get(branch, 0) + 1
@@ -416,6 +426,7 @@ def fetch_funnel_stats() -> tuple[str, list[dict], list[dict]]:
         flags = {
             'nt_30m': nt_30m, 'nt_24h': nt_24h, 'nt_48h': nt_48h, 'nt_72h': nt_72h,
             'pt_1h': pt_1h, 'pt_24h': pt_24h, 'pt_3d': pt_3d, 'pt_7d': pt_7d,
+            'bonus_2d': bonus_2d,
         }
         for col, ev in _FLAG_EVENT.items():
             if flags.get(col):
@@ -439,6 +450,7 @@ def fetch_funnel_stats() -> tuple[str, list[dict], list[dict]]:
             'pt_3d': pt_3d or 0,
             'pt_7d': pt_7d or 0,
             'extra_trial_once': extra_once or 0,
+            'bonus_2d': bonus_2d or 0,
             'events_count': events_count or 0,
         })
 
@@ -480,7 +492,8 @@ def fetch_funnel_stats() -> tuple[str, list[dict], list[dict]]:
         f'• Взяли триал: <b>{trial_started}</b> ({pct(trial_started, total)})\n'
         f'• Оплатили (last_paid_at): <b>{paid_count}</b> ({pct(paid_count, total)})\n'
         f'• Оплата после конца триала: <b>{paid_after_trial_end}</b>\n'
-        f'• Бонус +1 день: <b>{sum(1 for u in users_excel if u["extra_trial_once"])}</b>\n\n'
+        f'• Бонус +1 день: <b>{sum(1 for u in users_excel if u["extra_trial_once"])}</b>\n'
+        f'• Оффер 2 дня: <b>{sum(1 for u in users_excel if u["bonus_2d"])}</b>\n\n'
         f'{open_invoice_block}\n\n'
         f'<b>Ответы опроса:</b>\n{survey_lines}\n\n'
         f'<b>Отправлено писем (флаги):</b>\n{msg_lines}\n\n'
@@ -490,6 +503,16 @@ def fetch_funnel_stats() -> tuple[str, list[dict], list[dict]]:
 
 
 # --- Клавиатуры ---
+
+def ikb_funnel_bonus_2d(user_id: int) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(
+            text='Получить 2 дня подписки',
+            callback_data=f'2_days_bonus_{user_id}',
+            style='success',
+        )],
+    ])
+
 
 def ikb_funnel_trial() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
@@ -520,7 +543,7 @@ def ikb_funnel_buy() -> InlineKeyboardMarkup:
 
 
 def ikb_funnel_post_1h() -> InlineKeyboardMarkup:
-    y360 = SUBSCRIPTION_PLAN.get(360, 899)
+    y360 = SUBSCRIPTION_PLAN.get(360, 1199)
     y7 = WEEK_PLAN_PRICE
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(
@@ -608,7 +631,7 @@ MSG_PT_1H = (
     'Чтобы снова пользоваться VPN, выбери подписку:\n'
     f'• 1 месяц — <b>{SUBSCRIPTION_PLAN.get(30, 149)} ₽</b>\n'
     f'• 3 месяца — <b>{SUBSCRIPTION_PLAN.get(90, 399)} ₽</b>\n'
-    f'• <b>1 год — {SUBSCRIPTION_PLAN.get(360, 899)} ₽</b> (≈75 ₽/мес)\n'
+    f'• <b>1 год — {SUBSCRIPTION_PLAN.get(360, 1199)} ₽</b> (≈100 ₽/мес)\n'
     f'• Неделя — <b>{WEEK_PLAN_PRICE} ₽</b>\n\n'
     'Подключи сейчас 👇'
 )
@@ -621,7 +644,7 @@ MSG_PT_24H = (
 MSG_PT_3D = (
     'Тяжело найти стабильный VPN? Пока подписка отключена, снова тратишь нервы на блокировки.\n\n'
     'Месяц стоит как две чашки кофе — <b>бот работает на тебя 30 дней</b>.\n'
-    f'Год — <b>{SUBSCRIPTION_PLAN.get(360, 899)} ₽</b>.\n\n'
+    f'Год — <b>{SUBSCRIPTION_PLAN.get(360, 1199)} ₽</b> (≈100 ₽/мес).\n\n'
     'Верни себе комфорт 👇'
 )
 
@@ -629,7 +652,25 @@ MSG_PT_7D = (
     '📦 Профиль без активной подписки.\n\n'
     'Если хочешь продолжить — подключи VPN. '
     f'Есть тариф на неделю всего за <b>{WEEK_PLAN_PRICE} ₽</b> или год за '
-    f'<b>{SUBSCRIPTION_PLAN.get(360, 899)} ₽</b> 👇'
+    f'<b>{SUBSCRIPTION_PLAN.get(360, 1199)} ₽</b> 👇'
+)
+
+MSG_BONUS_2D_NO_TRIAL = (
+    '<tg-emoji emoji-id="5203996991054432397">🎁</tg-emoji> '
+    'Персональный подарок — <b>2 дня доступа бесплатно</b>\n\n'
+    'Ты ещё не успел попробовать VPN. Дарим короткий тест без карты и подписок:\n'
+    '• подключение за минуту\n'
+    '• работает в РФ\n'
+    '• LTE-обход на операторов\n\n'
+    'Забери бонус одной кнопкой 👇'
+)
+
+MSG_BONUS_2D_POST_TRIAL = (
+    '<tg-emoji emoji-id="5203996991054432397">🎁</tg-emoji> '
+    'Персональный подарок — <b>2 дня доступа бесплатно</b>\n\n'
+    'Подписка не активна — возвращаем тебя на тест, чтобы снова оценить скорость и стабильность.\n'
+    'Внутри — LTE-обход на операторов.\n\n'
+    'Забери бонус одной кнопкой 👇'
 )
 
 MSG_SURVEY_EXPENSIVE = (
@@ -668,6 +709,32 @@ async def _safe_send(bot: Bot, user_id: int, text: str, reply_markup=None) -> bo
         return False
 
 
+async def _safe_send_photo(
+    bot: Bot,
+    user_id: int,
+    caption: str,
+    reply_markup=None,
+    photo_path: str = TWO_DAYS_BONUS_PHOTO_PATH,
+) -> bool:
+    try:
+        await bot.send_photo(
+            chat_id=user_id,
+            photo=FSInputFile(photo_path),
+            caption=caption,
+            parse_mode='HTML',
+            reply_markup=reply_markup,
+        )
+        logger.info('funnel photo sent to user_id=%s', user_id)
+        return True
+    except Exception as e:
+        if is_telegram_unreachable(e):
+            mark_user_bot_blocked(user_id)
+            logger.info('funnel skip user_id=%s (blocked bot or deleted account)', user_id)
+        else:
+            logger.warning('funnel photo send failed user_id=%s: %s', user_id, e)
+        return False
+
+
 async def _maybe_start_post_trial(user_id: int) -> bool:
     """Перевод trial_active/paid без активной подписки → post_trial."""
     if _subscription_active(user_id):
@@ -683,6 +750,7 @@ async def _process_one_user(bot: Bot, row: tuple) -> None:
         user_id, branch, first_seen_at, trial_started_at, trial_ended_at,
         nt_30m, nt_24h, nt_48h, nt_72h,
         pt_1h, pt_24h, pt_3d, pt_7d, extra_trial_once,
+        bonus_2d,
     ) = row
     now = datetime.now()
 
@@ -706,6 +774,14 @@ async def _process_one_user(bot: Bot, row: tuple) -> None:
         elif not nt_72h and now >= fs + TD_72H:
             if await _safe_send(bot, user_id, MSG_NT_72H, ikb_funnel_trial()):
                 _mark_flag(user_id, 'nt_72h')
+        elif nt_72h and not bonus_2d and now >= fs + TD_72H + TD_7D:
+            if await _safe_send_photo(
+                bot,
+                user_id,
+                MSG_BONUS_2D_NO_TRIAL,
+                ikb_funnel_bonus_2d(user_id),
+            ):
+                _mark_flag(user_id, 'bonus_2d')
         return
 
     if branch == 'trial_active':
@@ -738,6 +814,14 @@ async def _process_one_user(bot: Bot, row: tuple) -> None:
         elif not pt_7d and now >= te + TD_7D:
             if await _safe_send(bot, user_id, MSG_PT_7D, ikb_funnel_buy()):
                 _mark_flag(user_id, 'pt_7d')
+        elif pt_7d and not bonus_2d and now >= te + TD_14D:
+            if await _safe_send_photo(
+                bot,
+                user_id,
+                MSG_BONUS_2D_POST_TRIAL,
+                ikb_funnel_bonus_2d(user_id),
+            ):
+                _mark_flag(user_id, 'bonus_2d')
 
 
 def reset_funnel_for_test(user_id: int) -> str:
@@ -757,6 +841,7 @@ def reset_funnel_for_test(user_id: int) -> str:
                 nt_30m = 0, nt_24h = 0, nt_48h = 0, nt_72h = 0,
                 pt_1h = 0, pt_24h = 0, pt_3d = 0, pt_7d = 0,
                 extra_trial_once = 0,
+                bonus_2d = 0,
                 survey_answer = NULL
             WHERE user_id = ?
             """,

@@ -190,6 +190,7 @@ def create_tables():
             pt_3d INTEGER DEFAULT 0,
             pt_7d INTEGER DEFAULT 0,
             extra_trial_once INTEGER DEFAULT 0,
+            bonus_2d INTEGER DEFAULT 0,
             survey_answer TEXT
         )
         """)
@@ -228,6 +229,7 @@ def create_tables():
         """)
 
         con.commit()
+        _ensure_column(cur, 'user_funnel', 'bonus_2d', 'bonus_2d INTEGER DEFAULT 0')
         _migrate_adv_campaign_links(cur)
         cur.execute(
             """
@@ -236,6 +238,14 @@ def create_tables():
             """
         )
         con.commit()
+
+
+def _ensure_column(cur, table: str, column: str, col_def: str) -> None:
+    """Добавляет колонку только если её ещё нет (без повторного ALTER)."""
+    cur.execute(f'PRAGMA table_info({table})')
+    if column in {row[1] for row in cur.fetchall()}:
+        return
+    cur.execute(f'ALTER TABLE {table} ADD COLUMN {col_def}')
 
 
 def _migrate_adv_campaign_links(cur) -> None:
