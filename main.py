@@ -281,6 +281,7 @@ try:
     DECISION_PHOTO=FSInputFile('photos/5rub_decision_creative.png')
     TWO_DAYS_BONUS_PHOTO=FSInputFile('photos/2_days_bonus_photo.png')
     FUNNEL_SALE_PHOTO=FSInputFile('photos/funnel.jpg')
+    TV_LANDING_WELCOME_PHOTO=FSInputFile('photos/tv_landing_welcome.png')
 
 except FileNotFoundError:
     print("Photo files not found")
@@ -498,7 +499,16 @@ async def start_command(message, command: CommandObject):
             adv_link_id,
         )
 
-    await send_main_menu(message, message.from_user.id)
+    is_tv_landing = (
+        adv_link_id == TV_LANDING_ADV_LINK_ID
+        or start_payload.lower() == f'l{TV_LANDING_ADV_LINK_ID}'
+    )
+
+    await send_main_menu(
+        message,
+        message.from_user.id,
+        photo=TV_LANDING_WELCOME_PHOTO if is_tv_landing else None,
+    )
     with sq.connect('database.db') as con:
         cur = con.cursor()
         cur.execute("INSERT OR IGNORE INTO users (id, username, balance, had_trial) VALUES (?, ?, ?, ?)", (message.from_user.id, message.from_user.username, 0, 0))
@@ -509,10 +519,7 @@ async def start_command(message, command: CommandObject):
     generate_ikb_main(message.from_user.id)
 
     # TV-лендинг: start=l29 — сразу триал + APK (даже если ссылки нет в adv_campaign_links)
-    if (
-        adv_link_id == TV_LANDING_ADV_LINK_ID
-        or start_payload.lower() == f'l{TV_LANDING_ADV_LINK_ID}'
-    ):
+    if is_tv_landing:
         await _deliver_tv_landing_pack(message, message.from_user.id)
 
 # ОБРАБОТЧИКИ КОЛЛБЭКОВ
@@ -919,11 +926,11 @@ def _subscription_status_from_panel(user_id: int) -> tuple[bool, str | None]:
     return has_active_subscription, subscription_expires_at
 
 
-async def send_main_menu(message: Message, user_id: int) -> None:
+async def send_main_menu(message: Message, user_id: int, photo=None) -> None:
     has_active_subscription, subscription_expires_at = _subscription_status_from_panel(user_id)
     text = welcome_back_caption(has_active_subscription, subscription_expires_at)
     await message.answer_photo(
-        WELCOME_PHOTO,
+        photo if photo is not None else WELCOME_PHOTO,
         caption=text,
         parse_mode='HTML',
         reply_markup=generate_ikb_main(user_id),
@@ -1237,7 +1244,7 @@ async def admin_tv_landing_preview(message: Message):
         'Ниже — те же сообщения, что у перешедших по ссылке.',
         parse_mode='HTML',
     )
-    await send_main_menu(message, message.from_user.id)
+    await send_main_menu(message, message.from_user.id, photo=TV_LANDING_WELCOME_PHOTO)
     await _deliver_tv_landing_pack(message, message.from_user.id)
 
 
