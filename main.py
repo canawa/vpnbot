@@ -299,6 +299,31 @@ def format_date_ru(dt) -> str:
 
 
 
+# Рекламная ссылка TV-лендинга: https://t.me/coffemaniaVPNbot?start=l29
+TV_LANDING_ADV_LINK_ID = 29
+TV_APK_URL = (
+    'https://github.com/canawa/vpn_client/releases/download/'
+    'beta-release-1.4/coffeemaniatv.apk'
+)
+
+
+def ikb_tv_landing(sub_url: str | None = None) -> InlineKeyboardMarkup:
+    rows = []
+    if sub_url:
+        rows.append([
+            InlineKeyboardButton(
+                text='Подключиться',
+                url=sub_url,
+                icon_custom_emoji_id=get_emoji('shield_emoji'),
+                style='success',
+            ),
+        ])
+    rows.append([
+        InlineKeyboardButton(text='Скачать', url=TV_APK_URL, style='primary'),
+    ])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
 async def _activate_trial_for_user(callback: CallbackQuery) -> bool:
     """Выдача триала после проверки канала. True — ключ отправлен."""
     uid = callback.from_user.id
@@ -334,6 +359,72 @@ async def _activate_trial_for_user(callback: CallbackQuery) -> bool:
     except Exception as e:
         print(f'Ошибка отправки trial-ключа: {e}')
     return True
+
+
+async def _resolve_or_grant_trial_url(uid: int) -> str | None:
+    """Триал новым; существующим — URL из панели."""
+    with sq.connect('database.db') as con:
+        cur = con.cursor()
+        cur.execute('SELECT had_trial FROM users WHERE id = ?', (uid,))
+        row = cur.fetchone()
+        had_trial = bool(row and row[0])
+
+    if not had_trial:
+        result = await asyncio.to_thread(vpn.deliver_trial_vpn, uid)
+        url = _vpn_response_subscription_url(result) if isinstance(result, dict) else None
+        if not url and isinstance(result, dict) and _vpn_response_user_already_exists(result):
+            existing = await asyncio.to_thread(vpn.get_user_by_tg_id, uid)
+            url = _vpn_response_subscription_url(existing) if isinstance(existing, dict) else None
+        if not url:
+            return None
+        upsert_subscription_days(uid, VPN_SUBSCRIPTION_DAYS_TRIAL)
+        with sq.connect('database.db') as con:
+            cur = con.cursor()
+            cur.execute('UPDATE users SET had_trial = 1 WHERE id = ?', (uid,))
+            con.commit()
+        funnel_on_trial_started(uid)
+        return url
+
+    existing = await asyncio.to_thread(vpn.get_user_by_tg_id, uid)
+    return _vpn_response_subscription_url(existing) if isinstance(existing, dict) else None
+
+
+async def _deliver_tv_landing_pack(message: Message, uid: int) -> None:
+    """Автотриал + ссылка + кнопка скачать APK для start=l29."""
+    try:
+        url = await _resolve_or_grant_trial_url(uid)
+    except Exception as e:
+        logging.exception('tv landing trial uid=%s: %s', uid, e)
+        url = None
+
+    if url:
+        caption = (
+            vpn_subscription_message_html(url)
+            + f'\n\n{CHECK_EMOJI_HTML} <b>Пробный доступ выдан!</b>\n'
+            'Скачай приложение для ТВ и вставь ссылку подписки.'
+        )
+        try:
+            await message.answer_photo(
+                MY_KEYS_PHOTO,
+                caption=caption,
+                parse_mode='HTML',
+                reply_markup=ikb_tv_landing(url),
+            )
+        except Exception as e:
+            logging.exception('tv landing send url uid=%s: %s', uid, e)
+            await message.answer(
+                caption,
+                parse_mode='HTML',
+                reply_markup=ikb_tv_landing(url),
+            )
+        return
+
+    await message.answer(
+        'Не удалось выдать ключ. Напиши в поддержку — поможем подключить ТВ.\n'
+        'Приложение можно скачать кнопкой ниже.',
+        parse_mode='HTML',
+        reply_markup=ikb_tv_landing(None),
+    )
 
 
 async def _register_referral(
@@ -394,9 +485,11 @@ async def start_command(message, command: CommandObject):
 
     ref_master_id = None
     adv_link_id = None
+    start_payload = ''
     parts = (message.text or '').split(maxsplit=1)
     if len(parts) > 1:
-        ref_master_id, adv_link_id = resolve_referral_start(parts[1])
+        start_payload = parts[1].strip()
+        ref_master_id, adv_link_id = resolve_referral_start(start_payload)
     if ref_master_id:
         await _register_referral(
             message.from_user.id,
@@ -414,6 +507,13 @@ async def start_command(message, command: CommandObject):
 
     funnel_on_first_seen(message.from_user.id)
     generate_ikb_main(message.from_user.id)
+
+    # TV-лендинг: start=l29 — сразу триал + APK (даже если ссылки нет в adv_campaign_links)
+    if (
+        adv_link_id == TV_LANDING_ADV_LINK_ID
+        or start_payload.lower() == f'l{TV_LANDING_ADV_LINK_ID}'
+    ):
+        await _deliver_tv_landing_pack(message, message.from_user.id)
 
 # ОБРАБОТЧИКИ КОЛЛБЭКОВ
 @dp.callback_query(lambda c: c.data == 'buy_vpn')
@@ -1127,6 +1227,18 @@ async def admin_funnel_reset_user(message: Message):
         await message.answer('Формат: <code>funnel_reset USER_ID</code>', parse_mode='HTML')
         return
     await message.answer(reset_funnel_for_test(uid), parse_mode='HTML')
+
+
+@dp.message(F.text == 'test', F.from_user.id.in_(ADMIN_IDS))
+async def admin_tv_landing_preview(message: Message):
+    """Превью всего, что видит юзер по start=l29."""
+    await message.answer(
+        f'👁 <b>Превью лендинга</b> <code>?start=l{TV_LANDING_ADV_LINK_ID}</code>\n'
+        'Ниже — те же сообщения, что у перешедших по ссылке.',
+        parse_mode='HTML',
+    )
+    await send_main_menu(message, message.from_user.id)
+    await _deliver_tv_landing_pack(message, message.from_user.id)
 
 
 @dp.message(F.text.startswith('setref '), F.from_user.id.in_(ADMIN_IDS))
