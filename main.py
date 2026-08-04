@@ -406,7 +406,7 @@ async def _deliver_tv_landing_pack(message: Message, uid: int) -> None:
         )
         try:
             await message.answer_photo(
-                MY_KEYS_PHOTO,
+                TV_LANDING_WELCOME_PHOTO,
                 caption=caption,
                 parse_mode='HTML',
                 reply_markup=ikb_tv_landing(url),
@@ -504,11 +504,6 @@ async def start_command(message, command: CommandObject):
         or start_payload.lower() == f'l{TV_LANDING_ADV_LINK_ID}'
     )
 
-    await send_main_menu(
-        message,
-        message.from_user.id,
-        photo=TV_LANDING_WELCOME_PHOTO if is_tv_landing else None,
-    )
     with sq.connect('database.db') as con:
         cur = con.cursor()
         cur.execute("INSERT OR IGNORE INTO users (id, username, balance, had_trial) VALUES (?, ?, ?, ?)", (message.from_user.id, message.from_user.username, 0, 0))
@@ -518,9 +513,12 @@ async def start_command(message, command: CommandObject):
     funnel_on_first_seen(message.from_user.id)
     generate_ikb_main(message.from_user.id)
 
-    # TV-лендинг: start=l29 — сразу триал + APK (даже если ссылки нет в adv_campaign_links)
+    # TV-лендинг l29: без приветствия — сразу пост с ключом + скачать
     if is_tv_landing:
         await _deliver_tv_landing_pack(message, message.from_user.id)
+        return
+
+    await send_main_menu(message, message.from_user.id)
 
 # ОБРАБОТЧИКИ КОЛЛБЭКОВ
 @dp.callback_query(lambda c: c.data == 'buy_vpn')
@@ -926,11 +924,11 @@ def _subscription_status_from_panel(user_id: int) -> tuple[bool, str | None]:
     return has_active_subscription, subscription_expires_at
 
 
-async def send_main_menu(message: Message, user_id: int, photo=None) -> None:
+async def send_main_menu(message: Message, user_id: int) -> None:
     has_active_subscription, subscription_expires_at = _subscription_status_from_panel(user_id)
     text = welcome_back_caption(has_active_subscription, subscription_expires_at)
     await message.answer_photo(
-        photo if photo is not None else WELCOME_PHOTO,
+        WELCOME_PHOTO,
         caption=text,
         parse_mode='HTML',
         reply_markup=generate_ikb_main(user_id),
@@ -1238,13 +1236,11 @@ async def admin_funnel_reset_user(message: Message):
 
 @dp.message(F.text == 'test', F.from_user.id.in_(ADMIN_IDS))
 async def admin_tv_landing_preview(message: Message):
-    """Превью всего, что видит юзер по start=l29."""
+    """Превью того, что видит юзер по start=l29 (без приветствия)."""
     await message.answer(
-        f'👁 <b>Превью лендинга</b> <code>?start=l{TV_LANDING_ADV_LINK_ID}</code>\n'
-        'Ниже — те же сообщения, что у перешедших по ссылке.',
+        f'👁 <b>Превью лендинга</b> <code>?start=l{TV_LANDING_ADV_LINK_ID}</code>',
         parse_mode='HTML',
     )
-    await send_main_menu(message, message.from_user.id, photo=TV_LANDING_WELCOME_PHOTO)
     await _deliver_tv_landing_pack(message, message.from_user.id)
 
 
