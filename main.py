@@ -320,7 +320,12 @@ def ikb_tv_landing(sub_url: str | None = None) -> InlineKeyboardMarkup:
             ),
         ])
     rows.append([
-        InlineKeyboardButton(text='Скачать', url=TV_APK_URL, style='primary'),
+        InlineKeyboardButton(
+            text='Скачать',
+            url=TV_APK_URL,
+            icon_custom_emoji_id='5258514780469075716',
+            style='primary',
+        ),
     ])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
@@ -2643,6 +2648,64 @@ async def ping_funnel_sale_users(callback: CallbackQuery):
         f'Без активной подписки: {len(user_ids)}\n'
         f'Отправлено: {success}\n'
         f'Акция {MONTH_PROMO_HOURS}ч выдана: {promo_granted}\n'
+        f'🚫 Заблокировали бота: {blocked}\n'
+        f'Ошибок: {failed}',
+        parse_mode='HTML',
+        reply_markup=ikb_admin_back,
+    )
+
+
+VPN_DEAD_BROADCAST_TEXT = (
+    '<tg-emoji emoji-id="5440660757194744323">‼️</tg-emoji> ТВОЙ ВПН - ВСЁ\n\n'
+    'Не выдержал ночных блокировок от РКН '
+    '<tg-emoji emoji-id="5328108441963604719">🫣</tg-emoji>\n\n'
+    'А мы выдержали и прекрасно работаем везде!\n\n'
+    '<tg-emoji emoji-id="5467389807556579005">🙂</tg-emoji> '
+    'Переноси свою подписку к нам, дарим тебе пробный период! Проверь сам'
+)
+
+
+@dp.callback_query(F.data == 'ping_vpn_dead')
+async def ping_vpn_dead_users(callback: CallbackQuery):
+    await callback.answer('Рассылка «ТВОЙ ВПН - ВСЁ»…')
+    try:
+        await callback.message.delete()
+    except Exception:
+        pass
+
+    user_ids = await asyncio.to_thread(_fetch_users_without_active_subscription)
+    success = 0
+    failed = 0
+    blocked = 0
+
+    for user_id in user_ids:
+        if await asyncio.to_thread(is_user_bot_blocked, user_id):
+            continue
+        try:
+            await bot.send_message(
+                chat_id=user_id,
+                text=VPN_DEAD_BROADCAST_TEXT,
+                parse_mode='HTML',
+                reply_markup=ikb_vpn_dead_ping,
+            )
+            success += 1
+        except Exception as e:
+            if is_telegram_unreachable(e):
+                await asyncio.to_thread(mark_user_bot_blocked, user_id)
+                blocked += 1
+                logging.info(
+                    'ping_vpn_dead skip user_id=%s (blocked bot or deleted)',
+                    user_id,
+                )
+            else:
+                failed += 1
+                logging.warning('ping_vpn_dead user_id=%s: %s', user_id, e)
+        await asyncio.sleep(PROMO_BROADCAST_DELAY_SEC)
+
+    await callback.message.answer(
+        f'{CHECK_EMOJI_HTML} Рассылка «ТВОЙ ВПН - ВСЁ» завершена.\n\n'
+        f'Без активной подписки: {len(user_ids)}\n'
+        f'Отправлено: {success}\n'
         f'🚫 Заблокировали бота: {blocked}\n'
         f'Ошибок: {failed}',
         parse_mode='HTML',
