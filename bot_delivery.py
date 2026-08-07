@@ -8,6 +8,17 @@ def is_telegram_unreachable(exc: BaseException) -> bool:
     return isinstance(exc, (TelegramForbiddenError, TelegramNotFound))
 
 
+async def safe_delete_message(message) -> bool:
+    """Удаляет сообщение; не падает, если уже нельзя (старое / удалено / privacy)."""
+    if message is None:
+        return False
+    try:
+        await message.delete()
+        return True
+    except Exception:
+        return False
+
+
 def is_user_bot_blocked(user_id: int) -> bool:
     with db_connect() as con:
         cur = con.cursor()

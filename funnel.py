@@ -12,7 +12,7 @@ from aiogram import F, Bot
 from aiogram.types import CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton, FSInputFile
 
 from prices import WEEK_PLAN_DAYS, WEEK_PLAN_PRICE, SUBSCRIPTION_PLAN
-from bot_delivery import is_telegram_unreachable, mark_user_bot_blocked
+from bot_delivery import is_telegram_unreachable, mark_user_bot_blocked, safe_delete_message
 from databases import upsert_subscription_days
 from emojis import get_emoji, CHECK_EMOJI_HTML
 
@@ -942,7 +942,7 @@ def setup_funnel(dp, bot, vpn, *, trial_flow_cb):
         await callback.answer()
         log_funnel_event(callback.from_user.id, 'click_funnel_trial')
         try:
-            await callback.message.delete()
+            await safe_delete_message(callback.message)
         except Exception:
             pass
         await trial_flow_cb(callback)
@@ -956,7 +956,7 @@ def setup_funnel(dp, bot, vpn, *, trial_flow_cb):
     @dp.callback_query(F.data == 'funnel_survey_expensive')
     async def funnel_survey_expensive(callback: CallbackQuery):
         _set_survey_answer(callback.from_user.id, 'expensive')
-        await callback.message.delete()
+        await safe_delete_message(callback.message)
         await callback.message.answer(
             MSG_SURVEY_EXPENSIVE,
             parse_mode='HTML',
@@ -966,7 +966,7 @@ def setup_funnel(dp, bot, vpn, *, trial_flow_cb):
     @dp.callback_query(F.data == 'funnel_survey_no_time')
     async def funnel_survey_no_time(callback: CallbackQuery):
         _set_survey_answer(callback.from_user.id, 'no_time')
-        await callback.message.delete()
+        await safe_delete_message(callback.message)
         await callback.message.answer(
             MSG_SURVEY_NO_TIME,
             parse_mode='HTML',
@@ -976,7 +976,7 @@ def setup_funnel(dp, bot, vpn, *, trial_flow_cb):
     @dp.callback_query(F.data == 'funnel_survey_confused')
     async def funnel_survey_confused(callback: CallbackQuery):
         _set_survey_answer(callback.from_user.id, 'confused')
-        await callback.message.delete()
+        await safe_delete_message(callback.message)
         with _connect() as con:
             cur = con.cursor()
             cur.execute('SELECT extra_trial_once FROM user_funnel WHERE user_id = ?', (callback.from_user.id,))
