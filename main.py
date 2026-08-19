@@ -8,6 +8,8 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ChatMember
 from texts import *
 from aiogram.filters.command import CommandObject
 from aiogram.fsm.context import FSMContext
+from aiogram.client.session.aiohttp import AiohttpSession
+from aiogram.exceptions import TelegramNetworkError
 import asyncio # для работы с асинхронными функциями
 import html
 import sqlite3 as sq
@@ -292,7 +294,10 @@ except FileNotFoundError:
     print("Photo files not found")
     exit()
 
-bot = Bot(token=os.getenv('BOT_TOKEN')) # объект бота
+bot = Bot(
+    token=os.getenv('BOT_TOKEN'),
+    session=AiohttpSession(timeout=90.0),
+)  # объект бота
 
 create_tables()
 
@@ -937,12 +942,42 @@ def _subscription_status_from_panel(user_id: int) -> tuple[bool, str | None]:
 async def send_main_menu(message: Message, user_id: int) -> None:
     has_active_subscription, subscription_expires_at = _subscription_status_from_panel(user_id)
     text = welcome_back_caption(has_active_subscription, subscription_expires_at)
-    await message.answer_photo(
-        WELCOME_PHOTO,
-        caption=text,
-        parse_mode='HTML',
-        reply_markup=generate_ikb_main(user_id),
-    )
+    markup = generate_ikb_main(user_id)
+    last_err = None
+    for attempt in range(3):
+        try:
+            await message.answer_photo(
+                WELCOME_PHOTO,
+                caption=text,
+                parse_mode='HTML',
+                reply_markup=markup,
+            )
+            return
+        except TelegramNetworkError as e:
+            last_err = e
+            logging.warning(
+                'send_main_menu photo timeout user_id=%s attempt=%s: %s',
+                user_id, attempt + 1, e,
+            )
+            await asyncio.sleep(0.8 * (attempt + 1))
+        except Exception as e:
+            if is_telegram_unreachable(e):
+                mark_user_bot_blocked(user_id)
+                return
+            last_err = e
+            logging.warning('send_main_menu photo failed user_id=%s: %s', user_id, e)
+            break
+
+    try:
+        await message.answer(text, parse_mode='HTML', reply_markup=markup)
+    except Exception as e:
+        if is_telegram_unreachable(e):
+            mark_user_bot_blocked(user_id)
+            return
+        logging.exception('send_main_menu text fallback failed user_id=%s: %s', user_id, e)
+        if last_err:
+            raise last_err
+        raise
 
 
 @dp.callback_query(lambda c: c.data == 'back')
