@@ -86,7 +86,6 @@ from payments import (
 )
 from logging.handlers import RotatingFileHandler
 import logging
-from sync_remna_expire_from_keys_once import get_user_by_tg_id
 from vpn import Vpn
 from bot_delivery import (
     is_telegram_unreachable,

@@ -46,11 +46,12 @@ if not BASE_URL or not TOKEN:
 
 
 def get_user_by_tg_id(tg_id: int):
-    """Возвращает (status_code, json_or_none)."""
+    """API v3: GET /api/users/stream?telegramId=... → (status_code, json_or_none)."""
     try:
         r = requests.get(
-            f"{BASE_URL}/api/users/by-telegram-id/{tg_id}",
+            f"{BASE_URL.rstrip('/')}/api/users/stream",
             headers={"Authorization": f"Bearer {TOKEN}"},
+            params={"telegramId": int(tg_id), "size": 1},
             timeout=REQUEST_TIMEOUT,
         )
         try:
@@ -63,22 +64,18 @@ def get_user_by_tg_id(tg_id: int):
 
 
 def user_exists_in_panel(tg_id: int) -> bool:
-    """True если пользователь уже существует в Remnawave.
+    """True если пользователь уже существует в Remnawave (API v3 stream).
 
-    Формат ответа панели может быть:
-      - {"response": {...}} или {"response": [...]}
-      - {"response": null} или {} при отсутствии
-      - 404 при отсутствии
+    Формат ответа:
+      - {"response": {"users": [...], "nextCursor": ..., "hasMore": ...}}
     Любое сомнение трактуем как "СУЩЕСТВУЕТ" — безопаснее пропустить, чем продублировать.
     """
     status, payload = get_user_by_tg_id(tg_id)
     if status is None:
-        # сетевая ошибка — считаем, что существует (чтобы не создать дубль)
         return True
     if status == 404:
         return False
     if status >= 500:
-        # ошибка сервера — безопаснее считать, что существует
         return True
     if status == 200 and isinstance(payload, dict):
         resp = payload.get("response", payload)
@@ -87,9 +84,10 @@ def user_exists_in_panel(tg_id: int) -> bool:
         if isinstance(resp, list):
             return len(resp) > 0
         if isinstance(resp, dict):
-            # непустой словарь с данными пользователя
-            return bool(resp)
-    # остальные случаи — на всякий случай True
+            users = resp.get("users")
+            if isinstance(users, list):
+                return len(users) > 0
+            return bool(resp.get("id") or resp.get("username"))
     return True
 
 
@@ -105,7 +103,6 @@ def create_user_with_expire(tg_id: int, expire_at_iso: str):
             "username": f'user_{tg_id}',
             "trafficLimitBytes": 300000000000,
             "expireAt": expire_at_iso,                     # <-- отличие от vpn.py
-            "createdAt": datetime.now().isoformat(),
             "telegramId": tg_id,
             "hwidDeviceLimit": 3,
             "activeInternalSquads": ["6f11955f-6b95-4f96-bba4-3d866de8ce83"],

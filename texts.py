@@ -4,7 +4,10 @@ def get_devices_list_text(tg_id):
     devices = Vpn().get_hwid_devices(tg_id)
     active_device_amount = len(devices)
     user = Vpn().get_user_by_tg_id(tg_id)
-    user_device_limit = user['response'][0]['hwidDeviceLimit']
+    try:
+        user_device_limit = int(user['response'][0].get('hwidDeviceLimit') or 0)
+    except (KeyError, IndexError, TypeError, ValueError):
+        user_device_limit = 0
 
     devices_list_text = (
         f"<b><tg-emoji emoji-id='5310037891051691834'>🌎</tg-emoji> У вас в подписке: {user_device_limit} устройств </b>\n"
