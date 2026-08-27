@@ -127,6 +127,7 @@ ikb_admin = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text='Рассказать челам что 5р в день', callback_data='ping_unactive')],
     [InlineKeyboardButton(text='Рассылка скидка 99₽ (без подписки)', callback_data='ping_funnel_sale')],
     [InlineKeyboardButton(text='Рассылка «ТВОЙ ВПН - ВСЁ» (без подписки)', callback_data='ping_vpn_dead')],
+    [InlineKeyboardButton(text='Рассылка «цены с 1 сентября» (всем)', callback_data='ping_year_old_price')],
     # [InlineKeyboardButton(text='оповесть бомжей о снижении', callback_data='ping_brokes')]
     [InlineKeyboardButton(text='Рассказать что ищем рефоводов', callback_data='we_need_refmasters')],
     [InlineKeyboardButton(text='Выдать 2 дня подписки инактив юзерам', callback_data='admin_give_2_days_bonus')],
@@ -389,6 +390,14 @@ ikb_vpn_dead_ping = InlineKeyboardMarkup(inline_keyboard=[
     )],
 ])
 
+ikb_year_old_price = InlineKeyboardMarkup(inline_keyboard=[
+    [InlineKeyboardButton(
+        text='УСПЕТЬ ПО СТАРОЙ ЦЕНЕ',
+        callback_data=f'deposit_{SUBSCRIPTION_PLAN.get(360, 999)}_360_card',
+        style='primary',
+    )],
+])
+
 ikb_ping_brokes = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text='Подключиться сейчас (-25%)', callback_data='buy_vpn', icon_custom_emoji_id=get_emoji('plus'), style='success')],
 ])
@@ -416,7 +425,7 @@ def generate_ikb_duration_choose(tg_id):
         # Неделя 50₽ — только в воронках (funnel / renewal), не в обычном buy_vpn
         rows = [
             [InlineKeyboardButton(text=f'1 месяц · {plan.get(30)}₽ ', callback_data=f'deposit_{plan.get(30)}_30_card')],
-            [InlineKeyboardButton(text=f'12 месяцев · {plan.get(360)}₽', callback_data=f'deposit_{plan.get(360)}_360_card', style='primary')],
+            [InlineKeyboardButton(text=f'12 месяцев · {plan.get(360)}₽', callback_data=f'deposit_{plan.get(360)}_360_card', style='primary', icon_custom_emoji_id=get_emoji('fire_emoji_2'))],
             [InlineKeyboardButton(text=f'3 месяца · {plan.get(90)}₽', callback_data=f'deposit_{plan.get(90)}_90_card')],
             [InlineKeyboardButton(text='Назад', callback_data='back', icon_custom_emoji_id=get_emoji('exit'))],
         ]

@@ -288,6 +288,7 @@ try:
     TWO_DAYS_BONUS_PHOTO=FSInputFile('photos/2_days_bonus_photo.png')
     FUNNEL_SALE_PHOTO=FSInputFile('photos/funnel.jpg')
     TV_LANDING_WELCOME_PHOTO=FSInputFile('photos/tv_landing_welcome.png')
+    YEAR_OLD_PRICE_PHOTO=FSInputFile('photos/year_old_price.png')
 
 except FileNotFoundError:
     print("Photo files not found")
@@ -2636,6 +2637,18 @@ def _fetch_users_without_active_subscription() -> list[int]:
         return [row[0] for row in cur.fetchall()]
 
 
+def _fetch_all_broadcast_users() -> list[int]:
+    with sq.connect('database.db') as con:
+        cur = con.cursor()
+        cur.execute(
+            """
+            SELECT id FROM users
+            WHERE COALESCE(bot_blocked, 0) = 0
+            """
+        )
+        return [row[0] for row in cur.fetchall()]
+
+
 PROMO_BROADCAST_DELAY_SEC = float(os.getenv('PROMO_BROADCAST_DELAY_SEC', '0.3'))
 
 
@@ -2744,6 +2757,66 @@ async def ping_vpn_dead_users(callback: CallbackQuery):
     await callback.message.answer(
         f'{CHECK_EMOJI_HTML} Рассылка «ТВОЙ ВПН - ВСЁ» завершена.\n\n'
         f'Без активной подписки: {len(user_ids)}\n'
+        f'Отправлено: {success}\n'
+        f'🚫 Заблокировали бота: {blocked}\n'
+        f'Ошибок: {failed}',
+        parse_mode='HTML',
+        reply_markup=ikb_admin_back,
+    )
+
+
+YEAR_OLD_PRICE_BROADCAST_TEXT = (
+    '<tg-emoji emoji-id="5258203794772085854">⚡️</tg-emoji> '
+    '<b>ЦЕНЫ ВЫРАСТУТ УЖЕ С  1 СЕНТЯБРЯ</b> \n\n'
+    'С 1 сентября мы поднимаем цены на тарифы.\n\n'
+    'Но до конца августа год Кофемания VPN можно забрать по старой цене.\n\n'
+    'Если давно думал взять год - сейчас буквально последний момент сделать это выгоднее. '
+    'Потом этот ценник останется только на скринах '
+    '<tg-emoji emoji-id="5388903326081365181">🥲</tg-emoji>\n\n'
+)
+
+
+@dp.callback_query(F.data == 'ping_year_old_price')
+async def ping_year_old_price_users(callback: CallbackQuery):
+    await callback.answer('Рассылка «цены с 1 сентября»…')
+    try:
+        await safe_delete_message(callback.message)
+    except Exception:
+        pass
+
+    user_ids = await asyncio.to_thread(_fetch_all_broadcast_users)
+    success = 0
+    failed = 0
+    blocked = 0
+
+    for user_id in user_ids:
+        if await asyncio.to_thread(is_user_bot_blocked, user_id):
+            continue
+        try:
+            await bot.send_photo(
+                chat_id=user_id,
+                photo=YEAR_OLD_PRICE_PHOTO,
+                caption=YEAR_OLD_PRICE_BROADCAST_TEXT,
+                parse_mode='HTML',
+                reply_markup=ikb_year_old_price,
+            )
+            success += 1
+        except Exception as e:
+            if is_telegram_unreachable(e):
+                await asyncio.to_thread(mark_user_bot_blocked, user_id)
+                blocked += 1
+                logging.info(
+                    'ping_year_old_price skip user_id=%s (blocked bot or deleted)',
+                    user_id,
+                )
+            else:
+                failed += 1
+                logging.warning('ping_year_old_price user_id=%s: %s', user_id, e)
+        await asyncio.sleep(PROMO_BROADCAST_DELAY_SEC)
+
+    await callback.message.answer(
+        f'{CHECK_EMOJI_HTML} Рассылка «цены с 1 сентября» завершена.\n\n'
+        f'В базе (не blocked): {len(user_ids)}\n'
         f'Отправлено: {success}\n'
         f'🚫 Заблокировали бота: {blocked}\n'
         f'Ошибок: {failed}',
