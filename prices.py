@@ -9,7 +9,7 @@ SUBSCRIPTION_PLAN = {
     30: 149,
     90: 399,
     180: 599,
-    360: 1199,
+    360: 999,
 }
 
 SUBSCRIPTION_PLAN_LEGACY = {
@@ -17,7 +17,7 @@ SUBSCRIPTION_PLAN_LEGACY = {
     30: 149,
     90: 399,
     180: 599,
-    360: 1199,
+    360: 999,
 
 }
 

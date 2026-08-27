@@ -410,22 +410,14 @@ def generate_ikb_duration_choose(tg_id):
         plan = SUBSCRIPTION_PLAN_LEGACY if is_legacy == 1 else SUBSCRIPTION_PLAN
         y360 = plan.get(360)
         y30 = plan.get(30) or 149
-        y360_per_month = max(1, round(y360 / 12)) if y360 else None
-        y360_save = (
-            max(0, round((1 - y360 / (y30 * 12)) * 100))
-            if y360 and y30 else 0
-        )
-        year_label = f'12 месяцев · {y360}₽'
-        if y360_per_month:
-            year_label += f' · ≈{y360_per_month}₽/мес'
-        if y360_save:
-            year_label += f' (−{y360_save}%)'
+        
+        
 
         # Неделя 50₽ — только в воронках (funnel / renewal), не в обычном buy_vpn
         rows = [
             [InlineKeyboardButton(text=f'1 месяц · {plan.get(30)}₽ ', callback_data=f'deposit_{plan.get(30)}_30_card')],
-            [InlineKeyboardButton(text=f'3 месяца · {plan.get(90)}₽ | Скидка 10%', callback_data=f'deposit_{plan.get(90)}_90_card', style='primary')],
-            [InlineKeyboardButton(text=year_label, callback_data=f'deposit_{y360}_360_card')],
+            [InlineKeyboardButton(text=f'12 месяцев · {plan.get(360)}₽', callback_data=f'deposit_{plan.get(360)}_360_card', style='primary')],
+            [InlineKeyboardButton(text=f'3 месяца · {plan.get(90)}₽', callback_data=f'deposit_{plan.get(90)}_90_card')],
             [InlineKeyboardButton(text='Назад', callback_data='back', icon_custom_emoji_id=get_emoji('exit'))],
         ]
         return InlineKeyboardMarkup(inline_keyboard=rows)
