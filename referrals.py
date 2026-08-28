@@ -401,6 +401,29 @@ def _format_referral_stats_block(dashboard: dict, role) -> str:
     )
 
 
+def _format_tree_stats_block(dashboard: dict) -> str:
+    tree_total = int(dashboard.get('tree_refs_total') or 0)
+    if tree_total <= 0:
+        return (
+            '\n<b>🌳 Всё дерево</b> <i>(только админ)</i>\n'
+            'Пока никого: нет прямых рефов и субрефов.\n'
+        )
+    paying = int(dashboard.get('tree_paying_refs') or 0)
+    deposits_count = int(dashboard.get('tree_deposits_count') or 0)
+    deposits_total = int(dashboard.get('tree_deposits_total') or 0)
+    sub_refs = int(dashboard.get('tree_sub_refs') or 0)
+    sub_total = int(dashboard.get('tree_sub_deposits_total') or 0)
+    max_depth = int(dashboard.get('tree_max_depth') or 0)
+    return (
+        '\n<b>🌳 Всё дерево</b> <i>(только админ)</i>\n'
+        f'Всего: <b>{tree_total}</b> | с оплатой: <b>{paying}</b> | '
+        f'без оплаты: <b>{tree_total - paying}</b>\n'
+        f'Депозитов: <b>{deposits_count}</b> на <b>{deposits_total} ₽</b>\n'
+        f'Субрефы (2+ ур.): <b>{sub_refs}</b> чел. · <b>{sub_total} ₽</b>\n'
+        f'Глубина: <b>{max_depth}</b>\n'
+    )
+
+
 def _format_campaign_links_block(links: list) -> str:
     if not links:
         return '<b>🔗 Ссылки</b>\nПока нет ссылок.\n'
@@ -514,6 +537,7 @@ def format_admin_campaign_stats(dashboard: dict, *, hide_payouts: bool = False) 
         )
 
     stats_block = _format_referral_stats_block(dashboard, role)
+    tree_block = '' if hide_payouts else _format_tree_stats_block(dashboard)
 
     return (
         f'<b>{kind} · ID {header_id}</b>\n'
@@ -523,6 +547,7 @@ def format_admin_campaign_stats(dashboard: dict, *, hide_payouts: bool = False) 
         f'{link_line}'
         f'{meta_block}'
         f'{stats_block}'
+        f'{tree_block}'
         f'{payout_block}'
         f'{stats_tail}'
     )

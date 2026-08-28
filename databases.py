@@ -778,6 +778,98 @@ def _fetch_referral_stats(cur, ref_master_id: int, adv_link_id: int | None = Non
     }
 
 
+def _fetch_tree_stats(cur, ref_master_id: int, adv_link_id: int | None = None) -> dict:
+    """Прямые рефы корня + все их рефы вниз (SQLite recursive CTE)."""
+    empty = {
+        'tree_refs_total': 0,
+        'tree_paying_refs': 0,
+        'tree_deposits_count': 0,
+        'tree_deposits_total': 0,
+        'tree_sub_refs': 0,
+        'tree_sub_deposits_total': 0,
+        'tree_max_depth': 0,
+    }
+    if adv_link_id is not None:
+        root_where = 'r.ref_master_id = ? AND r.adv_link_id = ?'
+        params = [int(ref_master_id), int(adv_link_id)]
+    else:
+        root_where = 'r.ref_master_id = ?'
+        params = [int(ref_master_id)]
+
+    try:
+        cur.execute(
+            f"""
+            WITH RECURSIVE tree(referral_id, depth) AS (
+                SELECT r.referral_id, 1
+                FROM referal_users r
+                WHERE {root_where}
+                UNION ALL
+                SELECT r.referral_id, tree.depth + 1
+                FROM referal_users r
+                INNER JOIN tree ON r.ref_master_id = tree.referral_id
+                WHERE tree.depth < 20
+                  AND r.referral_id <> tree.referral_id
+            )
+            SELECT
+                COUNT(DISTINCT referral_id) AS refs_total,
+                COALESCE(MAX(depth), 0) AS max_depth,
+                COUNT(DISTINCT CASE WHEN depth >= 2 THEN referral_id END) AS sub_refs
+            FROM tree
+            """,
+            params,
+        )
+    except sq.OperationalError:
+        return empty
+
+    row = cur.fetchone() or (0, 0, 0)
+    refs_total = int(row[0] or 0)
+    max_depth = int(row[1] or 0)
+    sub_refs = int(row[2] or 0)
+    if refs_total <= 0:
+        return empty
+
+    cur.execute(
+        f"""
+        WITH RECURSIVE tree(referral_id, depth) AS (
+            SELECT r.referral_id, 1
+            FROM referal_users r
+            WHERE {root_where}
+            UNION ALL
+            SELECT r.referral_id, tree.depth + 1
+            FROM referal_users r
+            INNER JOIN tree ON r.ref_master_id = tree.referral_id
+            WHERE tree.depth < 20
+              AND r.referral_id <> tree.referral_id
+        )
+        SELECT
+            COUNT(DISTINCT CASE
+                WHEN t.id IS NOT NULL THEN tree.referral_id
+            END) AS paying_refs,
+            COUNT(t.id) AS deposits_count,
+            COALESCE(SUM(CAST(t.amount AS INTEGER)), 0) AS deposits_total,
+            COALESCE(SUM(CASE
+                WHEN tree.depth >= 2 THEN CAST(t.amount AS INTEGER)
+                ELSE 0
+            END), 0) AS sub_deposits_total
+        FROM tree
+        LEFT JOIN transactions t
+            ON t.user_id = tree.referral_id
+           AND t.type IN ('CryptoBot', 'yookassa')
+        """,
+        params,
+    )
+    pay_row = cur.fetchone() or (0, 0, 0, 0)
+    return {
+        'tree_refs_total': refs_total,
+        'tree_paying_refs': int(pay_row[0] or 0),
+        'tree_deposits_count': int(pay_row[1] or 0),
+        'tree_deposits_total': int(pay_row[2] or 0),
+        'tree_sub_refs': sub_refs,
+        'tree_sub_deposits_total': int(pay_row[3] or 0),
+        'tree_max_depth': max_depth,
+    }
+
+
 def _link_brief_stats(cur, campaign_id: int, link_id: int) -> dict:
     stats = _fetch_referral_stats(cur, campaign_id, link_id)
     return {
@@ -799,6 +891,7 @@ def get_adv_campaign_dashboard(campaign_id: int) -> dict | None:
     with sq.connect('database.db') as con:
         cur = con.cursor()
         stats = _fetch_referral_stats(cur, campaign_id)
+        tree_stats = _fetch_tree_stats(cur, campaign_id)
         links_raw = list_adv_campaign_links(campaign_id)
         links = []
         for link in links_raw:
@@ -827,6 +920,7 @@ def get_adv_campaign_dashboard(campaign_id: int) -> dict | None:
         'ref_amount': stats['refs_total'],
         'custom_ref_code': None,
         **stats,
+        **tree_stats,
     }
 
 
@@ -844,6 +938,7 @@ def get_adv_link_dashboard(link_id: int) -> dict | None:
     with sq.connect('database.db') as con:
         cur = con.cursor()
         stats = _fetch_referral_stats(cur, link['campaign_id'], link_id)
+        tree_stats = _fetch_tree_stats(cur, link['campaign_id'], link_id)
 
     return {
         'campaign_id': link['campaign_id'],
@@ -863,6 +958,7 @@ def get_adv_link_dashboard(link_id: int) -> dict | None:
         'ref_amount': stats['refs_total'],
         'custom_ref_code': None,
         **stats,
+        **tree_stats,
     }
 
 
@@ -907,6 +1003,7 @@ def get_ref_partner_dashboard(ref_master_id: int) -> dict | None:
         custom_ref_code = user_row[5] if user_row else None
 
         stats = _fetch_referral_stats(cur, ref_master_id)
+        tree_stats = _fetch_tree_stats(cur, ref_master_id)
 
     if not user_row and stats['refs_total'] == 0:
         return None
@@ -927,4 +1024,5 @@ def get_ref_partner_dashboard(ref_master_id: int) -> dict | None:
         'ref_amount': ref_amount,
         'custom_ref_code': custom_ref_code,
         **stats,
+        **tree_stats,
     }
