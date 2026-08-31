@@ -392,7 +392,7 @@ ikb_vpn_dead_ping = InlineKeyboardMarkup(inline_keyboard=[
 
 ikb_year_old_price = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(
-        text='УСПЕТЬ ПО СТАРОЙ ЦЕНЕ',
+        text='ОСТАЛОСЬ 1 ДЕНЬ',
         callback_data=f'deposit_{SUBSCRIPTION_PLAN.get(360, 999)}_360_card',
         style='primary',
     )],
