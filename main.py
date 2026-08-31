@@ -2780,7 +2780,7 @@ YEAR_OLD_PRICE_BROADCAST_TEXT = (
 
 @dp.callback_query(F.data == 'ping_year_old_price')
 async def ping_year_old_price_users(callback: CallbackQuery):
-    await callback.answer('Рассылка «цены с 1 сентября»…')
+    await callback.answer('Рассылка «осталось 1 день»…')
     try:
         await safe_delete_message(callback.message)
     except Exception:
@@ -2817,7 +2817,7 @@ async def ping_year_old_price_users(callback: CallbackQuery):
         await asyncio.sleep(PROMO_BROADCAST_DELAY_SEC)
 
     await callback.message.answer(
-        f'{CHECK_EMOJI_HTML} Рассылка «цены с 1 сентября» завершена.\n\n'
+        f'{CHECK_EMOJI_HTML} Рассылка «осталось 1 день» завершена.\n\n'
         f'В базе (не blocked): {len(user_ids)}\n'
         f'Отправлено: {success}\n'
         f'🚫 Заблокировали бота: {blocked}\n'
