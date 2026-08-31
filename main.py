@@ -289,6 +289,7 @@ try:
     FUNNEL_SALE_PHOTO=FSInputFile('photos/funnel.jpg')
     TV_LANDING_WELCOME_PHOTO=FSInputFile('photos/tv_landing_welcome.png')
     YEAR_OLD_PRICE_PHOTO=FSInputFile('photos/year_old_price.png')
+    YEAR_OLD_PRICE_2DAYS_PHOTO=FSInputFile('photos/year_old_price_2days.png')
 
 except FileNotFoundError:
     print("Photo files not found")
@@ -2817,6 +2818,65 @@ async def ping_year_old_price_users(callback: CallbackQuery):
 
     await callback.message.answer(
         f'{CHECK_EMOJI_HTML} Рассылка «цены с 1 сентября» завершена.\n\n'
+        f'В базе (не blocked): {len(user_ids)}\n'
+        f'Отправлено: {success}\n'
+        f'🚫 Заблокировали бота: {blocked}\n'
+        f'Ошибок: {failed}',
+        parse_mode='HTML',
+        reply_markup=ikb_admin_back,
+    )
+
+
+YEAR_OLD_PRICE_2DAYS_BROADCAST_TEXT = (
+    '<tg-emoji emoji-id="5309870395917083905">⏳</tg-emoji>   '
+    '<b>Напоминаем: осталось всего 2 дня </b>\n\n'
+    'Если хотел забрать <b>годовой тариф по старой цене</b> - лучше не откладывать на «потом». '
+    'Через пару дней этой цены уже не будет.\n\n'
+    'Оформляй сейчас и закрывай вопрос с VPN сразу на год\n'
+    '<tg-emoji emoji-id="5269383951125878666">👇</tg-emoji>'
+)
+
+
+@dp.callback_query(F.data == 'ping_year_old_price_2days')
+async def ping_year_old_price_2days_users(callback: CallbackQuery):
+    await callback.answer('Рассылка «осталось 2 дня»…')
+    try:
+        await safe_delete_message(callback.message)
+    except Exception:
+        pass
+
+    user_ids = await asyncio.to_thread(_fetch_all_broadcast_users)
+    success = 0
+    failed = 0
+    blocked = 0
+
+    for user_id in user_ids:
+        if await asyncio.to_thread(is_user_bot_blocked, user_id):
+            continue
+        try:
+            await bot.send_photo(
+                chat_id=user_id,
+                photo=YEAR_OLD_PRICE_2DAYS_PHOTO,
+                caption=YEAR_OLD_PRICE_2DAYS_BROADCAST_TEXT,
+                parse_mode='HTML',
+                reply_markup=ikb_year_old_price,
+            )
+            success += 1
+        except Exception as e:
+            if is_telegram_unreachable(e):
+                await asyncio.to_thread(mark_user_bot_blocked, user_id)
+                blocked += 1
+                logging.info(
+                    'ping_year_old_price_2days skip user_id=%s (blocked bot or deleted)',
+                    user_id,
+                )
+            else:
+                failed += 1
+                logging.warning('ping_year_old_price_2days user_id=%s: %s', user_id, e)
+        await asyncio.sleep(PROMO_BROADCAST_DELAY_SEC)
+
+    await callback.message.answer(
+        f'{CHECK_EMOJI_HTML} Рассылка «осталось 2 дня» завершена.\n\n'
         f'В базе (не blocked): {len(user_ids)}\n'
         f'Отправлено: {success}\n'
         f'🚫 Заблокировали бота: {blocked}\n'

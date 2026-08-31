@@ -128,6 +128,7 @@ ikb_admin = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text='Рассылка скидка 99₽ (без подписки)', callback_data='ping_funnel_sale')],
     [InlineKeyboardButton(text='Рассылка «ТВОЙ ВПН - ВСЁ» (без подписки)', callback_data='ping_vpn_dead')],
     [InlineKeyboardButton(text='Рассылка «цены с 1 сентября» (всем)', callback_data='ping_year_old_price')],
+    [InlineKeyboardButton(text='Рассылка «осталось 2 дня» (всем)', callback_data='ping_year_old_price_2days')],
     # [InlineKeyboardButton(text='оповесть бомжей о снижении', callback_data='ping_brokes')]
     [InlineKeyboardButton(text='Рассказать что ищем рефоводов', callback_data='we_need_refmasters')],
     [InlineKeyboardButton(text='Выдать 2 дня подписки инактив юзерам', callback_data='admin_give_2_days_bonus')],
