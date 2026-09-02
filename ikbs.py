@@ -124,6 +124,7 @@ ikb_admin = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text='Рекламные кампании', callback_data='adv_campaigns')],
     [InlineKeyboardButton(text='Рекламные кампании 2.0', callback_data='adv2_campaigns')],
     [InlineKeyboardButton(text='📊 Статистика воронки', callback_data='admin_funnel_stats')],
+    [InlineKeyboardButton(text='📩 Рассылка', callback_data='admin_broadcast')],
     [InlineKeyboardButton(text='Рассказать челам что 5р в день', callback_data='ping_unactive')],
     [InlineKeyboardButton(text='Рассылка скидка 99₽ (без подписки)', callback_data='ping_funnel_sale')],
     [InlineKeyboardButton(text='Рассылка «ТВОЙ ВПН - ВСЁ» (без подписки)', callback_data='ping_vpn_dead')],
@@ -304,6 +305,32 @@ def generate_ikb_link_detail_back(campaign_id: int) -> InlineKeyboardMarkup:
 
 ikb_admin_back = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text=' Назад', callback_data='admin_back', icon_custom_emoji_id=get_emoji('exit'))],
+])
+
+
+def ikb_broadcast_composer(*, has_text: bool = False, has_photo: bool = False, has_buttons: bool = False):
+    text_label = '✏️ Текст ✓' if has_text else '✏️ Текст'
+    photo_label = '🖼️ Фото ✓' if has_photo else '🖼️ Фото'
+    buttons_label = '🟢 Кнопки' if has_buttons else '⚪ Кнопки'
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text=text_label, callback_data='bc_text'),
+            InlineKeyboardButton(text=photo_label, callback_data='bc_photo'),
+        ],
+        [
+            InlineKeyboardButton(text=buttons_label, callback_data='bc_buttons'),
+            InlineKeyboardButton(text='👁️ Превью', callback_data='bc_preview'),
+        ],
+        [
+            InlineKeyboardButton(text='📥 Отправить', callback_data='bc_send'),
+            InlineKeyboardButton(text='❌ Отмена', callback_data='bc_cancel'),
+        ],
+    ])
+
+
+ikb_broadcast_confirm = InlineKeyboardMarkup(inline_keyboard=[
+    [InlineKeyboardButton(text='✅ Да, отправить всем', callback_data='bc_confirm', style='success')],
+    [InlineKeyboardButton(text='◀️ К черновику', callback_data='bc_draft')],
 ])
 
 ikb_adv_back = InlineKeyboardMarkup(inline_keyboard=[

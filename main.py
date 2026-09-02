@@ -111,6 +111,7 @@ from funnel import (
     log_funnel_event,
 )
 from renewal_funnel import renewal_on_paid, run_renewal_funnel_worker, fetch_renewal_stats
+from admin_broadcast import setup_admin_broadcast
 locale.setlocale(locale.LC_TIME, 'ru_RU.UTF-8')
 print('BOT STARTED!!!')
 
@@ -3068,6 +3069,11 @@ async def device_yookassa_check_payment(callback:CallbackQuery):
 
 async def main():
     setup_funnel(dp, bot, vpn, trial_flow_cb=_activate_trial_for_user)
+    setup_admin_broadcast(
+        dp, bot,
+        admin_ids=ADMIN_IDS,
+        fetch_recipients=_fetch_all_broadcast_users,
+    )
 
     async def _spawn_workers_after_polling():
         # Даём polling подняться, иначе sync VPN/БД на прод-базе убивают event loop
