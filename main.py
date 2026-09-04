@@ -286,7 +286,7 @@ try:
     PING_UNACTIVE_PHOTO=FSInputFile('photos/ping_unactive_photo.jpg')
     INVITE_MAX_COLORED_PHOTO=FSInputFile('photos/INVITE_MAX_COLORED.jpg')
     DECISION_PHOTO=FSInputFile('photos/5rub_decision_creative.png')
-    TWO_DAYS_BONUS_PHOTO=FSInputFile('photos/2_days_bonus_photo.png')
+    TWO_DAYS_BONUS_PHOTO=FSInputFile('photos/autumn_3days_bonus.png')
     FUNNEL_SALE_PHOTO=FSInputFile('photos/funnel.jpg')
     TV_LANDING_WELCOME_PHOTO=FSInputFile('photos/tv_landing_welcome.png')
     YEAR_OLD_PRICE_PHOTO=FSInputFile('photos/year_old_price.png')
@@ -2901,17 +2901,12 @@ async def admin_give_2_days_bonus(callback: CallbackQuery):
         return
     success = 0
     text = (
-    '<tg-emoji emoji-id="5203996991054432397">🎁</tg-emoji> Персонально для тебя — 2 дня бесплатного доступа!\n\n'
-    '<tg-emoji emoji-id="5456218262612223748">😢</tg-emoji> Давно не виделись, и мы решили сделать тебе подарок — 2 дня бесплатного доступа ко всем возможностям сервиса.\n\n'
-    'Тебя там ждет новый <tg-emoji emoji-id="5433895041242246420">🎙</tg-emoji> LTE ОБХОД на всех операторов!\n\n'
-    '<tg-emoji emoji-id="5469796926272580161">🐝</tg-emoji> - Билайн\n'
-    '<tg-emoji emoji-id="5262690652616931769">🥚</tg-emoji> - МТС\n'
-    '<tg-emoji emoji-id="5470134961673612788">📱</tg-emoji> - Мегафон\n'
-    '<tg-emoji emoji-id="5469769180783849063">📱</tg-emoji> - YOTA\n'
-    '<tg-emoji emoji-id="5440552665752820072">📱</tg-emoji> - Tele2\n'
-    '<tg-emoji emoji-id="5469634469134609000">📱</tg-emoji> - TMobile\n\n'
-    'Наша команда разработала новую технологию обхода и мы спешим пригласить тебя потестировать его!\n\n'
-    'Спасибо что ты с нами! Забирай свой бонус и тестируй новинку бесплатно в течение 2 дней!'
+    '🍂 Осень уже началась.\n\n'
+    'Учёба тоже. А вместе с ней вернулись скучные пары, сонные преподы и те самые полтора часа, '
+    'когда время почему-то идёт в три раза медленнее.\n\n'
+    'Но есть и хорошие новости - с нашим обходом можно хотя бы спокойно сидеть в интернете, '
+    'пока где-то на фоне идёт очередная лекция :)\n\n'
+    'А если ты давно не пользовался нашей подпиской - дарим тебе 3 дня бесплатно.'
 )
     for user in users:
         try:
@@ -2957,14 +2952,14 @@ async def give_2_days_bonus(callback: CallbackQuery):
     except Exception as e:
         logging.exception('give_2_days_bonus tg_id=%s: %s', tg_id, e)
         await callback.message.answer(
-            'Ошибка при выдаче 2 дней подписки! Попробуйте позже или напишите в поддержку.',
+            'Ошибка при выдаче 3 дней подписки! Попробуйте позже или напишите в поддержку.',
             reply_markup=generate_ikb_main(tg_id),
         )
         return
 
     if not isinstance(response, dict) or response.get('errorCode'):
         await callback.message.answer(
-            'Ошибка при выдаче 2 дней подписки!',
+            'Ошибка при выдаче 3 дней подписки!',
             reply_markup=generate_ikb_main(tg_id),
         )
         return
@@ -2980,7 +2975,7 @@ async def give_2_days_bonus(callback: CallbackQuery):
     except Exception as e:
         logging.exception('send_main_menu after 2_days_bonus tg_id=%s: %s', tg_id, e)
         await callback.message.answer(
-            '2 дня подписки выданы! Нажмите /start, чтобы открыть меню.',
+            '3 дня подписки выданы! Нажмите /start, чтобы открыть меню.',
             reply_markup=generate_ikb_main(tg_id),
         )
 

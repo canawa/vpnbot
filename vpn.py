@@ -23,6 +23,7 @@ BASE_LIMIT = 26843545600  # 25 ГБ
 WEEK_TRAFFIC_LIMIT = 7516192768  # ~7 ГБ
 TRIAL_TRAFFIC_LIMIT = 3221225472  # 3 ГБ
 BONUS_2_DAYS_TRAFFIC_BYTES = 2 * 1073741824  # +2 ГБ к текущему расходу
+BONUS_INACTIVE_DAYS = 3
 
 PAID_SQUAD = '6f11955f-6b95-4f96-bba4-3d866de8ce83'
 TRIAL_SQUAD = 'ffa0ca48-bb6e-447b-a404-f1808b09c967'
@@ -413,7 +414,7 @@ class Vpn:
             return _error_body('API_ERROR', str(e))
 
         if not user_data:
-            new_expire = now + timedelta(days=2)
+            new_expire = now + timedelta(days=BONUS_INACTIVE_DAYS)
             response = self._request(
                 'POST',
                 '/api/users',
@@ -452,7 +453,7 @@ class Vpn:
 
         panel_expire = _parse_iso_dt(user_data.get('expireAt'))
         base_expire = max(now, panel_expire) if panel_expire and panel_expire > now else now
-        new_expire = base_expire + timedelta(days=2)
+        new_expire = base_expire + timedelta(days=BONUS_INACTIVE_DAYS)
 
         traffic = user_data.get('userTraffic') or {}
         used_bytes = int(traffic.get('usedTrafficBytes') or 0)
