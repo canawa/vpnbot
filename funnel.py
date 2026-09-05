@@ -31,6 +31,13 @@ TD_7D = timedelta(days=7)
 TD_14D = timedelta(days=14)
 
 TWO_DAYS_BONUS_PHOTO_PATH = 'photos/2_days_bonus_photo.png'
+PHOTO_NT_30M = 'photos/funnel_nt_30m.png'
+PHOTO_NT_24H = 'photos/funnel_nt_24h.png'
+PHOTO_NT_48H = 'photos/funnel_nt_48h.png'
+PHOTO_NT_72H = 'photos/funnel_nt_72h.png'
+PHOTO_PT_1H = 'photos/funnel_pt_1h.png'
+PHOTO_PT_3D = 'photos/funnel_pt_3d.png'
+PHOTO_PT_7D = 'photos/funnel_pt_7d.png'
 
 # Минимальный шаг воронки — 30 мин (TD_30M). Тик 15 мин: письмо уйдёт в окне +0…+15 мин.
 # Для теста с TD_* в минутах: FUNNEL_SLEEP_SEC=30 в .env
@@ -568,7 +575,7 @@ def ikb_funnel_survey() -> InlineKeyboardMarkup:
         [InlineKeyboardButton(text='Слишком дорого', callback_data='funnel_survey_expensive')],
         [InlineKeyboardButton(text='Не успел потестить', callback_data='funnel_survey_no_time')],
         [InlineKeyboardButton(text='Не понял, как пользоваться', callback_data='funnel_survey_confused')],
-        [InlineKeyboardButton(text='Подключить VPN', callback_data='buy_vpn', style='success')],
+        [InlineKeyboardButton(text='Попробовать ещё раз', callback_data='buy_vpn', style='success')],
     ])
 
 
@@ -629,22 +636,24 @@ MSG_NT_72H = (
 MSG_PT_1H = (
     'Твой бесплатный доступ завершён 🔒\n\n'
     'Чтобы снова пользоваться VPN, выбери подписку:\n'
-    f'• 1 месяц — <b>{SUBSCRIPTION_PLAN.get(30, 149)} ₽</b>\n'
-    f'• 3 месяца — <b>{SUBSCRIPTION_PLAN.get(90, 399)} ₽</b>\n'
-    f'• <b>1 год — {SUBSCRIPTION_PLAN.get(360, 1199)} ₽</b> (≈100 ₽/мес)\n'
+    f'• 1 месяц — <b>{SUBSCRIPTION_PLAN.get(30)} ₽</b>\n'
+    f'• 3 месяца — <b>{SUBSCRIPTION_PLAN.get(90)} ₽</b>\n'
+    f'• <b>1 год — {SUBSCRIPTION_PLAN.get(360)} ₽</b> '
+    f'(≈{max(1, round(SUBSCRIPTION_PLAN.get(360) / 12))} ₽/мес)\n'
     f'• Неделя — <b>{WEEK_PLAN_PRICE} ₽</b>\n\n'
     'Подключи сейчас 👇'
 )
 
 MSG_PT_24H = (
-    'Нам важно стать лучше.\n'
-    'Подскажи, почему не продлил подписку? Выбери вариант 👇'
+    'Твоя персональная скидка сгорела... Но нам правда важно стать лучше.\n\n'
+    'Подскажи, почему ты не продлил подписку? 👇'
 )
 
 MSG_PT_3D = (
     'Тяжело найти стабильный VPN? Пока подписка отключена, снова тратишь нервы на блокировки.\n\n'
     'Месяц стоит как две чашки кофе — <b>бот работает на тебя 30 дней</b>.\n'
-    f'Год — <b>{SUBSCRIPTION_PLAN.get(360, 1199)} ₽</b> (≈100 ₽/мес).\n\n'
+    f'Год — <b>{SUBSCRIPTION_PLAN.get(360)} ₽</b> '
+    f'(≈{max(1, round(SUBSCRIPTION_PLAN.get(360) / 12))} ₽/мес).\n\n'
     'Верни себе комфорт 👇'
 )
 
@@ -652,7 +661,7 @@ MSG_PT_7D = (
     '📦 Профиль без активной подписки.\n\n'
     'Если хочешь продолжить — подключи VPN. '
     f'Есть тариф на неделю всего за <b>{WEEK_PLAN_PRICE} ₽</b> или год за '
-    f'<b>{SUBSCRIPTION_PLAN.get(360, 1199)} ₽</b> 👇'
+    f'<b>{SUBSCRIPTION_PLAN.get(360)} ₽</b> 👇'
 )
 
 MSG_BONUS_2D_NO_TRIAL = (
@@ -682,7 +691,7 @@ MSG_SURVEY_EXPENSIVE = (
 MSG_SURVEY_NO_TIME = (
     'Знакомая история: запустил бота, отвлекся — и время ушло.\n\n'
     'Мы можем один раз продлить тест. Нажми кнопку ниже — '
-    '<b>+1 день</b> доступа, чтобы успеть проверить.'
+    '<b>ещё 24 часа</b> полного доступа, чтобы успеть проверить.'
 )
 
 MSG_SURVEY_CONFUSED = (
@@ -763,16 +772,24 @@ async def _process_one_user(bot: Bot, row: tuple) -> None:
             return
         # По одному сообщению за проход (иначе при опоздании воркера уйдёт пачка).
         if not nt_30m and now >= fs + TD_30M:
-            if await _safe_send(bot, user_id, MSG_NT_30M, ikb_funnel_trial()):
+            if await _safe_send_photo(
+                bot, user_id, MSG_NT_30M, ikb_funnel_trial(), PHOTO_NT_30M,
+            ):
                 _mark_flag(user_id, 'nt_30m')
         elif not nt_24h and now >= fs + TD_24H:
-            if await _safe_send(bot, user_id, MSG_NT_24H, ikb_funnel_trial()):
+            if await _safe_send_photo(
+                bot, user_id, MSG_NT_24H, ikb_funnel_trial(), PHOTO_NT_24H,
+            ):
                 _mark_flag(user_id, 'nt_24h')
         elif not nt_48h and now >= fs + TD_48H:
-            if await _safe_send(bot, user_id, MSG_NT_48H, ikb_funnel_trial()):
+            if await _safe_send_photo(
+                bot, user_id, MSG_NT_48H, ikb_funnel_trial(), PHOTO_NT_48H,
+            ):
                 _mark_flag(user_id, 'nt_48h')
         elif not nt_72h and now >= fs + TD_72H:
-            if await _safe_send(bot, user_id, MSG_NT_72H, ikb_funnel_trial()):
+            if await _safe_send_photo(
+                bot, user_id, MSG_NT_72H, ikb_funnel_trial(), PHOTO_NT_72H,
+            ):
                 _mark_flag(user_id, 'nt_72h')
         elif nt_72h and not bonus_2d and now >= fs + TD_72H + TD_7D:
             if await _safe_send_photo(
@@ -803,16 +820,22 @@ async def _process_one_user(bot: Bot, row: tuple) -> None:
             return
         te = _parse_dt(trial_ended_at) or _parse_dt(trial_started_at) or now
         if not pt_1h and now >= te + TD_1H:
-            if await _safe_send(bot, user_id, MSG_PT_1H, ikb_funnel_post_1h()):
+            if await _safe_send_photo(
+                bot, user_id, MSG_PT_1H, ikb_funnel_post_1h(), PHOTO_PT_1H,
+            ):
                 _mark_flag(user_id, 'pt_1h')
         elif not pt_24h and now >= te + TD_24H:
             if await _safe_send(bot, user_id, MSG_PT_24H, ikb_funnel_survey()):
                 _mark_flag(user_id, 'pt_24h')
         elif not pt_3d and now >= te + TD_3D:
-            if await _safe_send(bot, user_id, MSG_PT_3D, ikb_funnel_buy()):
+            if await _safe_send_photo(
+                bot, user_id, MSG_PT_3D, ikb_funnel_buy(), PHOTO_PT_3D,
+            ):
                 _mark_flag(user_id, 'pt_3d')
         elif not pt_7d and now >= te + TD_7D:
-            if await _safe_send(bot, user_id, MSG_PT_7D, ikb_funnel_buy()):
+            if await _safe_send_photo(
+                bot, user_id, MSG_PT_7D, ikb_funnel_buy(), PHOTO_PT_7D,
+            ):
                 _mark_flag(user_id, 'pt_7d')
         elif pt_7d and not bonus_2d and now >= te + TD_14D:
             if await _safe_send_photo(

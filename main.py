@@ -2891,7 +2891,7 @@ async def ping_year_old_price_2days_users(callback: CallbackQuery):
 async def admin_give_2_days_bonus(callback: CallbackQuery):
     await safe_delete_message(callback.message)
     try:
-        users = await asyncio.to_thread(vpn.get_unactive_users)
+        report = await asyncio.to_thread(vpn.get_unactive_users_report)
     except Exception as e:
         logging.exception('admin_give_2_days_bonus get_unactive_users: %s', e)
         await callback.message.answer(
@@ -2899,6 +2899,7 @@ async def admin_give_2_days_bonus(callback: CallbackQuery):
             reply_markup=ikb_admin_back,
         )
         return
+    users = report['recipients']
     success = 0
     text = (
     '🍂 Осень уже началась.\n\n'
@@ -2925,7 +2926,11 @@ async def admin_give_2_days_bonus(callback: CallbackQuery):
             )
 
     await callback.message.answer(
-        f'Рассылка завершена. Отправлено: {success}',
+        f'Рассылка завершена. Отправлено: {success}\n\n'
+        f'На панели всего: {report["total"]}\n'
+        f'Активных (не слали): {report["active"]}\n'
+        f'Инактив без Telegram ID: {report["no_telegram_id"]}\n'
+        f'К отправке: {len(users)}',
         reply_markup=ikb_admin_back,
     )
     

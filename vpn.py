@@ -7,6 +7,7 @@
 - PATCH /api/users — по `id` или `username`;
 - продление: POST /api/users/{userId}/actions/extend.
 """
+import logging
 import os
 import sqlite3 as sq
 from datetime import datetime, timedelta
@@ -70,6 +71,46 @@ def _parse_iso_dt(value) -> datetime | None:
 
 def _error_body(code: str, message: str) -> dict:
     return {'errorCode': code, 'message': message}
+
+
+def _extract_stream_page(body) -> tuple[list, bool, object]:
+    if isinstance(body, list):
+        return body, False, None
+    if not isinstance(body, dict):
+        return [], False, None
+    resp = body.get('response')
+    if isinstance(resp, list):
+        return resp, False, None
+    if isinstance(resp, dict):
+        users = resp.get('users') or []
+        return users, bool(resp.get('hasMore')), resp.get('nextCursor')
+    users = body.get('users')
+    if isinstance(users, list):
+        return users, bool(body.get('hasMore')), body.get('nextCursor')
+    return [], False, None
+
+
+def _panel_telegram_id(user: dict) -> int | None:
+    raw = user.get('telegramId')
+    if raw in (None, ''):
+        raw = user.get('telegram_id')
+    if raw in (None, '', 0, '0'):
+        return None
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        return None
+
+
+def _is_inactive_panel_user(user: dict, now: datetime | None = None) -> bool:
+    status = str(user.get('status') or '').upper()
+    if status in ('EXPIRED', 'DISABLED', 'LIMITED'):
+        return True
+    expire = _parse_iso_dt(user.get('expireAt') or user.get('expire_at'))
+    now = now or datetime.now()
+    if expire is not None and expire < now:
+        return True
+    return status not in ('', 'ACTIVE')
 
 
 def _safe_json(response: requests.Response):
@@ -348,8 +389,8 @@ class Vpn:
                 con.commit()
         return response
 
-    def get_all_users(self, size: int = 1000) -> list[dict]:
-        """Все пользователи через cursor stream (v3)."""
+    def _stream_users(self, *, status: str | None = None, size: int = 1000) -> list[dict]:
+        """Пользователи через GET /api/users/stream (cursor)."""
         all_users: list[dict] = []
         cursor = None
         page_size = min(max(int(size), 1), 1000)
@@ -358,21 +399,27 @@ class Vpn:
             params: dict = {'size': page_size}
             if cursor is not None:
                 params['cursor'] = cursor
+            if status:
+                params['status'] = status
             response = self._request('GET', '/api/users/stream', params=params)
             body = _safe_json(response)
-            if not response.ok or not isinstance(body, dict):
-                break
-            resp = body.get('response') or {}
-            users = resp.get('users') or []
+            if not response.ok:
+                logging.error(
+                    'users stream HTTP %s status=%s: %s',
+                    response.status_code, status, (response.text or '')[:400],
+                )
+                raise RuntimeError(f'panel users stream HTTP {response.status_code}')
+            users, has_more, next_cursor = _extract_stream_page(body)
             all_users.extend(users)
-            if not resp.get('hasMore'):
-                break
-            next_cursor = resp.get('nextCursor')
-            if next_cursor is None:
+            if not has_more or next_cursor is None:
                 break
             cursor = next_cursor
 
         return all_users
+
+    def get_all_users(self, size: int = 1000) -> list[dict]:
+        """Все пользователи через cursor stream (v3)."""
+        return self._stream_users(size=size)
 
     def get_unconnected_trial_users_tg_id(self) -> list:
         """Trial-пользователи без firstConnectedAt."""
@@ -388,18 +435,41 @@ class Vpn:
                 or s == TRIAL_SQUAD
                 for s in squads
             ):
-                tg = user.get('telegramId')
+                tg = _panel_telegram_id(user)
                 if tg is not None:
                     result.append(tg)
         return result
 
-    def get_unactive_users(self):
+    def get_unactive_users(self) -> list[int]:
+        return self.get_unactive_users_report()['recipients']
+
+    def get_unactive_users_report(self) -> dict:
+        """Инактив: EXPIRED / DISABLED / LIMITED или expireAt уже в прошлом."""
         all_users = self.get_all_users()
-        return [
-            user['telegramId']
-            for user in all_users
-            if user.get('status') != 'ACTIVE' and user.get('telegramId') is not None
-        ]
+        now = datetime.now()
+        recipients: list[int] = []
+        seen: set[int] = set()
+        active = 0
+        no_tg = 0
+        for user in all_users:
+            tg = _panel_telegram_id(user)
+            inactive = _is_inactive_panel_user(user, now)
+            if not inactive:
+                active += 1
+                continue
+            if tg is None:
+                no_tg += 1
+                continue
+            if tg in seen:
+                continue
+            seen.add(tg)
+            recipients.append(tg)
+        return {
+            'total': len(all_users),
+            'active': active,
+            'no_telegram_id': no_tg,
+            'recipients': recipients,
+        }
 
     def give_2_days_bonus(self, tg_id):
         try:
