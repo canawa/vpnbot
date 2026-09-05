@@ -36,6 +36,7 @@ PHOTO_NT_24H = 'photos/funnel_nt_24h.png'
 PHOTO_NT_48H = 'photos/funnel_nt_48h.png'
 PHOTO_NT_72H = 'photos/funnel_nt_72h.png'
 PHOTO_PT_1H = 'photos/funnel_pt_1h.png'
+PHOTO_PT_24H = 'photos/funnel_pt_24h.png'
 PHOTO_PT_3D = 'photos/funnel_pt_3d.png'
 PHOTO_PT_7D = 'photos/funnel_pt_7d.png'
 
@@ -575,7 +576,7 @@ def ikb_funnel_survey() -> InlineKeyboardMarkup:
         [InlineKeyboardButton(text='Слишком дорого', callback_data='funnel_survey_expensive')],
         [InlineKeyboardButton(text='Не успел потестить', callback_data='funnel_survey_no_time')],
         [InlineKeyboardButton(text='Не понял, как пользоваться', callback_data='funnel_survey_confused')],
-        [InlineKeyboardButton(text='Попробовать ещё раз', callback_data='buy_vpn', style='success')],
+        [InlineKeyboardButton(text='Подключить VPN', callback_data='buy_vpn', style='success')],
     ])
 
 
@@ -636,24 +637,22 @@ MSG_NT_72H = (
 MSG_PT_1H = (
     'Твой бесплатный доступ завершён 🔒\n\n'
     'Чтобы снова пользоваться VPN, выбери подписку:\n'
-    f'• 1 месяц — <b>{SUBSCRIPTION_PLAN.get(30)} ₽</b>\n'
-    f'• 3 месяца — <b>{SUBSCRIPTION_PLAN.get(90)} ₽</b>\n'
-    f'• <b>1 год — {SUBSCRIPTION_PLAN.get(360)} ₽</b> '
-    f'(≈{max(1, round(SUBSCRIPTION_PLAN.get(360) / 12))} ₽/мес)\n'
+    f'• 1 месяц — <b>{SUBSCRIPTION_PLAN.get(30, 149)} ₽</b>\n'
+    f'• 3 месяца — <b>{SUBSCRIPTION_PLAN.get(90, 399)} ₽</b>\n'
+    f'• <b>1 год — {SUBSCRIPTION_PLAN.get(360, 1199)} ₽</b> (≈100 ₽/мес)\n'
     f'• Неделя — <b>{WEEK_PLAN_PRICE} ₽</b>\n\n'
     'Подключи сейчас 👇'
 )
 
 MSG_PT_24H = (
-    'Твоя персональная скидка сгорела... Но нам правда важно стать лучше.\n\n'
-    'Подскажи, почему ты не продлил подписку? 👇'
+    'Нам важно стать лучше.\n'
+    'Подскажи, почему не продлил подписку? Выбери вариант 👇'
 )
 
 MSG_PT_3D = (
     'Тяжело найти стабильный VPN? Пока подписка отключена, снова тратишь нервы на блокировки.\n\n'
     'Месяц стоит как две чашки кофе — <b>бот работает на тебя 30 дней</b>.\n'
-    f'Год — <b>{SUBSCRIPTION_PLAN.get(360)} ₽</b> '
-    f'(≈{max(1, round(SUBSCRIPTION_PLAN.get(360) / 12))} ₽/мес).\n\n'
+    f'Год — <b>{SUBSCRIPTION_PLAN.get(360, 1199)} ₽</b> (≈100 ₽/мес).\n\n'
     'Верни себе комфорт 👇'
 )
 
@@ -661,7 +660,7 @@ MSG_PT_7D = (
     '📦 Профиль без активной подписки.\n\n'
     'Если хочешь продолжить — подключи VPN. '
     f'Есть тариф на неделю всего за <b>{WEEK_PLAN_PRICE} ₽</b> или год за '
-    f'<b>{SUBSCRIPTION_PLAN.get(360)} ₽</b> 👇'
+    f'<b>{SUBSCRIPTION_PLAN.get(360, 1199)} ₽</b> 👇'
 )
 
 MSG_BONUS_2D_NO_TRIAL = (
@@ -691,7 +690,7 @@ MSG_SURVEY_EXPENSIVE = (
 MSG_SURVEY_NO_TIME = (
     'Знакомая история: запустил бота, отвлекся — и время ушло.\n\n'
     'Мы можем один раз продлить тест. Нажми кнопку ниже — '
-    '<b>ещё 24 часа</b> полного доступа, чтобы успеть проверить.'
+    '<b>+1 день</b> доступа, чтобы успеть проверить.'
 )
 
 MSG_SURVEY_CONFUSED = (
@@ -825,7 +824,9 @@ async def _process_one_user(bot: Bot, row: tuple) -> None:
             ):
                 _mark_flag(user_id, 'pt_1h')
         elif not pt_24h and now >= te + TD_24H:
-            if await _safe_send(bot, user_id, MSG_PT_24H, ikb_funnel_survey()):
+            if await _safe_send_photo(
+                bot, user_id, MSG_PT_24H, ikb_funnel_survey(), PHOTO_PT_24H,
+            ):
                 _mark_flag(user_id, 'pt_24h')
         elif not pt_3d and now >= te + TD_3D:
             if await _safe_send_photo(

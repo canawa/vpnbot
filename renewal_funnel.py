@@ -22,10 +22,6 @@ SUPPORT_URL = 'https://t.me/coffeemaniasup2'
 PHOTO_RN_M7 = 'photos/funnel_rn_m7.png'
 PHOTO_RN_M3 = 'photos/funnel_rn_m3.png'
 PHOTO_RN_D0 = 'photos/funnel_rn_d0.png'
-PHOTO_RN_P1D = 'photos/funnel_rn_p1d.png'
-PHOTO_RN_P3D = 'photos/funnel_rn_p3d.png'
-PHOTO_RN_P7D = 'photos/funnel_rn_p7d.png'
-PHOTO_RN_P30D = 'photos/funnel_rn_p30d.png'
 RENEWAL_SLEEP_SEC = int(os.getenv('RENEWAL_SLEEP_SEC', '300'))
 RENEWAL_USER_DELAY_SEC = float(os.getenv('RENEWAL_USER_DELAY_SEC', '0.35'))
 
@@ -261,14 +257,19 @@ def ikb_renew_plans() -> InlineKeyboardMarkup:
             callback_data=f'deposit_{P360}_360_card',
             style='success',
         )],
+        [InlineKeyboardButton(
+            text=f'Неделя · {WEEK_PLAN_PRICE}₽',
+            callback_data=f'deposit_{WEEK_PLAN_PRICE}_{WEEK_PLAN_DAYS}_card',
+        )],
         [InlineKeyboardButton(text='Назад', callback_data='back', icon_custom_emoji_id=get_emoji('exit'))],
     ])
 
 
 def ikb_year_60_marketing() -> InlineKeyboardMarkup:
+    save = f' (−{P360_SAVE_PCT}%)' if P360_SAVE_PCT > 0 else ''
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(
-            text=f'🔥 Забрать год за {P360}₽',
+            text=f'🔥 Забрать год за {P360}₽{save}',
             callback_data=f'deposit_{P360}_360_card',
             style='success',
         )],
@@ -300,31 +301,30 @@ MSG_D0 = (
 
 MSG_P1D = (
     '🔴 <b>Подписка закончилась</b>\n\n'
-    'Интернет всё ещё глушат, а мы помогаем справиться с ограничениями.\n\n'
+    'Интернет всё ещё глушат, а мы помогаем с обходом ограничений.\n\n'
     'Вернуть одной кнопкой 👇'
 )
 
 MSG_P3D = (
-    'Всё ещё без VPN? Ладно, держи актуальные тарифы —\n\n'
+    'Всё ещё без VPN? Держи актуальные тарифы:\n\n'
     f'• 1 месяц — <b>{P30} ₽</b>\n'
     f'• 3 месяца — <b>{P90} ₽</b>\n'
-    f'• 1 год — <b>{P360} ₽</b> (≈{P360_PER_MONTH} ₽/мес)\n\n'
-    '🔥 Чем дольше — тем выгоднее. И надёжнее.'
+    f'• <b>1 год — {P360} ₽</b> (≈{P360_PER_MONTH} ₽/мес)\n'
+    f'• Неделя — <b>{WEEK_PLAN_PRICE} ₽</b>\n\n'
+    'Чем дольше — тем спокойнее. Подключи снова 👇'
 )
 
 MSG_P7D = (
-    'Без VPN оно как-то сразу чувствуется.\n\n'
-    'То не грузит, то не открывается, то вообще непонятно что происходит.\n\n'
-    'Наши пользователи решили, что так жить не хотят, и вернулись. '
-    'Ты следующий? 👇'
+    'Без VPN это сразу чувствуется: то не грузит, то не открывается.\n\n'
+    'Наши пользователи решили так не жить — вернулись. Ты следующий? 👇'
 )
 
 MSG_P30D = (
     'Прошёл месяц. Мы соскучились 👋\n\n'
-    'Не знаем, что пошло не так — может, цена, может просто не нужен был.\n\n'
-    'Хотели бы понять. Если что-то остановило — напишите нам, разберёмся.\n\n'
-    'А если просто не дошли руки — вот наш лучший вариант: '
-    f'<b>год за {P360} ₽</b> (≈{P360_PER_MONTH} ₽/мес'
+    'Не знаем, что пошло не так — может, цена, может просто не дошли руки.\n\n'
+    'Если что-то остановило — напишите в поддержку, разберёмся.\n\n'
+    f'А если просто отложил — наш лучший вариант: <b>год за {P360} ₽</b> '
+    f'(≈{P360_PER_MONTH} ₽/мес'
     + (f', −{P360_SAVE_PCT}% к помесячной оплате' if P360_SAVE_PCT else '')
     + ').'
 )
@@ -410,13 +410,13 @@ async def _process_user(bot: Bot, user_id: int, expires_at: str) -> None:
     else:
         days_past = -days_until
         if not rn_p1d and days_past >= 1:
-            msg, markup, flag_to_mark, photo = MSG_P1D, ikb_restore(), 'rn_p1d', PHOTO_RN_P1D
+            msg, markup, flag_to_mark = MSG_P1D, ikb_restore(), 'rn_p1d'
         elif not rn_p3d and days_past >= 3:
-            msg, markup, flag_to_mark, photo = MSG_P3D, ikb_renew_plans(), 'rn_p3d', PHOTO_RN_P3D
+            msg, markup, flag_to_mark = MSG_P3D, ikb_renew_plans(), 'rn_p3d'
         elif not rn_p7d and days_past >= 7:
-            msg, markup, flag_to_mark, photo = MSG_P7D, ikb_enough(), 'rn_p7d', PHOTO_RN_P7D
+            msg, markup, flag_to_mark = MSG_P7D, ikb_enough(), 'rn_p7d'
         elif not rn_p30d and days_past >= 30:
-            msg, markup, flag_to_mark, photo = MSG_P30D, ikb_year_60_marketing(), 'rn_p30d', PHOTO_RN_P30D
+            msg, markup, flag_to_mark = MSG_P30D, ikb_year_60_marketing(), 'rn_p30d'
 
     if not msg or not flag_to_mark:
         return
