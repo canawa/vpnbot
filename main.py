@@ -75,6 +75,8 @@ from databases import (
     user_can_view_adv_link,
     grant_month_promo_99,
     month_promo_99_active,
+    try_claim_inactive_bonus,
+    unclaim_inactive_bonus,
 )
 from payments import (
     get_pay_link,
@@ -137,6 +139,13 @@ DEVICE_PRICE = 30
 
 def is_full_admin(user_id: int) -> bool:
     return user_id in ADMIN_IDS
+
+
+async def require_full_admin(callback: CallbackQuery) -> bool:
+    if is_full_admin(callback.from_user.id):
+        return True
+    await callback.answer('Нет доступа', show_alert=True)
+    return False
 
 
 def can_access_adv_campaigns(user_id: int) -> bool:
@@ -641,7 +650,8 @@ async def buy_gbs(callback: CallbackQuery):
             "capture": True,
             "description": f"Покупка дополнительных {gb_amount} ГБ id={callback.from_user.id} username = {callback.from_user.username}",
             "metadata": {
-            "user_id": callback.from_user.id,
+            "user_id": str(callback.from_user.id),
+            "gb": str(gb_amount),
         }
         }, uuid.uuid4())
 
@@ -678,6 +688,13 @@ async def process_gb_addition(callback: CallbackQuery):
         gb_amount = int(data[1])
         price = int(data[2])
 
+        if GBS_PRICES.get(gb_amount) != price:
+            await callback.answer(
+                f'{CROSS_EMOJI_HTML} Неверный тариф. Выберите пакет заново.',
+                show_alert=True,
+            )
+            return
+
         if await answer_if_payment_check_rate_limited(callback, pid):
             return
 
@@ -691,6 +708,14 @@ async def process_gb_addition(callback: CallbackQuery):
             'yookassa_gb',
         )
 
+        granted_gb = gb_amount_for_paid_price(price)
+        if granted_gb is None:
+            await callback.answer(
+                f'{CROSS_EMOJI_HTML} Сумма не соответствует тарифу. Напишите в поддержку.',
+                show_alert=True,
+            )
+            return
+
         if status == 'paid':
             try_log_open_invoice_reminder_paid(
                 callback.from_user.id, pid, price, 'yookassa_gb',
@@ -698,14 +723,20 @@ async def process_gb_addition(callback: CallbackQuery):
             body = await asyncio.to_thread(
                 Vpn().give_lte_gbs,
                 callback.from_user.id,
-                gb_amount
+                granted_gb,
             )
             print(body)
-            success_text = f'Успешно добавили вам +{gb_amount} ГБ к LTE трафику!'
+            success_text = f'Успешно добавили вам +{granted_gb} ГБ к LTE трафику!'
         elif status == 'already_processed':
             success_text = (
-                f'{CHECK_EMOJI_HTML} Этот платёж уже обработан. +{gb_amount} ГБ должны быть на аккаунте.'
+                f'{CHECK_EMOJI_HTML} Этот платёж уже обработан. +{granted_gb} ГБ должны быть на аккаунте.'
             )
+        elif status == 'mismatch':
+            await callback.answer(
+                f'{CROSS_EMOJI_HTML} Платёж не совпал с тарифом. Напишите в поддержку.',
+                show_alert=True,
+            )
+            return
         else:
             await callback.message.answer(
                 text='Ваша оплата не прошла. Попробуйте еще раз!',
@@ -1041,10 +1072,14 @@ async def check_payment_yookassa_callback(callback: CallbackQuery):
         await callback.answer(f'{CROSS_EMOJI_HTML} Неверные данные в кнопке оплаты.', show_alert=True)
         return
 
-    # expected_amount = SUBSCRIPTION_PLAN_PRICES.get(paid_days)
-    # if expected_amount is None or expected_amount != amount_rub:
-    #     await callback.answer(f'{CROSS_EMOJI_HTML} Сумма не соответствует тарифу. Создайте платёж заново.', show_alert=True)
-    #     return
+    catalog_days = days_for_subscription_amount(amount_rub)
+    if catalog_days is None:
+        await callback.answer(
+            f'{CROSS_EMOJI_HTML} Сумма не соответствует тарифу. Создайте платёж заново.',
+            show_alert=True,
+        )
+        return
+    paid_days = catalog_days
 
     if await answer_if_payment_check_rate_limited(callback, payment_id):
         return
@@ -1141,6 +1176,11 @@ async def check_payment_yookassa_callback(callback: CallbackQuery):
             parse_mode='HTML',
             reply_markup=ikb_my_sub,
         )
+    elif payment_state == 'mismatch':
+        await callback.answer(
+            f'{CROSS_EMOJI_HTML} Платёж не совпал с тарифом. Напишите в поддержку.',
+            show_alert=True,
+        )
     elif payment_state in ('timeout', 'error'):  # 👈 вот сюда, в конец цепочки
         await callback.answer(
             "⏳ Сервис оплаты не отвечает. Подождите минуту и нажмите «Я оплатил» снова.",
@@ -1176,6 +1216,13 @@ async def process_deposit(callback: CallbackQuery):
         )
         return
 
+    if not is_listed_subscription_plan(amount, paid_days):
+        await callback.answer(
+            f'{CROSS_EMOJI_HTML} Тариф недоступен. Выберите подписку заново.',
+            show_alert=True,
+        )
+        return
+
     if amount == MONTH_PROMO_PRICE and paid_days == VPN_SUBSCRIPTION_DAYS_PAID:
         if not await asyncio.to_thread(month_promo_99_active, callback.from_user.id):
             await callback.answer(
@@ -1203,7 +1250,8 @@ async def process_deposit(callback: CallbackQuery):
                     "return_url": "https://t.me/coffemaniaVPNbot",
                 },
                 "metadata": {
-                    "user_id": callback.from_user.id,
+                    "user_id": str(callback.from_user.id),
+                    "days": str(paid_days),
                 }
             }, uuid.uuid4())
 
@@ -1433,6 +1481,8 @@ async def admin_funnel_stats_callback(callback: CallbackQuery):
 
 @dp.callback_query(F.data == 'admin_users')
 async def admin_users_callback(callback: CallbackQuery):
+    if not await require_full_admin(callback):
+        return
     await callback.answer("👤 Пользователи") # на пол экрана хуйня высветится
     await safe_delete_message(callback.message)  # удаляем соо на котором нажали на кнопку
     with sq.connect('database.db') as con:
@@ -1483,6 +1533,8 @@ async def admin_users_callback(callback: CallbackQuery):
 
 @dp.callback_query(lambda c: c.data == 'admin_payments')
 async def admin_payments_callback(callback: CallbackQuery):
+    if not await require_full_admin(callback):
+        return
     await callback.answer("🔄 Оплаты") # на пол экрана хуйня высветится
     await safe_delete_message(callback.message)
     with sq.connect('database.db') as con:
@@ -1502,6 +1554,8 @@ async def admin_payments_callback(callback: CallbackQuery):
 
 @dp.callback_query(F.data == 'admin_keys')
 async def admin_keys_callback(callback: CallbackQuery):
+    if not await require_full_admin(callback):
+        return
     await callback.answer("🔑 Подписки") # на пол экрана хуйня высветится
     await safe_delete_message(callback.message)
     with sq.connect('database.db') as con:
@@ -1521,6 +1575,8 @@ async def admin_keys_callback(callback: CallbackQuery):
 
 @dp.callback_query(lambda c: c.data == 'admin_notify_sale')
 async def admin_notify_sale(callback: CallbackQuery):
+    if not await require_full_admin(callback):
+        return
     await safe_delete_message(callback.message)
 
     with sq.connect('database.db') as con:
@@ -1574,6 +1630,8 @@ async def admin_notify_sale(callback: CallbackQuery):
 
 @dp.callback_query(lambda c: c.data == 'admin_notify_trial')
 async def admin_notify_trial_callback(callback: CallbackQuery):
+    if not await require_full_admin(callback):
+        return
     await callback.answer("🔊 Напомнить юзерам о бесплатном тестовом периоде") # на пол экрана хуйня высветится
     await safe_delete_message(callback.message)
     with sq.connect('database.db') as con:
@@ -1691,6 +1749,8 @@ async def we_need_refmasters_callback(callback: CallbackQuery):
 
 @dp.callback_query(lambda c: c.data == 'admin_notify_referral')
 async def admin_notify_referral_callback(callback: CallbackQuery):
+    if not await require_full_admin(callback):
+        return
     await callback.answer("🤝 Напомнить о рефке") # на пол экрана хуйня высветится
     await safe_delete_message(callback.message)
     with sq.connect('database.db') as con:
@@ -1946,6 +2006,8 @@ async def admin_custom_ref_code_message(message: Message, state: FSMContext):
 
 @dp.callback_query(lambda c: c.data == 'admin_referrals')
 async def admin_referrals_callback(callback: CallbackQuery):
+    if not await require_full_admin(callback):
+        return
     await callback.answer("👉🏼 Рефералы") # на пол экрана хуйня высветится
     await safe_delete_message(callback.message)
     with sq.connect('database.db') as con:
@@ -2541,6 +2603,8 @@ async def adv_add_link_callback(callback: CallbackQuery):
 
 @dp.callback_query(F.data == 'ping_brokes')
 async def ping_broke_users(callback: CallbackQuery): # оповестить нищеебов ебаных
+    if not await require_full_admin(callback):
+        return
     await safe_delete_message(callback.message)
 
     with sq.connect('database.db') as con:
@@ -2572,6 +2636,8 @@ async def ping_broke_users(callback: CallbackQuery): # оповестить ни
 
 @dp.callback_query(F.data == 'ping_unactive')
 async def ping_unactive_users(callback: CallbackQuery):
+    if not await require_full_admin(callback):
+        return
     users = vpn.get_unactive_users()
 
     for user in users:
@@ -2656,6 +2722,8 @@ PROMO_BROADCAST_DELAY_SEC = float(os.getenv('PROMO_BROADCAST_DELAY_SEC', '0.3'))
 
 @dp.callback_query(F.data == 'ping_funnel_sale')
 async def ping_funnel_sale_users(callback: CallbackQuery):
+    if not await require_full_admin(callback):
+        return
     await callback.answer('Рассылка скидки 99₽…')
     try:
         await safe_delete_message(callback.message)
@@ -2721,6 +2789,8 @@ VPN_DEAD_BROADCAST_TEXT = (
 
 @dp.callback_query(F.data == 'ping_vpn_dead')
 async def ping_vpn_dead_users(callback: CallbackQuery):
+    if not await require_full_admin(callback):
+        return
     await callback.answer('Рассылка «ТВОЙ ВПН - ВСЁ»…')
     try:
         await safe_delete_message(callback.message)
@@ -2781,6 +2851,8 @@ YEAR_OLD_PRICE_BROADCAST_TEXT = (
 
 @dp.callback_query(F.data == 'ping_year_old_price')
 async def ping_year_old_price_users(callback: CallbackQuery):
+    if not await require_full_admin(callback):
+        return
     await callback.answer('Рассылка «осталось 1 день»…')
     try:
         await safe_delete_message(callback.message)
@@ -2840,6 +2912,8 @@ YEAR_OLD_PRICE_2DAYS_BROADCAST_TEXT = (
 
 @dp.callback_query(F.data == 'ping_year_old_price_2days')
 async def ping_year_old_price_2days_users(callback: CallbackQuery):
+    if not await require_full_admin(callback):
+        return
     await callback.answer('Рассылка «осталось 2 дня»…')
     try:
         await safe_delete_message(callback.message)
@@ -2889,6 +2963,8 @@ async def ping_year_old_price_2days_users(callback: CallbackQuery):
 
 @dp.callback_query(F.data == 'admin_give_2_days_bonus')
 async def admin_give_2_days_bonus(callback: CallbackQuery):
+    if not await require_full_admin(callback):
+        return
     await safe_delete_message(callback.message)
     try:
         report = await asyncio.to_thread(vpn.get_unactive_users_report)
@@ -2938,11 +3014,6 @@ async def admin_give_2_days_bonus(callback: CallbackQuery):
 @dp.callback_query(F.data.startswith('2_days_bonus_'))
 async def give_2_days_bonus(callback: CallbackQuery):
     try:
-        await safe_delete_message(callback.message)
-    except Exception:
-        pass
-
-    try:
         tg_id = int(callback.data.replace('2_days_bonus_', '', 1))
     except ValueError:
         await callback.answer(f'{CROSS_EMOJI_HTML} Неверная кнопка.', show_alert=True)
@@ -2952,10 +3023,21 @@ async def give_2_days_bonus(callback: CallbackQuery):
         await callback.answer(f'{CROSS_EMOJI_HTML} Это предложение не для вас.', show_alert=True)
         return
 
+    claimed = await asyncio.to_thread(try_claim_inactive_bonus, tg_id)
+    if not claimed:
+        await callback.answer('Вы уже получили этот бонус.', show_alert=True)
+        return
+
+    try:
+        await safe_delete_message(callback.message)
+    except Exception:
+        pass
+
     try:
         response = await asyncio.to_thread(vpn.give_2_days_bonus, tg_id)
     except Exception as e:
         logging.exception('give_2_days_bonus tg_id=%s: %s', tg_id, e)
+        await asyncio.to_thread(unclaim_inactive_bonus, tg_id)
         await callback.message.answer(
             'Ошибка при выдаче 3 дней подписки! Попробуйте позже или напишите в поддержку.',
             reply_markup=generate_ikb_main(tg_id),
@@ -2963,6 +3045,7 @@ async def give_2_days_bonus(callback: CallbackQuery):
         return
 
     if not isinstance(response, dict) or response.get('errorCode'):
+        await asyncio.to_thread(unclaim_inactive_bonus, tg_id)
         await callback.message.answer(
             'Ошибка при выдаче 3 дней подписки!',
             reply_markup=generate_ikb_main(tg_id),
@@ -2991,7 +3074,7 @@ async def buy_hwid_device(callback: CallbackQuery):
     try:
         payment = await asyncio.to_thread(Payment.create, {
             "amount": {
-                "value": f"{30}",
+                "value": f"{DEVICE_PRICE}",
                 "currency": "RUB"
             },
             "confirmation": {
@@ -3001,7 +3084,8 @@ async def buy_hwid_device(callback: CallbackQuery):
             "capture": True,
             "description": f"Покупка дополнительного устройства id={callback.from_user.id} username = {callback.from_user.username}",
             "metadata": {
-                "user_id": callback.from_user.id,
+                "user_id": str(callback.from_user.id),
+                "kind": "device",
             }
         }, uuid.uuid4())
 
@@ -3010,7 +3094,7 @@ async def buy_hwid_device(callback: CallbackQuery):
         await callback.message.answer(
             f'👉 Создали заявку на оплату, переходите по ссылке и оплатите.\n\n<b>❗ После оплаты нажмите на кнопку "Я оплатил"</b>',
             parse_mode='HTML',
-            reply_markup=get_ikb_device_payment(payment_id, confirmation_url, price=30))
+            reply_markup=get_ikb_device_payment(payment_id, confirmation_url, price=DEVICE_PRICE))
     except Exception as e:
         logging.exception(e)
         await callback.message.answer(
@@ -3026,10 +3110,16 @@ async def device_yookassa_check_payment(callback:CallbackQuery):
         return
     status = await asyncio.to_thread(
         check_payment_yookassa_status,
-        30,
+        DEVICE_PRICE,
         payment_id=payment_id,
         user_id=callback.from_user.id
     )
+    if status == 'mismatch':
+        await callback.answer(
+            f'{CROSS_EMOJI_HTML} Платёж не совпал с тарифом. Напишите в поддержку.',
+            show_alert=True,
+        )
+        return
     if status == 'paid':
         try:
             await asyncio.to_thread(vpn.add_hwid_devices, 1, callback.from_user.id)

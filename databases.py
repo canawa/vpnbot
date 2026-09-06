@@ -63,6 +63,41 @@ def month_promo_99_active(user_id: int) -> bool:
         return False
 
 
+def try_claim_inactive_bonus(user_id: int) -> bool:
+    """Атомарно отмечает бонус. False — уже использован."""
+    def _write():
+        with db_connect() as con:
+            cur = con.cursor()
+            cur.execute(
+                'INSERT OR IGNORE INTO users (id, username, balance, had_trial) VALUES (?, NULL, 0, 0)',
+                (user_id,),
+            )
+            cur.execute(
+                """
+                UPDATE users
+                SET inactive_bonus_claimed = 1
+                WHERE id = ? AND COALESCE(inactive_bonus_claimed, 0) = 0
+                """,
+                (user_id,),
+            )
+            con.commit()
+            return cur.rowcount > 0
+
+    return db_retry(_write)
+
+
+def unclaim_inactive_bonus(user_id: int) -> None:
+    def _write():
+        with db_connect() as con:
+            con.execute(
+                'UPDATE users SET inactive_bonus_claimed = 0 WHERE id = ?',
+                (user_id,),
+            )
+            con.commit()
+
+    db_retry(_write)
+
+
 def upsert_subscription_days(user_id: int, duration_days: int = None, expires_at: str = None) -> str:
     if expires_at:
         expires = expires_at
@@ -230,6 +265,7 @@ def create_tables():
 
         con.commit()
         _ensure_column(cur, 'user_funnel', 'bonus_2d', 'bonus_2d INTEGER DEFAULT 0')
+        _ensure_column(cur, 'users', 'inactive_bonus_claimed', 'inactive_bonus_claimed INTEGER DEFAULT 0')
         _migrate_adv_campaign_links(cur)
         cur.execute(
             """

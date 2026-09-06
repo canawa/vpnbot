@@ -26,8 +26,39 @@ GBS_PRICES = {
     10: 49,
     30: 99,
     50: 149,
-
 }
+
+
+def days_for_subscription_amount(amount: int) -> int | None:
+    """Дни тарифа по реально оплаченной сумме. Неизвестная сумма — None."""
+    try:
+        amount = int(amount)
+    except (TypeError, ValueError):
+        return None
+    if amount == MONTH_PROMO_PRICE:
+        return VPN_SUBSCRIPTION_DAYS_PAID
+    for days, price in SUBSCRIPTION_PLAN.items():
+        if int(price) == amount:
+            return int(days)
+    if amount == WEEK_PLAN_PRICE:
+        return WEEK_PLAN_DAYS
+    return None
+
+
+def is_listed_subscription_plan(amount: int, days: int) -> bool:
+    return days_for_subscription_amount(amount) == int(days)
+
+
+def gb_amount_for_paid_price(amount: int) -> int | None:
+    try:
+        amount = int(amount)
+    except (TypeError, ValueError):
+        return None
+    for gb, price in GBS_PRICES.items():
+        if int(price) == amount:
+            return int(gb)
+    return None
+
 
 MONTHS_RU = {
     1: 'января', 2: 'февраля', 3: 'марта', 4: 'апреля',

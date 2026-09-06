@@ -88,6 +88,26 @@ async def answer_if_payment_check_rate_limited(callback, payment_id: str) -> boo
     return False
 
 
+def _yookassa_amount_rub(payment) -> int | None:
+    try:
+        return int(float(payment.amount.value))
+    except Exception:
+        return None
+
+
+def _yookassa_metadata_user_id(payment) -> int | None:
+    meta = getattr(payment, 'metadata', None) or {}
+    if not isinstance(meta, dict):
+        return None
+    raw = meta.get('user_id')
+    if raw in (None, ''):
+        return None
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        return None
+
+
 def check_payment_yookassa_status(amount, payment_id, user_id, tx_type='yookassa'):
     """
     Возвращает:
@@ -96,6 +116,7 @@ def check_payment_yookassa_status(amount, payment_id, user_id, tx_type='yookassa
         'not_paid'         — ещё не оплачено
         'timeout'          — YooKassa не ответила (попробовать позже)
         'error'            — другая ошибка
+        'mismatch'         — сумма или user_id в платеже не совпали
     """
     try:
         payment = Payment.find_one(str(payment_id).strip())
@@ -119,6 +140,22 @@ def check_payment_yookassa_status(amount, payment_id, user_id, tx_type='yookassa
     except Exception as e:
         logger.exception(f"YooKassa неизвестная ошибка | payment_id={payment_id}: {e}")
         return 'error'
+
+    actual_amount = _yookassa_amount_rub(payment)
+    if actual_amount is None or int(actual_amount) != int(amount):
+        logger.warning(
+            'YooKassa amount mismatch | payment_id=%s claimed=%s actual=%s user_id=%s',
+            payment_id, amount, actual_amount, user_id,
+        )
+        return 'mismatch'
+
+    meta_uid = _yookassa_metadata_user_id(payment)
+    if meta_uid is None or int(meta_uid) != int(user_id):
+        logger.warning(
+            'YooKassa user mismatch | payment_id=%s metadata=%s callback=%s',
+            payment_id, meta_uid, user_id,
+        )
+        return 'mismatch'
 
     if payment.status == 'succeeded':
         try:
