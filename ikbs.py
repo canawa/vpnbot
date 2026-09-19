@@ -3,7 +3,7 @@ import sqlite3 as sq
 from emojis import get_emoji
 from datetime import datetime
 
-from prices import SUBSCRIPTION_PLAN, SUBSCRIPTION_PLAN_LEGACY, MONTH_PRICE, MONTH_PROMO_PRICE
+from prices import SUBSCRIPTION_PLAN, SUBSCRIPTION_PLAN_LEGACY, MONTH_PRICE, MONTH_PROMO_PRICE, ELECTIONS_PROMO_PLAN
 from vpn import *
 
 ikb_subscribe = InlineKeyboardMarkup(inline_keyboard=[
@@ -129,12 +129,14 @@ ikb_admin = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text='Рекламные кампании', callback_data='adv_campaigns')],
     [InlineKeyboardButton(text='Рекламные кампании 2.0', callback_data='adv2_campaigns')],
     [InlineKeyboardButton(text='📊 Статистика воронки', callback_data='admin_funnel_stats')],
+    [InlineKeyboardButton(text='🗳 Статистика «выборы VPN»', callback_data='admin_elections_stats')],
     [InlineKeyboardButton(text='📩 Рассылка', callback_data='admin_broadcast')],
     [InlineKeyboardButton(text='Рассказать челам что 5р в день', callback_data='ping_unactive')],
     [InlineKeyboardButton(text='Рассылка скидка 99₽ (без подписки)', callback_data='ping_funnel_sale')],
     [InlineKeyboardButton(text='Рассылка «ТВОЙ ВПН - ВСЁ» (без подписки)', callback_data='ping_vpn_dead')],
     [InlineKeyboardButton(text='Рассылка «осталось 1 день» (всем)', callback_data='ping_year_old_price')],
     [InlineKeyboardButton(text='Рассылка «осталось 2 дня» (всем)', callback_data='ping_year_old_price_2days')],
+    [InlineKeyboardButton(text='Рассылка «выборы VPN» (всем)', callback_data='ping_elections_vpn')],
     # [InlineKeyboardButton(text='оповесть бомжей о снижении', callback_data='ping_brokes')]
     [InlineKeyboardButton(text='Рассказать что ищем рефоводов', callback_data='we_need_refmasters')],
     [InlineKeyboardButton(text='выдать 3 дня инактив юзерам', callback_data='admin_give_2_days_bonus')],
@@ -430,6 +432,39 @@ ikb_year_old_price = InlineKeyboardMarkup(inline_keyboard=[
         style='primary',
     )],
 ])
+
+ikb_elections_vpn = InlineKeyboardMarkup(inline_keyboard=[
+    [InlineKeyboardButton(
+        text='СДЕЛАТЬ СВОЙ ВЫБОР',
+        callback_data='elections_vpn_choose',
+        style='success',
+    )],
+])
+
+
+def ikb_elections_vpn_plans() -> InlineKeyboardMarkup:
+    p30 = ELECTIONS_PROMO_PLAN[30]
+    p90 = ELECTIONS_PROMO_PLAN[90]
+    p360 = ELECTIONS_PROMO_PLAN[360]
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(
+            text=f'1 месяц · {p30}₽',
+            callback_data=f'deposit_{p30}_30_card',
+            style='success',
+        )],
+        [InlineKeyboardButton(
+            text=f'3 месяца · {p90}₽',
+            callback_data=f'deposit_{p90}_90_card',
+        )],
+        [InlineKeyboardButton(
+            text=f'12 месяцев · {p360}₽',
+            callback_data=f'deposit_{p360}_360_card',
+            style='primary',
+            icon_custom_emoji_id=get_emoji('fire_emoji_2'),
+        )],
+        [InlineKeyboardButton(text='Назад', callback_data='back', icon_custom_emoji_id=get_emoji('exit'))],
+    ])
+
 
 ikb_ping_brokes = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text='Подключиться сейчас (-25%)', callback_data='buy_vpn', icon_custom_emoji_id=get_emoji('plus'), style='success')],

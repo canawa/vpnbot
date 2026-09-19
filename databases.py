@@ -63,6 +63,40 @@ def month_promo_99_active(user_id: int) -> bool:
         return False
 
 
+def grant_elections_promo(user_id: int, *, hours: int = 48) -> str:
+    """Персональные цены акции «выборы VPN» на N часов."""
+    expires = (datetime.now() + timedelta(hours=int(hours))).isoformat()
+
+    def _write():
+        with db_connect() as con:
+            con.execute(
+                'INSERT OR IGNORE INTO users (id, username, balance, had_trial) VALUES (?, NULL, 0, 0)',
+                (user_id,),
+            )
+            con.execute(
+                'UPDATE users SET elections_promo_until = ? WHERE id = ?',
+                (expires, user_id),
+            )
+            con.commit()
+
+    db_retry(_write)
+    return expires
+
+
+def elections_promo_active(user_id: int) -> bool:
+    with db_connect() as con:
+        cur = con.cursor()
+        cur.execute('SELECT elections_promo_until FROM users WHERE id = ?', (user_id,))
+        row = cur.fetchone()
+    if not row or not row[0]:
+        return False
+    try:
+        until = datetime.fromisoformat(str(row[0]).strip())
+        return until > datetime.now()
+    except Exception:
+        return False
+
+
 def try_claim_inactive_bonus(user_id: int) -> bool:
     """Атомарно отмечает бонус. False — уже использован."""
     def _write():
@@ -266,6 +300,7 @@ def create_tables():
         con.commit()
         _ensure_column(cur, 'user_funnel', 'bonus_2d', 'bonus_2d INTEGER DEFAULT 0')
         _ensure_column(cur, 'users', 'inactive_bonus_claimed', 'inactive_bonus_claimed INTEGER DEFAULT 0')
+        _ensure_column(cur, 'users', 'elections_promo_until', 'elections_promo_until TEXT')
         _migrate_adv_campaign_links(cur)
         cur.execute(
             """

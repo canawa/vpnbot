@@ -22,6 +22,14 @@ SUBSCRIPTION_PLAN_LEGACY = {
 WEEK_PLAN_DAYS = 7
 WEEK_PLAN_PRICE = 50
 
+# Акция «выборы VPN» — только после кнопки из рассылки
+ELECTIONS_PROMO_HOURS = 48
+ELECTIONS_PROMO_PLAN = {
+    30: 149,
+    90: 399,
+    360: 999,
+}
+
 GBS_PRICES = {
     10: 49,
     30: 99,
@@ -37,6 +45,9 @@ def days_for_subscription_amount(amount: int) -> int | None:
         return None
     if amount == MONTH_PROMO_PRICE:
         return VPN_SUBSCRIPTION_DAYS_PAID
+    for days, price in ELECTIONS_PROMO_PLAN.items():
+        if int(price) == amount:
+            return int(days)
     for days, price in SUBSCRIPTION_PLAN.items():
         if int(price) == amount:
             return int(days)
@@ -45,8 +56,27 @@ def days_for_subscription_amount(amount: int) -> int | None:
     return None
 
 
+def is_elections_promo_plan(amount: int, days: int) -> bool:
+    try:
+        return ELECTIONS_PROMO_PLAN.get(int(days)) == int(amount)
+    except (TypeError, ValueError):
+        return False
+
+
 def is_listed_subscription_plan(amount: int, days: int) -> bool:
-    return days_for_subscription_amount(amount) == int(days)
+    """Обычный каталог + акция 99₽. Цены «выборов» сюда не входят."""
+    try:
+        amount = int(amount)
+        days = int(days)
+    except (TypeError, ValueError):
+        return False
+    if days in SUBSCRIPTION_PLAN and int(SUBSCRIPTION_PLAN[days]) == amount:
+        return True
+    if amount == WEEK_PLAN_PRICE and days == WEEK_PLAN_DAYS:
+        return True
+    if amount == MONTH_PROMO_PRICE and days == VPN_SUBSCRIPTION_DAYS_PAID:
+        return True
+    return False
 
 
 def gb_amount_for_paid_price(amount: int) -> int | None:

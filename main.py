@@ -75,6 +75,8 @@ from databases import (
     user_can_view_adv_link,
     grant_month_promo_99,
     month_promo_99_active,
+    grant_elections_promo,
+    elections_promo_active,
     try_claim_inactive_bonus,
     unclaim_inactive_bonus,
 )
@@ -113,6 +115,13 @@ from funnel import (
     log_funnel_event,
 )
 from renewal_funnel import renewal_on_paid, run_renewal_funnel_worker, fetch_renewal_stats
+from elections_promo import (
+    fetch_elections_promo_stats,
+    log_elections_sent,
+    log_elections_click_choose,
+    log_elections_click_plan,
+    maybe_log_elections_paid,
+)
 from admin_broadcast import setup_admin_broadcast
 locale.setlocale(locale.LC_TIME, 'ru_RU.UTF-8')
 print('BOT STARTED!!!')
@@ -1101,6 +1110,9 @@ async def check_payment_yookassa_callback(callback: CallbackQuery):
         try_log_open_invoice_reminder_paid(
             callback.from_user.id, payment_id, amount_rub, 'yookassa',
         )
+        maybe_log_elections_paid(
+            callback.from_user.id, amount_rub, paid_days, payment_id,
+        )
         funnel_on_paid(callback.from_user.id)
         renewal_on_paid(callback.from_user.id)
         try:
@@ -1225,17 +1237,29 @@ async def process_deposit(callback: CallbackQuery):
         )
         return
 
-    if not is_listed_subscription_plan(amount, paid_days):
+    if is_elections_promo_plan(amount, paid_days):
+        if not await asyncio.to_thread(elections_promo_active, callback.from_user.id):
+            await callback.answer(
+                'Акция «выборы» истекла. Открой предложение заново или выбери обычный тариф.',
+                show_alert=True,
+            )
+            return
+        await asyncio.to_thread(
+            log_elections_click_plan,
+            callback.from_user.id,
+            amount,
+            paid_days,
+        )
+    elif not is_listed_subscription_plan(amount, paid_days):
         await callback.answer(
             f'{CROSS_EMOJI_HTML} Тариф недоступен. Выберите подписку заново.',
             show_alert=True,
         )
         return
-
-    if amount == MONTH_PROMO_PRICE and paid_days == VPN_SUBSCRIPTION_DAYS_PAID:
+    elif amount == MONTH_PROMO_PRICE and paid_days == VPN_SUBSCRIPTION_DAYS_PAID:
         if not await asyncio.to_thread(month_promo_99_active, callback.from_user.id):
             await callback.answer(
-                f'Акция {MONTH_PROMO_PRICE}₽ истекла. Месяц сейчас — {MONTH_PRICE}₽.',
+                f'Акция {MONTH_PROMO_PRICE}₽ истекла. Месяц сейчас — {SUBSCRIPTION_PLAN.get(30, 169)}₽.',
                 show_alert=True,
             )
             return
@@ -1580,6 +1604,14 @@ async def successful_payment_handler(message: Message):
         parse_mode='HTML',
         reply_markup=ikb_admin_back,
     )
+
+
+@dp.callback_query((F.data == 'admin_elections_stats') & F.from_user.id.in_(ADMIN_IDS))
+async def admin_elections_stats_callback(callback: CallbackQuery):
+    await callback.answer()
+    await safe_delete_message(callback.message)
+    text = await asyncio.to_thread(fetch_elections_promo_stats)
+    await callback.message.answer(text, parse_mode='HTML', reply_markup=ikb_admin_back)
 
 
 @dp.callback_query((F.data == 'admin_funnel_stats') & F.from_user.id.in_(ADMIN_IDS))
@@ -3095,6 +3127,97 @@ async def ping_year_old_price_2days_users(callback: CallbackQuery):
 
     await callback.message.answer(
         f'{CHECK_EMOJI_HTML} Рассылка «осталось 2 дня» завершена.\n\n'
+        f'В базе (не blocked): {len(user_ids)}\n'
+        f'Отправлено: {success}\n'
+        f'🚫 Заблокировали бота: {blocked}\n'
+        f'Ошибок: {failed}',
+        parse_mode='HTML',
+        reply_markup=ikb_admin_back,
+    )
+
+
+ELECTIONS_VPN_BROADCAST_TEXT = (
+    '🗳 <b>Главный выбор этой осени</b>\n\n'
+    'Сейчас по всей стране активно глушат мобильный интернет, а для наших клиентов это не проблема, '
+    'ведь они пользуются LTE серверами Кофемания VPN.\n\n'
+    'Хватит терпеть вечные блокировки и белые списки! '
+    'Выбирай цифровую свободу вместе с Кофемания VPN.\n\n'
+    '<tg-emoji emoji-id="5354974523257033543">🔥</tg-emoji> '
+    f'Специально для тебя, предлагаем тебе свободу по старой цене {MONTH_PRICE} ₽\n\n'
+    'Выполни гражданский долг и обеспечь себе и близким стабильный доступ.'
+)
+
+
+@dp.callback_query(F.data == 'elections_vpn_choose')
+async def elections_vpn_choose_callback(callback: CallbackQuery):
+    await callback.answer()
+    await asyncio.to_thread(
+        grant_elections_promo,
+        callback.from_user.id,
+        hours=ELECTIONS_PROMO_HOURS,
+    )
+    await asyncio.to_thread(log_elections_click_choose, callback.from_user.id)
+    try:
+        await safe_delete_message(callback.message)
+    except Exception:
+        pass
+    p30 = ELECTIONS_PROMO_PLAN[30]
+    p90 = ELECTIONS_PROMO_PLAN[90]
+    p360 = ELECTIONS_PROMO_PLAN[360]
+    await callback.message.answer(
+        '🗳 <b>Сделай свой выбор</b>\n\n'
+        f'Акционные тарифы (доступны {ELECTIONS_PROMO_HOURS} ч):\n'
+        f'• 1 месяц — <b>{p30}₽</b>\n'
+        f'• 3 месяца — <b>{p90}₽</b>\n'
+        f'• 12 месяцев — <b>{p360}₽</b>',
+        parse_mode='HTML',
+        reply_markup=ikb_elections_vpn_plans(),
+    )
+
+
+@dp.callback_query(F.data == 'ping_elections_vpn')
+async def ping_elections_vpn_users(callback: CallbackQuery):
+    if not await require_full_admin(callback):
+        return
+    await callback.answer('Рассылка «выборы VPN»…')
+    try:
+        await safe_delete_message(callback.message)
+    except Exception:
+        pass
+
+    user_ids = await asyncio.to_thread(_fetch_all_broadcast_users)
+    success = 0
+    failed = 0
+    blocked = 0
+
+    for user_id in user_ids:
+        if await asyncio.to_thread(is_user_bot_blocked, user_id):
+            continue
+        try:
+            await bot.send_photo(
+                chat_id=user_id,
+                photo=FSInputFile('photos/elections_vpn.png'),
+                caption=ELECTIONS_VPN_BROADCAST_TEXT,
+                parse_mode='HTML',
+                reply_markup=ikb_elections_vpn,
+            )
+            await asyncio.to_thread(log_elections_sent, user_id)
+            success += 1
+        except Exception as e:
+            if is_telegram_unreachable(e):
+                await asyncio.to_thread(mark_user_bot_blocked, user_id)
+                blocked += 1
+                logging.info(
+                    'ping_elections_vpn skip user_id=%s (blocked bot or deleted)',
+                    user_id,
+                )
+            else:
+                failed += 1
+                logging.warning('ping_elections_vpn user_id=%s: %s', user_id, e)
+        await asyncio.sleep(PROMO_BROADCAST_DELAY_SEC)
+
+    await callback.message.answer(
+        f'{CHECK_EMOJI_HTML} Рассылка «выборы VPN» завершена.\n\n'
         f'В базе (не blocked): {len(user_ids)}\n'
         f'Отправлено: {success}\n'
         f'🚫 Заблокировали бота: {blocked}\n'
