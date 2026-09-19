@@ -136,7 +136,7 @@ ikb_admin = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text='Рассылка «ТВОЙ ВПН - ВСЁ» (без подписки)', callback_data='ping_vpn_dead')],
     [InlineKeyboardButton(text='Рассылка «осталось 1 день» (всем)', callback_data='ping_year_old_price')],
     [InlineKeyboardButton(text='Рассылка «осталось 2 дня» (всем)', callback_data='ping_year_old_price_2days')],
-    [InlineKeyboardButton(text='Рассылка «выборы VPN» (всем)', callback_data='ping_elections_vpn')],
+    [InlineKeyboardButton(text='Рассылка «выборы VPN» (без подписки)', callback_data='ping_elections_vpn')],
     # [InlineKeyboardButton(text='оповесть бомжей о снижении', callback_data='ping_brokes')]
     [InlineKeyboardButton(text='Рассказать что ищем рефоводов', callback_data='we_need_refmasters')],
     [InlineKeyboardButton(text='выдать 3 дня инактив юзерам', callback_data='admin_give_2_days_bonus')],

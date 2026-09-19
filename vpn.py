@@ -471,6 +471,55 @@ class Vpn:
             'recipients': recipients,
         }
 
+    def get_users_without_active_subscription(self) -> list[int]:
+        """
+        Кому слать промо «без подписки»:
+        - на панели не ACTIVE / срок уже вышел;
+        - плюс юзеры только из бота (на панели ещё не заводились).
+        ACTIVE с живым expireAt — исключаются.
+        """
+        all_users = self.get_all_users()
+        now = datetime.now()
+        panel_tg: set[int] = set()
+        active_tg: set[int] = set()
+        recipients: list[int] = []
+        seen: set[int] = set()
+
+        for user in all_users:
+            tg = _panel_telegram_id(user)
+            if tg is None:
+                continue
+            panel_tg.add(tg)
+            if _is_inactive_panel_user(user, now):
+                if tg not in seen:
+                    seen.add(tg)
+                    recipients.append(tg)
+            else:
+                active_tg.add(tg)
+
+        with sq.connect('database.db') as con:
+            cur = con.cursor()
+            cur.execute(
+                """
+                SELECT id FROM users
+                WHERE COALESCE(bot_blocked, 0) = 0
+                """
+            )
+            bot_ids = [int(row[0]) for row in cur.fetchall()]
+
+        for uid in bot_ids:
+            if uid in active_tg:
+                continue
+            if uid in panel_tg:
+                # уже учтён как inactive с панели
+                continue
+            if uid in seen:
+                continue
+            seen.add(uid)
+            recipients.append(uid)
+
+        return [uid for uid in recipients if uid not in active_tg]
+
     def give_2_days_bonus(self, tg_id):
         try:
             tg_id = int(tg_id)

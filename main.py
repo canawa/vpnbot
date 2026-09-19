@@ -2860,24 +2860,8 @@ FUNNEL_SUMMER_SALE_CAPTION = (
 
 
 def _fetch_users_without_active_subscription() -> list[int]:
-    today_str = date.today().isoformat()
-    with sq.connect('database.db') as con:
-        cur = con.cursor()
-        cur.execute(
-            """
-            SELECT u.id
-            FROM users u
-            LEFT JOIN subscriptions s ON s.user_id = u.id
-            WHERE COALESCE(u.bot_blocked, 0) = 0
-              AND (
-                    s.subscription_expires_at IS NULL
-                    OR TRIM(s.subscription_expires_at) = ''
-                    OR date(s.subscription_expires_at) < date(?)
-              )
-            """,
-            (today_str,),
-        )
-        return [row[0] for row in cur.fetchall()]
+    """Источник правды — Remnawave (ACTIVE + expireAt), не локальная subscriptions."""
+    return vpn.get_users_without_active_subscription()
 
 
 def _fetch_all_broadcast_users() -> list[int]:
@@ -3185,7 +3169,7 @@ async def ping_elections_vpn_users(callback: CallbackQuery):
     except Exception:
         pass
 
-    user_ids = await asyncio.to_thread(_fetch_all_broadcast_users)
+    user_ids = await asyncio.to_thread(_fetch_users_without_active_subscription)
     success = 0
     failed = 0
     blocked = 0
@@ -3218,7 +3202,7 @@ async def ping_elections_vpn_users(callback: CallbackQuery):
 
     await callback.message.answer(
         f'{CHECK_EMOJI_HTML} Рассылка «выборы VPN» завершена.\n\n'
-        f'В базе (не blocked): {len(user_ids)}\n'
+        f'Без активной подписки: {len(user_ids)}\n'
         f'Отправлено: {success}\n'
         f'🚫 Заблокировали бота: {blocked}\n'
         f'Ошибок: {failed}',
