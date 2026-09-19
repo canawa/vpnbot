@@ -4,7 +4,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.filters import CommandStart
 from aiogram.types import Message, CallbackQuery, invoice, LabeledPrice, FSInputFile, MessageEntity
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ChatMember
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ChatMember, PreCheckoutQuery
 from texts import *
 from aiogram.filters.command import CommandObject
 from aiogram.fsm.context import FSMContext
@@ -199,6 +199,15 @@ class AdminRefmaster(StatesGroup):
 class AdminCustomRef(StatesGroup):
     waiting_user_id = State()
     waiting_code = State()
+
+
+class AdminStarsTopup(StatesGroup):
+    waiting_amount = State()
+
+
+ADMIN_STARS_TOPUP_PAYLOAD_PREFIX = 'admin_stars_topup:'
+ADMIN_STARS_TOPUP_MIN = 1
+ADMIN_STARS_TOPUP_MAX = 100_000
 
 def _subscription_url_from_dict(d):
     if not isinstance(d, dict):
@@ -1437,6 +1446,140 @@ async def admin_message(message: Message):
         else '📢 Панель рекламных кампаний'
     )
     await message.answer(title, parse_mode='HTML', reply_markup=markup)
+
+
+@dp.callback_query(F.data == 'admin_stars_topup', F.from_user.id.in_(ADMIN_IDS))
+async def admin_stars_topup_callback(callback: CallbackQuery, state: FSMContext):
+    await state.clear()
+    await callback.answer()
+    await safe_delete_message(callback.message)
+    await state.set_state(AdminStarsTopup.waiting_amount)
+    await callback.message.answer(
+        '⭐ <b>Пополнение Stars</b>\n\n'
+        f'Введите сумму в звёздах ({ADMIN_STARS_TOPUP_MIN}–{ADMIN_STARS_TOPUP_MAX}).\n'
+        'После оплаты звёзды поступят на баланс бота.\n\n'
+        'Отмена — /cancel',
+        parse_mode='HTML',
+        reply_markup=ikb_admin_back,
+    )
+
+
+@dp.message(AdminStarsTopup.waiting_amount, F.from_user.id.in_(ADMIN_IDS), F.text == '/cancel')
+async def admin_stars_topup_cancel(message: Message, state: FSMContext):
+    await state.clear()
+    await message.answer('Отменено.', reply_markup=ikb_admin_back)
+
+
+@dp.message(AdminStarsTopup.waiting_amount, F.from_user.id.in_(ADMIN_IDS))
+async def admin_stars_topup_amount(message: Message, state: FSMContext):
+    raw = (message.text or '').strip().replace(' ', '').replace(',', '')
+    try:
+        amount = int(raw)
+    except ValueError:
+        await message.answer(
+            f'{CROSS_EMOJI_HTML} Введите целое число звёзд.',
+            parse_mode='HTML',
+            reply_markup=ikb_admin_back,
+        )
+        return
+
+    if amount < ADMIN_STARS_TOPUP_MIN or amount > ADMIN_STARS_TOPUP_MAX:
+        await message.answer(
+            f'{CROSS_EMOJI_HTML} Сумма должна быть от '
+            f'{ADMIN_STARS_TOPUP_MIN} до {ADMIN_STARS_TOPUP_MAX} ⭐.',
+            parse_mode='HTML',
+            reply_markup=ikb_admin_back,
+        )
+        return
+
+    await state.clear()
+    payload = (
+        f'{ADMIN_STARS_TOPUP_PAYLOAD_PREFIX}{amount}:{message.from_user.id}'
+    )
+    try:
+        await bot.send_invoice(
+            chat_id=message.chat.id,
+            title='Пополнение Stars',
+            description=f'Пополнение баланса бота на {amount} ⭐',
+            payload=payload,
+            currency='XTR',
+            prices=[LabeledPrice(label=f'{amount} Stars', amount=amount)],
+            provider_token='',
+        )
+        await message.answer(
+            f'Счёт на <b>{amount} ⭐</b> создан. Оплатите кнопку выше — '
+            'звёзды сразу уйдут на баланс бота.',
+            parse_mode='HTML',
+            reply_markup=ikb_admin_back,
+        )
+    except Exception as e:
+        logging.exception('admin_stars_topup amount=%s: %s', amount, e)
+        await message.answer(
+            f'{CROSS_EMOJI_HTML} Не удалось создать счёт: {html.escape(str(e))}',
+            parse_mode='HTML',
+            reply_markup=ikb_admin_back,
+        )
+
+
+@dp.pre_checkout_query()
+async def pre_checkout_query_handler(pre_checkout_query: PreCheckoutQuery):
+    payload = pre_checkout_query.invoice_payload or ''
+    if payload.startswith(ADMIN_STARS_TOPUP_PAYLOAD_PREFIX):
+        if not is_full_admin(pre_checkout_query.from_user.id):
+            await pre_checkout_query.answer(
+                ok=False,
+                error_message='Только для админов.',
+            )
+            return
+        await pre_checkout_query.answer(ok=True)
+        return
+    await pre_checkout_query.answer(
+        ok=False,
+        error_message='Неизвестный платёж.',
+    )
+
+
+@dp.message(F.successful_payment)
+async def successful_payment_handler(message: Message):
+    payment = message.successful_payment
+    if not payment:
+        return
+    payload = payment.invoice_payload or ''
+    if not payload.startswith(ADMIN_STARS_TOPUP_PAYLOAD_PREFIX):
+        return
+    if not is_full_admin(message.from_user.id):
+        return
+
+    stars = int(payment.total_amount or 0)
+    logging.info(
+        'admin_stars_topup paid user_id=%s stars=%s currency=%s charge_id=%s',
+        message.from_user.id,
+        stars,
+        payment.currency,
+        payment.telegram_payment_charge_id,
+    )
+    try:
+        with sq.connect('database.db') as con:
+            con.execute(
+                'INSERT INTO transactions (user_id, amount, type, date, external_payment_id) '
+                'VALUES (?, ?, ?, ?, ?)',
+                (
+                    message.from_user.id,
+                    stars,
+                    'stars_topup',
+                    datetime.now().isoformat(),
+                    payment.telegram_payment_charge_id,
+                ),
+            )
+            con.commit()
+    except Exception as e:
+        logging.exception('admin_stars_topup tx log failed: %s', e)
+
+    await message.answer(
+        f'{CHECK_EMOJI_HTML} Зачислено <b>{stars} ⭐</b> на баланс бота.',
+        parse_mode='HTML',
+        reply_markup=ikb_admin_back,
+    )
 
 
 @dp.callback_query((F.data == 'admin_funnel_stats') & F.from_user.id.in_(ADMIN_IDS))

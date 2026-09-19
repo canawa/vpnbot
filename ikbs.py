@@ -117,6 +117,11 @@ ikb_admin = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text='👤 Пользователи', callback_data='admin_users')],
     [InlineKeyboardButton(text='🔄 Оплаты', callback_data='admin_payments')],
     [InlineKeyboardButton(text='🔑 Подписки', callback_data='admin_keys')],
+    [InlineKeyboardButton(
+        text='⭐ Пополнить Stars',
+        callback_data='admin_stars_topup',
+        icon_custom_emoji_id=get_emoji('stars'),
+    )],
     [InlineKeyboardButton(text='👉🏼 Рефералы', callback_data='admin_referrals')],
     [InlineKeyboardButton(text='🔗 Авторские ссылки', callback_data='admin_custom_ref')],
     [InlineKeyboardButton(text='👑 Роли', callback_data='admin_roles')],
