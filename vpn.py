@@ -238,8 +238,24 @@ class Vpn:
             return _error_body('USER_ID_MISSING', 'Panel user has no numeric id')
 
         panel_expire = _parse_iso_dt(user_data.get('expireAt'))
-        base_expire = max(dt for dt in (db_expire, panel_expire, now) if dt is not None)
+        status = str(user_data.get('status') or '').upper()
+        # Если подписка уже неактивна / срок в прошлом — продлеваем от сейчас,
+        # а не от старого expireAt (иначе июнь + 30 дней = июль при оплате в сентябре).
+        still_active = (
+            status in ('', 'ACTIVE')
+            and any(dt is not None and dt > now for dt in (panel_expire, db_expire))
+        )
+        if still_active:
+            future = [dt for dt in (panel_expire, db_expire) if dt is not None and dt > now]
+            base_expire = max(future)
+        else:
+            base_expire = now
         new_expire = base_expire + timedelta(days=int(days))
+        logging.info(
+            'renew tg_id=%s days=%s status=%s panel_expire=%s db_expire=%s '
+            'base=%s new=%s',
+            tg_id, days, status, panel_expire, db_expire, base_expire, new_expire,
+        )
 
         traffic = user_data.get('userTraffic') or {}
         used = int(traffic.get('usedTrafficBytes') or 0)
@@ -248,8 +264,6 @@ class Vpn:
             WEEK_TRAFFIC_LIMIT + leftover if int(days) == 7 else BASE_LIMIT + leftover
         )
 
-        # PATCH по numeric id (v3). expireAt считаем от max(db, panel, now),
-        # чтобы не потерять локальный срок относительно одного только extend.
         response = self._request(
             'PATCH',
             '/api/users',
